@@ -201,8 +201,13 @@ export class Saguao extends DurableObject {
 // Sala: uma mesa de jogo (estado + WebSockets)
 // =====================================================================
 const COMBATE_VAZIO = { ativo: false, ordem: [], turno: 0, rodada: 1 };
-const CAMPOS_PC = ['nome', 'sigla', 'cor', 'vigor', 'vigorMax', 'folego', 'folegoMax', 'tensao', 'limiar', 'defesa', 'desloc', 'ini', 'dados'];
-const CAMPOS_NPC = ['nome', 'sigla', 'cor', 'tipo', 'vigor', 'vigorMax', 'defesa', 'ini', 'desloc', 'tamanho', 'visivel', 'descricao', 'falas', 'notas', 'x', 'y'];
+const CAMPOS_PC = ['nome', 'sigla', 'cor', 'vigor', 'vigorMax', 'folego', 'folegoMax', 'tensao', 'limiar', 'defesa', 'desloc', 'ini', 'dados', 'robustez', 'determinacao', 'protecao', 'limiarFer', 'ficha', 'aparencia'];
+const CAMPOS_NPC = ['nome', 'sigla', 'cor', 'tipo', 'vigor', 'vigorMax', 'defesa', 'ini', 'desloc', 'tamanho', 'visivel', 'descricao', 'falas', 'notas', 'x', 'y', 'raca', 'aparencia'];
+const RACAS_OK = ['sarthani', 'zarathim', 'veloryn', 'draveth', 'sypheris', 'dvarith', 'criatura'];
+function objetoLimitado(v, max) {
+  if (!v || typeof v !== 'object' || Array.isArray(v)) return undefined;
+  try { const s = JSON.stringify(v); return s.length <= max ? JSON.parse(s) : undefined; } catch { return undefined; }
+}
 
 function limparPc(d) {
   const o = {};
@@ -210,7 +215,9 @@ function limparPc(d) {
   if ('nome' in o) o.nome = texto(o.nome, 40) || 'Sem nome';
   if ('sigla' in o) o.sigla = texto(o.sigla, 3);
   if ('cor' in o) o.cor = cor(o.cor);
-  for (const k of ['vigor', 'vigorMax', 'folego', 'folegoMax', 'tensao', 'limiar', 'defesa', 'desloc', 'ini']) if (k in o) o[k] = Math.max(-99, Math.min(999, Math.round(num(o[k]))));
+  for (const k of ['vigor', 'vigorMax', 'folego', 'folegoMax', 'tensao', 'limiar', 'defesa', 'desloc', 'ini', 'robustez', 'determinacao', 'protecao', 'limiarFer']) if (k in o) o[k] = Math.max(-99, Math.min(999, Math.round(num(o[k]))));
+  if ('ficha' in o) { o.ficha = objetoLimitado(o.ficha, 16000); if (!o.ficha) delete o.ficha; }
+  if ('aparencia' in o) { o.aparencia = objetoLimitado(o.aparencia, 3000); if (!o.aparencia) delete o.aparencia; }
   if ('dados' in o) {
     const dd = o.dados || {};
     o.dados = { kael: cor(dd.kael), lyra: cor(dd.lyra), material: ['cristal', 'osso', 'ferro', 'brasa'].includes(dd.material) ? dd.material : 'cristal' };
@@ -230,6 +237,8 @@ function limparNpc(d) {
   if ('descricao' in o) o.descricao = texto(o.descricao, 1000);
   if ('notas' in o) o.notas = texto(o.notas, 2000);
   if ('falas' in o) o.falas = (Array.isArray(o.falas) ? o.falas : []).slice(0, 20).map(f => texto(f, 300)).filter(Boolean);
+  if ('raca' in o) o.raca = RACAS_OK.includes(o.raca) ? o.raca : 'sarthani';
+  if ('aparencia' in o) { o.aparencia = objetoLimitado(o.aparencia, 3000); if (!o.aparencia) delete o.aparencia; }
   return o;
 }
 

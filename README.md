@@ -4,6 +4,15 @@ Mesa virtual para o RPG **Arkahad — Sangue e Cristal**: mapa em grade, tokens,
 
 Roda inteiro na Cloudflare: um **Worker** serve as páginas e a API, e cada sala é um **Durable Object** (estado salvo + WebSocket em tempo real). O plano gratuito da Cloudflare basta para um grupo de amigos.
 
+## Recursos
+
+- Mapa em 3D com terreno texturizado, árvores, rochas, muros, água e fogueiras.
+- Luz de Kael e Lyra com sombras reais (sombras duplas na Conjunção) e luas coloridas.
+- Miniaturas 3D por raça, com aparência personalizável.
+- Criador de personagem em 8 passos (raça, origem, estrato, vocação, Dom, atributos, perícias, aparência), equilibrado pelo livro de regras.
+- Dados 3D que rolam na mesa de todos.
+- Controles: botão direito gira, roda dá zoom, botão do meio arrasta; no celular, dois dedos.
+
 ## Como funciona
 
 1. Cada pessoa entra com **Google** (ou com um apelido, se o Google não estiver configurado).
@@ -43,6 +52,10 @@ Abra <http://localhost:8787>.
 | Quero mudar… | Arquivo |
 | --- | --- |
 | Terrenos, custos de movimento, regras dos dados | `public/regras.js` |
+| Raças, vocações, Dons e cálculo da ficha | `public/conteudo.js` |
+| Miniaturas e dados 3D | `public/miniatura.js` |
+| Cenário 3D, luzes e texturas | `public/cena3d.js` |
+| Criador de personagem | `public/criacao.js` |
 | Visual do mapa, luzes, cores dos dados | `public/app.js` (topo do arquivo) |
 | Cores e layout | `public/style.css` |
 | Login, salas, senhas, permissões do Mestre | `src/worker.js` |

@@ -69,10 +69,11 @@
     <div class="ordem" id="online"></div>
   </header>
   <main class="area" id="area">
-    <div class="palco" id="palco"><svg id="mapa" xmlns="http://www.w3.org/2000/svg"></svg></div>
+    <div class="palco" id="palco"></div>
     <div class="camada-dados" id="camadaDados"></div>
     <div class="aviso" id="aviso" hidden></div>
-    <div class="zoom"><button id="zMenos" aria-label="Diminuir zoom">−</button><button id="zMais" aria-label="Aumentar zoom">+</button></div>
+    <div class="zoom"><button id="girarE" aria-label="Girar câmera para a esquerda" title="Girar">⟲</button><button id="girarD" aria-label="Girar câmera para a direita" title="Girar">⟳</button><button id="centrar" aria-label="Centralizar no meu personagem" title="Centralizar">◎</button><button id="zMenos" aria-label="Afastar">−</button><button id="zMais" aria-label="Aproximar">+</button></div>
+    <div class="dica">Botão direito: girar · roda: zoom · meio: arrastar · dois dedos no celular</div>
     <div class="cartao" id="cartao" hidden></div>
   </main>
   <aside class="lado">
@@ -98,6 +99,7 @@
   </form>
 </div>
 
+<script type="importmap">{"imports":{"three":"/vendor/three.module.min.js","three/addons/":"/vendor/addons/"}}</script>
 <script type="module" src="/app.js"></script>
 </body>
 </html>
