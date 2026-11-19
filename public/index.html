@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mesa de Arkahad</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;700&family=Alegreya+Sans:wght@400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/style.css">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 32 32%22%3E%3Ccircle cx=%2212%22 cy=%2216%22 r=%229%22 fill=%22%23e2b04a%22/%3E%3Ccircle cx=%2222%22 cy=%2214%22 r=%226%22 fill=%22%235f92f0%22/%3E%3C/svg%3E">
+</head>
+<body class="rolavel">
+
+<!-- ===== Login ===== -->
+<section class="tela capa" id="telaLogin" hidden>
+  <div class="caixa">
+    <div class="sois"><i style="background:radial-gradient(#ffe7a3,#e2b04a)"></i><i style="background:radial-gradient(#d6e6ff,#5f92f0)"></i><i style="background:radial-gradient(#ff9a8f,#c0392f);width:12px;height:12px;margin-top:5px"></i></div>
+    <h1>Mesa de Arkahad</h1>
+    <p class="sub">Sangue e Cristal · até 6 jogadores e 1 Mestre</p>
+    <div id="googleBotao"></div>
+    <div class="ou" id="divisorOu" hidden>ou</div>
+    <form id="formApelido" hidden>
+      <label for="apelido">Entrar com um apelido</label>
+      <input id="apelido" autocomplete="nickname" maxlength="40" placeholder="Como te chamam na mesa?">
+      <button class="pri" style="width:100%;margin-top:10px">Entrar</button>
+    </form>
+    <div class="erro" id="erroLogin"></div>
+  </div>
+</section>
+
+<!-- ===== Saguão ===== -->
+<section class="tela" id="telaSaguao" hidden>
+  <div class="saguao">
+    <header>
+      <h1>Saguão</h1><span class="cresce"></span>
+      <span class="chip" id="euChip"></span>
+      <button id="sair">Sair</button>
+    </header>
+    <div class="duas">
+      <div>
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px"><h2 style="font-size:20px">Salas abertas</h2><span class="cresce"></span><button id="atualizar" class="mini">Atualizar</button></div>
+        <div class="grade-salas" id="salas"></div>
+      </div>
+      <form class="bloco" id="formSala">
+        <h3>Criar uma sala (você será o Mestre)</h3>
+        <label for="salaNome">Nome da mesa</label>
+        <input id="salaNome" maxlength="60" placeholder="Ex.: Caravana de Saryth">
+        <label for="salaSenha">Senha para os jogadores</label>
+        <input id="salaSenha" type="password" minlength="4" autocomplete="new-password">
+        <button class="pri" style="width:100%;margin-top:12px">Criar sala</button>
+        <div class="erro" id="erroSala"></div>
+      </form>
+    </div>
+  </div>
+</section>
+
+<!-- ===== Mesa ===== -->
+<section class="tela" id="telaMesa" hidden>
+<div class="app">
+  <header class="topo">
+    <button id="voltar" class="mini">← Saguão</button>
+    <h1 id="nomeMesa">Mesa</h1>
+    <span class="chip" id="chipCodigo"></span>
+    <span class="chip" id="chipCeu">Céu: —</span>
+    <span class="chip" id="chipModo" hidden></span>
+    <div class="ordem" id="ordem"></div>
+    <span class="cresce"></span>
+    <div class="ordem" id="online"></div>
+  </header>
+  <main class="area" id="area">
+    <div class="palco" id="palco"><svg id="mapa" xmlns="http://www.w3.org/2000/svg"></svg></div>
+    <div class="camada-dados" id="camadaDados"></div>
+    <div class="aviso" id="aviso" hidden></div>
+    <div class="zoom"><button id="zMenos" aria-label="Diminuir zoom">−</button><button id="zMais" aria-label="Aumentar zoom">+</button></div>
+    <div class="cartao" id="cartao" hidden></div>
+  </main>
+  <aside class="lado">
+    <nav class="abas" id="abas">
+      <button data-aba="ficha" class="ativo">Ficha</button>
+      <button data-aba="dados">Dados</button>
+      <button data-aba="registro">Registro</button>
+      <button data-aba="mestre" id="abaMestre" hidden>Mestre</button>
+    </nav>
+    <div class="conteudo" id="conteudo"></div>
+  </aside>
+</div>
+</section>
+
+<!-- ===== Senha da sala ===== -->
+<div class="modal" id="modalSenha" hidden>
+  <form class="caixa" id="formSenha">
+    <h2 style="font-size:22px;color:var(--ouro)" id="senhaTitulo">Senha da sala</h2>
+    <p class="sub">Peça a senha ao Mestre.</p>
+    <input id="senhaSala" type="password" autocomplete="off">
+    <div class="erro" id="erroSenha"></div>
+    <div style="display:flex;gap:10px"><button type="button" id="cancelaSenha">Voltar</button><button class="pri cresce">Entrar na mesa</button></div>
+  </form>
+</div>
+
+<script type="module" src="/app.js"></script>
+</body>
+</html>

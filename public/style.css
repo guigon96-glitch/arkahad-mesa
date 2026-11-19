@@ -1,0 +1,103 @@
+[hidden]{display:none!important}
+/* VOICE: mesa de jogo noturna, sóbria, para jogar e não para admirar
+   IDEA: um tabuleiro de pedra e areia sob dois sóis — dourado (Kael) e azul (Lyra)
+   PICTURE: o próprio mapa em grade, ocupando a tela, com tokens e dados que caem nele
+   COLOUR and TYPE: fundo de madeira escura, ouro de Kael, azul de Lyra, vermelho de Aranor; Cinzel + Alegreya Sans
+   LAYOUT: mapa à esquerda, painel de abas à direita; no celular o painel desce */
+:root{color-scheme:dark;--bg:#14100c;--painel:#1e1812;--painel2:#271f17;--borda:#3c3025;--ink:#efe5d3;--mudo:#b3a58f;--ouro:#e2b04a;--azul:#5f92f0;--sangue:#c0392f;--verde:#5d9a4a}
+*{box-sizing:border-box;min-width:0}
+html,body{height:100%}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.45 "Alegreya Sans",system-ui,sans-serif;overflow:hidden}
+h1,h2,h3{font-family:Cinzel,serif;font-weight:700;margin:0;line-height:1.1}
+button,input,select,textarea{font:inherit;color:inherit}
+button{background:var(--painel2);border:1px solid var(--borda);border-radius:8px;padding:8px 12px;min-height:40px;cursor:pointer}
+button:hover{border-color:var(--ouro)}button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible{outline:2px solid var(--ouro);outline-offset:1px}
+button.pri{background:var(--ouro);color:#1a1208;border-color:var(--ouro);font-weight:700}
+button.ativo{border-color:var(--ouro);box-shadow:inset 0 0 0 1px var(--ouro);color:var(--ouro)}
+button:disabled{opacity:.45;cursor:not-allowed}
+input,select,textarea{background:#120e0a;border:1px solid var(--borda);border-radius:8px;padding:8px 10px;width:100%;font-size:16px}
+textarea{min-height:70px;resize:vertical}
+label{display:block;font-size:13px;color:var(--mudo);margin:8px 0 3px}
+.app{display:grid;grid-template-columns:minmax(0,1fr) 370px;grid-template-rows:auto minmax(0,1fr);height:100dvh}
+.topo{grid-column:1/-1;display:flex;flex-wrap:wrap;align-items:center;gap:10px 16px;padding:10px 16px;background:linear-gradient(#211a13,#191410);border-bottom:1px solid var(--borda)}
+.topo h1{font-size:20px;color:var(--ouro)}
+.chip{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border:1px solid var(--borda);border-radius:999px;font-size:14px;background:#17120d;white-space:nowrap}
+.ponto{width:10px;height:10px;border-radius:50%;flex:none}
+.cresce{flex:1}
+.ordem{display:flex;gap:6px;overflow-x:auto;max-width:100%}
+.ordem .chip.vez{border-color:var(--ouro);color:var(--ouro);box-shadow:0 0 12px #e2b04a55}
+.area{position:relative;min-height:0}
+.palco{position:absolute;inset:0;overflow:auto;background:radial-gradient(circle at 30% 20%,#2a2017,#120d09 70%)}
+.palco svg{display:block;margin:24px;touch-action:none;filter:drop-shadow(0 10px 30px #000a)}
+.camada-dados{position:absolute;inset:0;pointer-events:none;overflow:hidden}
+.zoom{position:absolute;right:12px;bottom:12px;display:flex;gap:6px;z-index:3}
+.zoom button{width:44px;padding:0;font-size:20px}
+.aviso{position:absolute;left:50%;top:14px;transform:translateX(-50%);background:#000c;border:1px solid var(--borda);border-radius:10px;padding:8px 14px;z-index:4;font-size:15px;max-width:90%;text-align:center}
+.lado{border-left:1px solid var(--borda);background:var(--painel);display:flex;flex-direction:column;min-height:0}
+.abas{display:flex;border-bottom:1px solid var(--borda)}
+.abas button{flex:1;border:0;border-radius:0;background:none;border-bottom:2px solid transparent;min-height:46px}
+.abas button.ativo{border-bottom-color:var(--ouro);box-shadow:none}
+.conteudo{overflow-y:auto;padding:14px 16px 40px;flex:1}
+.linha{display:grid;grid-template-columns:repeat(auto-fit,minmax(90px,1fr));gap:8px}
+.bloco{border:1px solid var(--borda);border-radius:12px;padding:12px;margin-bottom:14px;background:#1a150f}
+.bloco h3{font-size:15px;color:var(--ouro);margin-bottom:6px}
+.medidor{display:grid;grid-template-columns:72px minmax(0,1fr) auto;align-items:center;gap:8px;margin:6px 0}
+.barra{height:12px;border-radius:6px;background:#0e0b08;overflow:hidden;border:1px solid var(--borda)}
+.barra i{display:block;height:100%}
+.mini{min-height:32px;padding:2px 9px}
+.paleta{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px}
+.paleta button{padding:4px;font-size:12px;display:flex;flex-direction:column;align-items:center;gap:3px;min-height:56px}
+.paleta svg{width:30px;height:30px;border-radius:4px}
+.registro li{list-style:none;border-bottom:1px solid #2c241b;padding:8px 0}
+.registro{padding:0;margin:0}
+.tag{display:inline-block;font-size:12px;border-radius:6px;padding:1px 6px;margin:2px 4px 0 0;background:#2b2118;color:var(--ouro)}
+.tag.ruim{color:#ff8b7e}.tag.lyra{color:#9cc0ff}
+.cartao{position:absolute;z-index:5;right:16px;top:16px;width:min(340px,calc(100% - 32px));max-height:calc(100% - 32px);overflow:auto;background:#1b1510f2;border:1px solid var(--borda);border-radius:14px;padding:14px;box-shadow:0 20px 50px #000c}
+.cartao .fecha{position:absolute;right:8px;top:8px;width:36px;min-height:36px;padding:0}
+.fala{font-style:italic;border-left:3px solid var(--ouro);padding:6px 10px;margin:8px 0;background:#241c14}
+.pips{display:flex;gap:6px}.pips button{width:34px;min-height:34px;padding:0;border-radius:50%}
+.pips button.usada{background:#0e0b08;color:#5a4b3a}
+/* dados */
+.dado{position:absolute;width:62px;height:62px;display:grid;place-items:center;font:700 24px Cinzel,serif;color:#fff;text-shadow:0 1px 2px #000;animation:cai 1.1s cubic-bezier(.2,.7,.3,1) both;filter:drop-shadow(0 6px 6px #000b)}
+.dado .forma{position:absolute;inset:0;background:var(--c);clip-path:var(--clip)}
+.dado.cristal .forma{background:linear-gradient(135deg,#fff8 0%,var(--c) 40%,#0007 100%)}
+.dado.osso .forma{background:linear-gradient(135deg,#fff 0%,#e8dcc0 50%,#a99878 100%)}
+.dado.osso{color:var(--c);text-shadow:none}
+.dado.ferro .forma{background:linear-gradient(135deg,#d9dde2 0%,#6d747c 45%,var(--c) 100%)}
+.dado.brasa .forma{background:radial-gradient(circle at 40% 35%,#ffe3a0,var(--c) 55%,#300 100%)}
+.dado.brasa{filter:drop-shadow(0 0 10px var(--c))}
+.dado span{position:relative}
+.dado.fora{opacity:.35;transition:opacity .4s 1.1s}
+.placa{position:absolute;transform:translate(-50%,0);background:#0d0a07ee;border:1px solid var(--ouro);border-radius:10px;padding:6px 12px;text-align:center;white-space:nowrap;animation:surge .4s 1s both;font-size:14px}
+.placa b{font:700 22px Cinzel,serif;color:var(--ouro);display:block}
+@keyframes cai{0%{opacity:0;transform:translate(var(--dx),-340px) rotate(-560deg) scale(1.5)}60%{opacity:1;transform:translate(0,0) rotate(20deg) scale(1)}78%{transform:translate(0,-16px) rotate(var(--r))}100%{transform:translate(0,0) rotate(var(--r))}}
+@keyframes surge{from{opacity:0;transform:translate(-50%,8px)}to{opacity:1;transform:translate(-50%,0)}}
+.some{transition:opacity .6s;opacity:0}
+.tok{transition:transform .45s cubic-bezier(.3,.8,.3,1);cursor:pointer}
+.tok .sel{animation:gira 6s linear infinite;transform-origin:center;transform-box:fill-box}
+@keyframes gira{to{transform:rotate(360deg)}}
+.ping{animation:ping 1.4s ease-out forwards;transform-origin:center;transform-box:fill-box}
+@keyframes ping{from{transform:scale(.2);opacity:1}to{transform:scale(2.4);opacity:0}}
+@media (prefers-reduced-motion:reduce){.dado,.placa,.tok,.ping,.tok .sel{animation:none!important;transition:none!important}}
+@media (max-width:900px){body{overflow:auto}.app{grid-template-columns:1fr;grid-template-rows:auto 62vh auto;height:auto}.lado{border-left:0;border-top:1px solid var(--borda)}.conteudo{overflow:visible}}
+/* ===== telas de entrada e saguão ===== */
+.tela{min-height:100dvh}
+body.rolavel{overflow:auto}
+.capa{min-height:100dvh;display:grid;place-items:center;padding:24px;background:radial-gradient(circle at 70% 10%,#3a2a12 0,transparent 45%),radial-gradient(circle at 15% 90%,#132a4d 0,transparent 45%),var(--bg)}
+.caixa{width:min(440px,100%);background:var(--painel);border:1px solid var(--borda);border-radius:18px;padding:28px;box-shadow:0 30px 80px #000a}
+.caixa h1{font-size:34px;color:var(--ouro);margin-bottom:4px}
+.sub{color:var(--mudo);margin:0 0 18px}
+.sois{display:flex;gap:10px;margin-bottom:16px}.sois i{width:22px;height:22px;border-radius:50%;display:block}
+.ou{display:flex;align-items:center;gap:10px;color:var(--mudo);margin:16px 0;font-size:14px}.ou::before,.ou::after{content:"";flex:1;height:1px;background:var(--borda)}
+.erro{color:#ff8b7e;min-height:22px;font-size:15px;margin-top:8px}
+.saguao{max-width:1100px;margin:0 auto;padding:24px max(4vw,16px) 60px}
+.saguao header{display:flex;flex-wrap:wrap;gap:12px;align-items:center;margin-bottom:22px}
+.saguao h1{font-size:30px;color:var(--ouro)}
+.grade-salas{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:14px}
+.sala{border:1px solid var(--borda);border-radius:14px;padding:16px;background:var(--painel);display:flex;flex-direction:column;gap:6px}
+.sala h3{font-size:18px}
+.sala .meta{color:var(--mudo);font-size:14px}
+.duas{display:grid;grid-template-columns:minmax(0,1.6fr) minmax(0,1fr);gap:22px;align-items:start}
+@media(max-width:800px){.duas{grid-template-columns:1fr}}
+.modal{position:fixed;inset:0;background:#000b;display:grid;place-items:center;z-index:20;padding:16px}
+.avatar{width:32px;height:32px;border-radius:50%;object-fit:cover;background:var(--painel2)}
