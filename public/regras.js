@@ -14,6 +14,13 @@ export const TERRENOS = {
   'T': { n: 'Árvore', custo: Infinity },
   '^': { n: 'Rocha', custo: Infinity },
   '*': { n: 'Fogueira', custo: Infinity },
+  'b': { n: 'Barril', custo: Infinity },
+  'c': { n: 'Caixotes', custo: Infinity },
+  's': { n: 'Sacos', custo: Infinity },
+  'n': { n: 'Tenda', custo: Infinity },
+  'a': { n: 'Armas', custo: Infinity },
+  'o': { n: 'Alvo', custo: Infinity },
+  'w': { n: 'Carrinho', custo: Infinity },
 };
 
 export const LUZES = {

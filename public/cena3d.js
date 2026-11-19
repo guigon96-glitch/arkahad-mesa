@@ -2,16 +2,19 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { TERRENOS } from './regras.js';
+import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { criarMiniatura, criarDado, rotulo } from './miniatura.js';
+import { carregarModelos, criarPersonagem, pecaCenario, temCenario, modelosProntos } from './modelos.js';
 
 // ---------- configuração fácil de editar ----------
-const ALTURA = { '.': .12, '_': .16, ',': .1, '"': .14, '~': .04, '=': .17, '+': .16, 'v': .12, '#': 1.35, 'T': .14, '^': .12, '*': .12 };
-const TEXTURA_DE = { '.': 'terra', '_': 'ladrilho', ',': 'areia', '"': 'mato', '~': 'leito', '=': 'madeira', '+': 'madeira', 'v': 'vidro', '#': 'muro', 'T': 'mato', '^': 'terra', '*': 'terra' };
+const ALTURA = { '.': .12, '_': .16, ',': .1, '"': .14, '~': .04, '=': .17, '+': .16, 'v': .12, '#': 1.35, 'T': .14, '^': .12, '*': .12, b: .12, c: .12, s: .12, n: .14, a: .16, o: .14, w: .12 };
+const OBJETOS = { b: ['barril'], c: ['caixote', 'caixotes'], s: ['saco'], n: ['tenda'], a: ['suporte_armas'], o: ['alvo'], w: ['carrinho', 'balde'] };
+const TEXTURA_DE = { '.': 'terra', '_': 'ladrilho', ',': 'areia', '"': 'mato', '~': 'leito', '=': 'madeira', '+': 'madeira', 'v': 'vidro', '#': 'muro', 'T': 'mato', '^': 'terra', '*': 'terra', b: 'terra', c: 'terra', s: 'terra', n: 'mato', a: 'ladrilho', o: 'mato', w: 'terra' };
 const CEUS = {
-  dia: { fundo: '#b08a58', nevoa: '#c9a46c', hemi: ['#fff1d6', '#4a3a28', .55], kael: [1.9, [-.6, 1, .45]], lyra: [0], amb: .12 },
-  noite: { fundo: '#05060c', nevoa: '#05060c', hemi: ['#2a3350', '#0a0a10', .18], kael: [0], lyra: [0], amb: .05, luaForte: true },
-  azul: { fundo: '#0a1c46', nevoa: '#0f2a5c', hemi: ['#5f8cff', '#0a1430', .75], kael: [0], lyra: [2.3, [.7, 1, -.35]], amb: .1 },
-  conjuncao: { fundo: '#2b1f3d', nevoa: '#3a2a4a', hemi: ['#c0a0ff', '#20141a', .35], kael: [1.7, [-1, .42, .25]], lyra: [1.5, [1, .45, -.2]], amb: .1 },
+  dia: { env: .45, fundo: '#b08a58', nevoa: '#c9a46c', hemi: ['#fff1d6', '#4a3a28', .55], kael: [1.9, [-.6, 1, .45]], lyra: [0], amb: .12 },
+  noite: { env: .02, fundo: '#05060c', nevoa: '#05060c', hemi: ['#2a3350', '#0a0a10', .18], kael: [0], lyra: [0], amb: .05, luaForte: true },
+  azul: { env: .06, fundo: '#0a1c46', nevoa: '#0f2a5c', hemi: ['#5f8cff', '#0a1430', .75], kael: [0], lyra: [2.3, [.7, 1, -.35]], amb: .1 },
+  conjuncao: { env: .1, fundo: '#2b1f3d', nevoa: '#3a2a4a', hemi: ['#c0a0ff', '#20141a', .35], kael: [1.7, [-1, .42, .25]], lyra: [1.5, [1, .45, -.2]], amb: .1 },
 };
 const LUAS = { aranor: '#ff3a2a', nimriel: '#2fe3c4', tirith: '#eaf6ff' };
 
@@ -44,6 +47,15 @@ function fazerTexturas() {
     muro: textura((g, t) => { g.fillStyle = '#2a2520'; g.fillRect(0, 0, t, t); const h = t / 6; for (let r = 0; r < 6; r++) { const off = r % 2 ? t / 6 : 0; for (let c = -1; c < 3; c++) { const v = 62 + Math.random() * 26; g.fillStyle = `rgb(${v},${v - 6},${v - 12})`; g.fillRect(off + c * t / 3 + 2, r * h + 2, t / 3 - 4, h - 4); } } salpicar(g, t, 200, ['#00000033', '#ffffff10'], .5, 1.4); }),
     leito: textura((g, t) => { g.fillStyle = '#163240'; g.fillRect(0, 0, t, t); salpicar(g, t, 80, ['#1f4556', '#0f2530'], 2, 6); }),
     agua: textura((g, t) => { g.fillStyle = '#2f7fa8'; g.fillRect(0, 0, t, t); g.strokeStyle = '#8fd3f0'; g.lineWidth = 2.5; for (let k = 0; k < 4; k++) { g.beginPath(); const y = 12 + k * 32; g.moveTo(0, y); for (let x = 0; x <= t; x += 4) g.lineTo(x, y + Math.sin((x / t) * Math.PI * 4 + k) * 4); g.stroke(); } }),
+    aguaNormal: (() => {
+      const t = 256, c = document.createElement('canvas'); c.width = c.height = t; const g = c.getContext('2d'), img = g.createImageData(t, t);
+      const h = (x, y) => Math.sin((x + y * .3) / t * Math.PI * 6) * .5 + Math.sin((x * .7 - y) / t * Math.PI * 10) * .3 + Math.sin((x * 1.3 + y * 1.1) / t * Math.PI * 16) * .2;
+      for (let y = 0; y < t; y++) for (let x = 0; x < t; x++) {
+        const dx = h(x + 1, y) - h(x - 1, y), dy = h(x, y + 1) - h(x, y - 1), n = new THREE.Vector3(-dx * 2.2, -dy * 2.2, 1).normalize(), i = (y * t + x) * 4;
+        img.data[i] = (n.x * .5 + .5) * 255; img.data[i + 1] = (n.y * .5 + .5) * 255; img.data[i + 2] = (n.z * .5 + .5) * 255; img.data[i + 3] = 255;
+      }
+      g.putImageData(img, 0, 0); const tx = new THREE.CanvasTexture(c); tx.wrapS = tx.wrapT = THREE.RepeatWrapping; return tx;
+    })(),
     mesa: textura((g, t) => { g.fillStyle = '#24170e'; g.fillRect(0, 0, t, t); for (let i = 0; i < 40; i++) { g.strokeStyle = i % 3 ? '#2e1e12' : '#1a1009'; g.lineWidth = 1 + Math.random() * 2; g.beginPath(); const y = Math.random() * t; g.moveTo(0, y); for (let x = 0; x <= t; x += 8) g.lineTo(x, y + Math.sin(x / 20 + i) * 2); g.stroke(); } }, 256),
   };
 }
@@ -58,6 +70,8 @@ export function criarCena(el, cb = {}) {
   renderer.domElement.style.touchAction = 'none';
 
   const cena = new THREE.Scene();
+  const pmrem = new THREE.PMREMGenerator(renderer);
+  cena.environment = pmrem.fromScene(new RoomEnvironment(), .04).texture;
   const camera = new THREE.PerspectiveCamera(40, 1, .1, 300);
   const controles = new OrbitControls(camera, renderer.domElement);
   controles.enableDamping = true; controles.dampingFactor = .12;
@@ -115,14 +129,31 @@ export function criarCena(el, cb = {}) {
     }
     // água
     if (porTipo['~']) {
-      const mat = new THREE.MeshStandardMaterial({ map: tex.agua, transparent: true, opacity: .78, roughness: .08, metalness: .2, emissive: '#0a3050', emissiveIntensity: .4 });
+      const nm = tex.aguaNormal;
+      const mat = new THREE.MeshPhysicalMaterial({ color: '#1d6f8f', transparent: true, opacity: .86, roughness: .06, metalness: .05, normalMap: nm, normalScale: new THREE.Vector2(.55, .55), clearcoat: 1, clearcoatRoughness: .08, emissive: '#06283a', emissiveIntensity: .5 });
       const inst = new THREE.InstancedMesh(new THREE.PlaneGeometry(1, 1), mat, porTipo['~'].length);
       porTipo['~'].forEach(([x, y], i) => { m4.compose(new THREE.Vector3(x + .5, .1, y + .5), new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), -Math.PI / 2), new THREE.Vector3(1, 1, 1)); inst.setMatrixAt(i, m4); });
       inst.receiveShadow = true; grupoTerreno.add(inst); agua = mat;
+      if (temCenario()) porTipo['~'].forEach(([x, y]) => {
+        const r0 = acaso(x, y, 60); if (r0 > .35) return;
+        const p = pecaCenario(r0 < .12 ? 'planta_a' : r0 < .2 ? 'planta_b' : acaso(x, y, 61) < .5 ? 'lirio_a' : 'lirio_b', .7);
+        if (p) { p.position.set(x + .3 + acaso(x, y, 62) * .4, .08, y + .3 + acaso(x, y, 63) * .4); p.rotation.y = acaso(x, y, 64) * 6.3; grupoTerreno.add(p); }
+      });
+    }
+    // objetos (barris, caixotes, tenda…)
+    if (temCenario()) for (const [ch, nomes] of Object.entries(OBJETOS)) for (const [x, y] of porTipo[ch] || []) {
+      const p = pecaCenario(nomes[Math.floor(acaso(x, y, 70) * nomes.length)], 1);
+      if (p) { p.position.set(x + .5, ALTURA[ch], y + .5); p.rotation.y = Math.floor(acaso(x, y, 71) * 4) * Math.PI / 2 + (acaso(x, y, 72) - .5) * .4; grupoTerreno.add(p); }
     }
     // árvores
     const arv = porTipo['T'] || [];
-    if (arv.length) {
+    if (arv.length && temCenario()) {
+      for (const [x, y] of arv) {
+        const nomes = ['arvore_a', 'arvore_b', 'arvore_a', 'arvore_b', 'arvores_a'];
+        const p = pecaCenario(nomes[Math.floor(acaso(x, y, 80) * nomes.length)], 1.3);
+        if (p) { const s = .85 + acaso(x, y, 81) * .35; p.scale.multiplyScalar(s); p.position.set(x + .5 + (acaso(x, y, 1) - .5) * .2, .14, y + .5 + (acaso(x, y, 2) - .5) * .2); p.rotation.y = acaso(x, y, 82) * 6.3; grupoTerreno.add(p); }
+      }
+    } else if (arv.length) {
       const tronco = new THREE.InstancedMesh(new THREE.CylinderGeometry(.06, .1, .55, 6), new THREE.MeshStandardMaterial({ color: '#5a3a1e', roughness: .95, flatShading: true }), arv.length);
       const copa = new THREE.InstancedMesh(new THREE.IcosahedronGeometry(.36, 0), new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: .85, flatShading: true }), arv.length * 3);
       const verdes = ['#2f6a2a', '#3d7f32', '#2a5a2a', '#4f8a3a', '#356b30'];
@@ -141,7 +172,13 @@ export function criarCena(el, cb = {}) {
     }
     // rochas
     const roc = porTipo['^'] || [];
-    if (roc.length) {
+    if (roc.length && temCenario()) {
+      for (const [x, y] of roc) for (let k = 0; k < 2; k++) {
+        const p = pecaCenario('rocha_' + 'abcde'[Math.floor(acaso(x, y, 90 + k) * 5)], k ? .55 : 1);
+        if (!p) continue; const s = k ? .55 + acaso(x, y, 92) * .3 : 1 + acaso(x, y, 93) * .5; p.scale.multiplyScalar(s);
+        p.position.set(x + .5 + (k ? (acaso(x, y, 94) - .5) * .6 : 0), .12, y + .5 + (k ? (acaso(x, y, 95) - .5) * .6 : 0)); p.rotation.y = acaso(x, y, 96) * 6.3; grupoTerreno.add(p);
+      }
+    } else if (roc.length) {
       const n = roc.length * 3;
       const pedra = new THREE.InstancedMesh(new THREE.DodecahedronGeometry(.28, 0), new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: .9, flatShading: true }), n);
       let i = 0;
@@ -195,7 +232,7 @@ export function criarCena(el, cb = {}) {
 
   function aplicarCeu(luz, lua) {
     const c = CEUS[luz] || CEUS.dia, alvo = new THREE.Vector3(mesa.cols / 2, 0, mesa.rows / 2), d = Math.max(mesa.cols, mesa.rows) * 1.2;
-    cena.background = new THREE.Color(c.fundo);
+    cena.background = new THREE.Color(c.fundo); cena.environmentIntensity = c.env;
     cena.fog = new THREE.Fog(c.nevoa, d * 1.6, d * 3.5);
     hemi.color.set(c.hemi[0]); hemi.groundColor.set(c.hemi[1]); hemi.intensity = c.hemi[2]; amb.intensity = c.amb;
     for (const [l, cfg] of [[kael, c.kael], [lyra, c.lyra]]) {
@@ -234,18 +271,26 @@ export function criarCena(el, cb = {}) {
       if (!tk || tk.chave !== chave) {
         if (tk) { grupoTokens.remove(tk.g); limpar(tk.g); }
         const g = new THREE.Group(); g.userData.k = t.k;
-        const mini = criarMiniatura(t.aparencia || {}, t.raca || 'sarthani', { cristal: t.cristal, tamanho: tam });
+        const usar3d = modelosProntos() && t.raca !== 'criatura';
+        const mini = usar3d ? criarPersonagem(t.aparencia || {}, t.raca || 'sarthani', { cristal: t.cristal, tamanho: tam }) : criarMiniatura(t.aparencia || {}, t.raca || 'sarthani', { cristal: t.cristal, tamanho: tam });
         if (t.oculto) mini.traverse(o => { if (o.material) { o.material = o.material.clone(); o.material.transparent = true; o.material.opacity = .4; } });
         g.add(mini);
         const nome = rotulo(t.nome || '?', t.corNome || '#ffe9b8', 'rgba(10,8,6,.75)', .27 * Math.sqrt(tam));
         nome.position.y = mini.userData.altura + .2; g.add(nome);
         g.traverse(o => { o.userData.k = t.k; });
-        tk = { g, chave, mini, alturaMini: mini.userData.altura, fr: null, barra: null, anim: null, x: t.x, y: t.y };
+        tk = { g, chave, mini, pers: mini.userData.personagem || null, alturaMini: mini.userData.altura, fr: null, barra: null, anim: null, x: t.x, y: t.y, vigor: t.vigor };
+        if (tk.pers && t.mostrarVida && t.vigorMax && t.vigor <= 0) tk.pers.tocar('caido');
         tokens.set(t.k, tk); grupoTokens.add(g);
         g.position.set(t.x + tam / 2, alturaEm(t.x, t.y), t.y + tam / 2);
       }
       // vida
       const fr = t.mostrarVida && t.vigorMax ? t.vigor / t.vigorMax : null;
+      if (tk.pers && t.vigor !== tk.vigor && tk.vigor !== undefined && t.vigorMax) {
+        if (t.vigor <= 0 && tk.vigor > 0) tk.pers.tocar('morte');
+        else if (t.vigor < tk.vigor) tk.pers.tocar('dano');
+        else if (t.vigor > 0 && tk.vigor <= 0) tk.pers.tocar('parado');
+      }
+      tk.vigor = t.vigor;
       if (fr !== tk.fr) {
         if (tk.barra) { tk.g.remove(tk.barra); tk.barra.material.map.dispose(); }
         tk.barra = fr === null ? null : barraVida(fr);
@@ -255,7 +300,9 @@ export function criarCena(el, cb = {}) {
       // movimento
       if (tk.x !== t.x || tk.y !== t.y) {
         const de = tk.g.position.clone(), para = new THREE.Vector3(t.x + tam / 2, alturaEm(t.x, t.y), t.y + tam / 2);
-        tk.anim = { de, para, t0: performance.now(), dur: Math.min(900, 220 + de.distanceTo(para) * 90) };
+        const dist = de.distanceTo(para), correr = dist > 3.5;
+        tk.anim = { de, para, t0: performance.now(), dur: tk.pers ? Math.min(4000, dist * (correr ? 260 : 520)) : Math.min(900, 220 + dist * 90) };
+        if (tk.pers && (tk.vigor === undefined || tk.vigor > 0 || !t.vigorMax)) tk.pers.tocar(correr ? 'correr' : 'andar');
         tk.mini.rotation.y = Math.atan2(para.x - de.x, para.z - de.z);
         tk.x = t.x; tk.y = t.y;
       }
@@ -379,7 +426,7 @@ export function criarCena(el, cb = {}) {
     const dt = Math.min(.05, relogio.getDelta()), agora = performance.now(), t = agora / 1000;
     medirDesempenho(agora);
     controles.update();
-    if (agua) agua.map.offset.set(t * .05, t * .02);
+    if (agua) { (agua.normalMap || agua.map).offset.set(t * .03, t * .018); }
     for (const [a, b, s] of chamas) {
       if (a.isPointLight) a.intensity = 1.9 + Math.sin(t * 9 + s) * .3 + Math.sin(t * 23 + s) * .2;
       else { const f = 1 + Math.sin(t * 12 + s) * .08 + Math.sin(t * 27 + s) * .05; a.scale.set(1, f, 1); b.scale.set(1, 2 - f, 1); a.rotation.y = t * 2; }
@@ -388,10 +435,11 @@ export function criarCena(el, cb = {}) {
       if (tk.anim) {
         const p = Math.min(1, (agora - tk.anim.t0) / tk.anim.dur), e = p < .5 ? 2 * p * p : 1 - (-2 * p + 2) ** 2 / 2;
         tk.g.position.lerpVectors(tk.anim.de, tk.anim.para, e);
-        tk.g.position.y += Math.sin(p * Math.PI) * .35;
-        if (p >= 1) tk.anim = null;
+        if (!tk.pers) tk.g.position.y += Math.sin(p * Math.PI) * .35;
+        if (p >= 1) { tk.anim = null; if (tk.pers && (tk.vigor === undefined || tk.vigor > 0)) tk.pers.tocar('parado'); }
       }
       const cr = tk.mini.getObjectByName('cristal'); if (cr) cr.rotation.y = t * 2;
+      if (tk.pers) tk.pers.mixer.update(dt);
     }
     if (selecaoAnel?.parent) { selecaoAnel.rotation.z = t; selecaoAnel.scale.setScalar(1 + Math.sin(t * 4) * .04); }
     for (let i = pings.length - 1; i >= 0; i--) { const p = pings[i], a = (agora - p.t0) / 1400; p.m.scale.setScalar(1 + a * 3); p.m.material.opacity = 1 - a; if (a >= 1) { grupoEfeitos.remove(p.m); p.m.geometry.dispose(); pings.splice(i, 1); } }
@@ -400,8 +448,18 @@ export function criarCena(el, cb = {}) {
   }
   laco();
 
-  return {
-    atualizar({ mesa: m, tokens: lista, selecionado, alcance }) {
+  let ultimo = null;
+  carregarModelos().then(() => {
+    chaveTerreno = '';
+    for (const tk of tokens.values()) tk.chave = '';
+    if (ultimo) api.atualizar(ultimo);
+  }).catch(e => console.warn('Modelos 3D indisponíveis, usando miniaturas simples.', e));
+
+  const api = {
+    acao(k, nome) { tokens.get(k)?.pers?.tocar(nome); },
+    atualizar(estado) {
+      ultimo = estado;
+      const { mesa: m, tokens: lista, selecionado, alcance } = estado;
       if (!m) return;
       const novaChave = m.cols + 'x' + m.rows + ':' + m.grid.join('');
       const tamanhoMudou = !mesa || mesa.cols !== m.cols || mesa.rows !== m.rows;
@@ -421,4 +479,5 @@ export function criarCena(el, cb = {}) {
     pausar(v) { pausado = !!v; if (!v) relogio.getDelta(); },
     destruir() { ativo = false; ro.disconnect(); controles.dispose(); renderer.dispose(); dom.remove(); },
   };
+  return api;
 }

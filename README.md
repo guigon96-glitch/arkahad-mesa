@@ -67,3 +67,7 @@ Abra <http://localhost:8787>.
 - Os dados são rolados no **servidor**: ninguém consegue "escolher" o resultado.
 - NPCs ocultos e notas do Mestre **não são enviados** aos jogadores.
 - O segredo das sessões é gerado automaticamente na primeira execução. Para definir o seu: `npx wrangler secret put SESSION_SECRET`.
+
+## Créditos
+
+Modelos 3D: **KayKit Adventurers Character Pack** e **KayKit Medieval Hexagon Pack**, de Kay Lousberg ([kaylousberg.com](https://www.kaylousberg.com)), licença CC0 1.0. Bibliotecas: three.js (MIT). Fontes: Cinzel e Alegreya Sans (OFL). Lista completa em `public/creditos.html` (também no site, em /creditos.html), e os textos das licenças em `public/modelos/`.

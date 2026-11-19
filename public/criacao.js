@@ -1,9 +1,11 @@
 // Assistente de criação de personagem com prévia 3D.
 import * as THREE from 'three';
+import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { criarMiniatura } from './miniatura.js';
+import { carregarModelos, criarPersonagem, modelosProntos, MODELOS, ARMAS_3D, ESCUDOS_3D, CHAPEUS_3D } from './modelos.js';
 import {
   ATRIBUTOS, PERICIAS, RACAS, ORIGENS, ESTRATOS, FACANHAS, VOCACOES, DONS, DONS_ELITE, TODOS_DONS, RESSONANCIAS,
-  ARMAS_VISUAIS, CABELOS, CUSTO_DOM, DANO_DOM, fichaVazia, aparenciaPadrao, pontosAtributo, atributosFinais,
+  ARMAS_VISUAIS, CABELOS, MODELO_POR_VOCACAO, CUSTO_DOM, DANO_DOM, fichaVazia, aparenciaPadrao, pontosAtributo, atributosFinais,
   pontosPericia, gradPericia, bonusPericia, ehAurethian, nivelDom, derivados, validar,
 } from './conteudo.js';
 
@@ -46,11 +48,14 @@ export function abrirCriador({ ficha, dadosCor, aoSalvar, aoFechar }) {
   let mini = null, vivo = true;
   const ro = new ResizeObserver(() => { const w = palco.clientWidth, h = palco.clientHeight; if (w && h) { rr.setSize(w, h); cam.aspect = w / h; cam.updateProjectionMatrix(); } });
   ro.observe(palco);
-  (function laco() { if (!vivo) return; requestAnimationFrame(laco); if (mini) mini.rotation.y += .01; rr.render(cena, cam); })();
+  const relogio = new THREE.Clock();
+  (function laco() { if (!vivo) return; requestAnimationFrame(laco); const dt = relogio.getDelta(); if (mini) { mini.rotation.y += .006; mini.userData.personagem?.mixer.update(dt); } rr.render(cena, cam); })();
+  const env = new THREE.PMREMGenerator(rr); cena.environment = env.fromScene(new RoomEnvironment(), .04).texture; cena.environmentIntensity = .5;
   function atualizarPrevia() {
     if (mini) { cena.remove(mini); mini.traverse(o => o.geometry?.dispose()); }
     const dom = ehAurethian(f) ? TODOS_DONS[f.dom]?.cor : null;
-    mini = criarMiniatura(f.aparencia, f.raca, { cristal: dom }); cena.add(mini);
+    mini = modelosProntos() ? criarPersonagem(f.aparencia, f.raca, { cristal: dom }) : criarMiniatura(f.aparencia, f.raca, { cristal: dom });
+    cena.add(mini);
   }
 
   // ---------- resumo ----------
@@ -107,15 +112,18 @@ export function abrirCriador({ ficha, dadosCor, aoSalvar, aoFechar }) {
   }
   function passoAparencia() {
     const a = f.aparencia, r = RACAS[f.raca];
-    const cor = (campo, rot) => `<div><label>${rot}</label><input type="color" data-ap="${campo}" value="${esc(a[campo])}"></div>`;
-    const sel = (campo, rot, ops) => `<div><label>${rot}</label><select data-ap="${campo}">${Object.entries(ops).map(([k, n]) => `<option value="${k}" ${String(a[campo]) === k ? 'selected' : ''}>${n}</option>`).join('')}</select></div>`;
+    const cor = (campo, rot) => `<div><label>${rot}</label><input type="color" data-ap="${campo}" value="${esc(a[campo] || '#888888')}"></div>`;
+    const sel = (campo, rot, ops, desab = false) => `<div><label>${rot}</label><select data-ap="${campo}" ${desab ? 'disabled' : ''}>${Object.entries(ops).map(([k, n]) => `<option value="${k}" ${String(a[campo]) === k ? 'selected' : ''}>${typeof n === 'string' ? n : n.nome}</option>`).join('')}</select></div>`;
     const chk = (campo, rot) => `<label class="cr-check"><input type="checkbox" data-apb="${campo}" ${a[campo] ? 'checked' : ''}> ${rot}</label>`;
-    return `<h3>Aparência <button class="mini" data-acao="aleatorio">Sortear</button></h3>
-      <label>Tom de pele</label><div class="cr-cores">${r.pele.map(c => `<button class="cr-cor ${a.pele === c ? 'sel' : ''}" data-acao="pele" data-v="${c}" style="background:${c}" aria-label="${c}"></button>`).join('')}<input type="color" data-ap="pele" value="${esc(a.pele)}"></div>
-      <div class="linha">${sel('cabelo', 'Cabelo', CABELOS)}${cor('corCabelo', 'Cor do cabelo')}${cor('brilho', f.raca === 'sypheris' ? 'Tatuagens' : f.raca === 'veloryn' ? 'Brilho dos olhos' : 'Detalhe / tatuagem')}</div>
-      <div class="linha">${cor('roupa', 'Roupa')}${cor('calca', 'Calça')}${sel('armadura', 'Armadura', { leve: 'Leve', media: 'Média', pesada: 'Pesada' })}${cor('corArmadura', 'Metal')}</div>
-      <div class="linha">${sel('arma', 'Arma', ARMAS_VISUAIS)}${cor('corCapa', 'Capa / escudo')}${cor('base', 'Base da miniatura')}</div>
-      <div class="cr-lista dois">${chk('capa', 'Capa')}${chk('escudo', 'Escudo')}${chk('capacete', 'Elmo')}${chk('barba', 'Barba')}</div>
+    const duas = ARMAS_3D[a.arma]?.duas || ARMAS_3D[a.arma]?.dupla;
+    return `<h3>Aparência <button class="mini" data-acao="aleatorio">Sortear cores</button></h3>
+      <label>Modelo</label><div class="cr-grade tres">${Object.entries(MODELOS).map(([k, m]) => cartao(a.modelo === k, 'modelo', k, m.nome, '')).join('')}</div>
+      <label>Tom de pele (${esc(r.nome)})</label><div class="cr-cores">${r.pele.map(c => `<button class="cr-cor ${a.pele === c ? 'sel' : ''}" data-acao="pele" data-v="${c}" style="background:${c}" aria-label="${c}"></button>`).join('')}<input type="color" data-ap="pele" value="${esc(a.pele)}"></div>
+      <div class="linha">${cor('corCabelo', 'Cabelo e barba')}${cor('roupa', 'Roupa')}${cor('corCapa', 'Capa / capuz')}${cor('corArmadura', 'Metal')}</div>
+      <div class="linha">${sel('arma', 'Arma', ARMAS_3D)}${sel('escudoTipo', duas ? 'Escudo (arma de duas mãos)' : 'Mão secundária', ESCUDOS_3D, duas)}${sel('chapeu', 'Cabeça', CHAPEUS_3D)}</div>
+      <div class="linha">${f.raca === 'sypheris' ? cor('brilho', 'Tatuagens luminosas') : ''}${cor('base', 'Base da miniatura')}</div>
+      <div class="cr-lista dois">${chk('capa', 'Capa')}${f.raca !== 'dvarith' ? chk('barba', 'Barba extra') : ''}</div>
+      <p class="cr-nota">Os traços da raça (chifres Draveth, crista Zarathim, barba Dvarith, olhos que brilham) são aplicados automaticamente.</p>
       <h3>Seus dados</h3><div class="linha"><div><label>Dado de Kael</label><input type="color" data-dc="kael" value="${esc(dc.kael)}"></div><div><label>Dado de Lyra</label><input type="color" data-dc="lyra" value="${esc(dc.lyra)}"></div><div><label>Material</label><select data-dc="material">${Object.entries(MATERIAIS).map(([k, n]) => `<option value="${k}" ${dc.material === k ? 'selected' : ''}>${n}</option>`).join('')}</select></div></div>`;
   }
   function passoIdentidade() {
@@ -167,7 +175,7 @@ export function abrirCriador({ ficha, dadosCor, aoSalvar, aoFechar }) {
         atualizarPrevia(); break;
       case 'vocacao': {
         f.vocacao = v; const voc = VOCACOES[v], arm = voc.armadura;
-        Object.assign(f.aparencia, { arma: voc.arma, escudo: !!voc.escudo, armadura: arm === 'cota' ? 'media' : 'leve' });
+        Object.assign(f.aparencia, { arma: voc.arma, escudo: !!voc.escudo, escudoTipo: voc.escudo ? 'redondo' : 'nenhum', armadura: arm === 'cota' ? 'media' : 'leve', modelo: MODELO_POR_VOCACAO[v] || f.aparencia.modelo });
         atualizarPrevia(); break;
       }
       case 'dom': f.dom = v; if (f.dom2 === v) f.dom2 = Object.keys(DONS).find(k => k !== v); atualizarPrevia(); break;
@@ -187,6 +195,7 @@ export function abrirCriador({ ficha, dadosCor, aoSalvar, aoFechar }) {
         f.pericias[v] = atual + d; if (!f.pericias[v]) delete f.pericias[v]; break;
       }
       case 'pele': f.aparencia.pele = v; atualizarPrevia(); break;
+      case 'modelo': f.aparencia.modelo = v; atualizarPrevia(); break;
       case 'aleatorio': {
         const r = RACAS[f.raca], s = arr => arr[Math.floor(Math.random() * arr.length)];
         const hsl = () => '#' + new THREE.Color().setHSL(Math.random(), .45 + Math.random() * .3, .25 + Math.random() * .3).getHexString();
@@ -200,7 +209,7 @@ export function abrirCriador({ ficha, dadosCor, aoSalvar, aoFechar }) {
   raiz.addEventListener('input', e => {
     const t = e.target;
     if (t.dataset.campo) { f[t.dataset.campo] = t.dataset.campo === 'nivel' ? Math.max(1, Math.min(10, Number(t.value) || 1)) : t.value; resumo(); if (t.dataset.campo === 'livre') desenhar(); return; }
-    if (t.dataset.ap) { f.aparencia[t.dataset.ap] = t.value; atualizarPrevia(); return; }
+    if (t.dataset.ap) { f.aparencia[t.dataset.ap] = t.value; atualizarPrevia(); if (t.dataset.ap === 'arma') desenhar(); return; }
     if (t.dataset.apb) { f.aparencia[t.dataset.apb] = t.checked; atualizarPrevia(); return; }
     if (t.dataset.dc) { dc[t.dataset.dc] = t.value; return; }
     if (t.dataset.facanha) {
@@ -212,4 +221,5 @@ export function abrirCriador({ ficha, dadosCor, aoSalvar, aoFechar }) {
 
   function fechar() { vivo = false; ro.disconnect(); rr.dispose(); raiz.remove(); aoFechar?.(); }
   atualizarPrevia(); desenhar();
+  if (!modelosProntos()) carregarModelos().then(() => { if (vivo) atualizarPrevia(); }).catch(() => {});
 }

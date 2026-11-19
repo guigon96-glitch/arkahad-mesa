@@ -127,14 +127,14 @@ export const ARMADURAS = {
 };
 
 export const VOCACOES = {
-  lamina: { nome: 'Lâmina', papel: 'Duelista, dano corpo a corpo', vigor: 4, pericias: ['combate_leve', 'combate_pesado', 'atletismo', 'acrobacia', 'intimidacao'], armadura: 'couro', arma: 'espada', kit: 'Sabre, adaga, couro', hab: 'Posturas de Duelo: Ofensiva (+2 ataque, −2 Defesa), Guarda (+2 Defesa) ou Contra (Reação: ataca quem errar você).' },
-  sentinela: { nome: 'Sentinela', papel: 'Defensor, controle de linha', vigor: 6, pericias: ['combate_pesado', 'briga', 'atletismo', 'tatica', 'atencao'], armadura: 'cota', escudo: 2, arma: 'martelo', kit: 'Martelo de guerra, escudo, cota de malha', hab: 'Muralha: Reação — vira o alvo de um ataque contra aliado adjacente.' },
-  batedor: { nome: 'Batedor', papel: 'Explorador, combate à distância', vigor: 2, pericias: ['pontaria', 'rastreamento', 'sobrevivencia', 'furtividade', 'natureza'], armadura: 'couro', arma: 'arco', kit: 'Arco curto, espada curta, couro, corda', hab: 'Marcar Presa: +1d6 de dano contra ela e Vantagem para rastreá-la.' },
+  lamina: { nome: 'Lâmina', papel: 'Duelista, dano corpo a corpo', vigor: 4, pericias: ['combate_leve', 'combate_pesado', 'atletismo', 'acrobacia', 'intimidacao'], armadura: 'couro', arma: 'machado', kit: 'Sabre, adaga, couro', hab: 'Posturas de Duelo: Ofensiva (+2 ataque, −2 Defesa), Guarda (+2 Defesa) ou Contra (Reação: ataca quem errar você).' },
+  sentinela: { nome: 'Sentinela', papel: 'Defensor, controle de linha', vigor: 6, pericias: ['combate_pesado', 'briga', 'atletismo', 'tatica', 'atencao'], armadura: 'cota', escudo: 2, arma: 'espada', kit: 'Martelo de guerra, escudo, cota de malha', hab: 'Muralha: Reação — vira o alvo de um ataque contra aliado adjacente.' },
+  batedor: { nome: 'Batedor', papel: 'Explorador, combate à distância', vigor: 2, pericias: ['pontaria', 'rastreamento', 'sobrevivencia', 'furtividade', 'natureza'], armadura: 'couro', arma: 'besta', kit: 'Arco curto, espada curta, couro, corda', hab: 'Marcar Presa: +1d6 de dano contra ela e Vantagem para rastreá-la.' },
   sombra: { nome: 'Sombra', papel: 'Espião, assassino, ladrão', vigor: 2, pericias: ['combate_leve', 'furtividade', 'ladinagem', 'enganacao', 'acrobacia'], armadura: 'couro', arma: 'adagas', kit: '2 adagas, espada curta, couro, ferramentas de ladrão', hab: 'Golpe Furtivo: +2d6 de dano contra alvo Flanqueado ou Desprevenido.' },
   alquimista: { nome: 'Alquimista', papel: 'Preparos, venenos, bombas', vigor: 0, pericias: ['alquimia', 'natureza', 'medicina', 'oficio', 'pontaria'], armadura: 'acolchoada', arma: 'besta', kit: 'Besta leve, adaga, acolchoada, kit alquímico', hab: 'Bolsa de Preparos: INT + 2 doses de receitas comuns por descanso longo.' },
   erudito: { nome: 'Erudito', papel: 'Conhecimento, runas, contra-Dom', vigor: 0, pericias: ['conhecimento', 'runas', 'tatica', 'intuicao', 'intriga'], armadura: 'acolchoada', arma: 'cajado', kit: 'Bordão, acolchoada, livros, lente', hab: 'Códice Vivo: identifica um Dom visto (DIF 15); aliados ganham +2 contra aquele alvo.' },
   orador: { nome: 'Orador', papel: 'Líder, diplomata, manipulador', vigor: 2, pericias: ['persuasao', 'enganacao', 'etiqueta', 'intriga', 'comercio'], armadura: 'nenhuma', arma: 'espada', kit: 'Sabre, roupas finas, anel de sinete, +5 K', hab: 'Palavra de Comando: um aliado se move 3 quadrados ou ganha +2 no próximo teste.' },
-  curandeiro: { nome: 'Curandeiro', papel: 'Suporte físico, recuperação', vigor: 2, pericias: ['medicina', 'natureza', 'alquimia', 'intuicao', 'persuasao'], armadura: 'couro', arma: 'maca', kit: 'Maça, couro, 2 kits médicos, ervas de Nimriel', hab: 'Mãos Firmes: estabiliza ou cura 1d6 + INT de Vigor.' },
+  curandeiro: { nome: 'Curandeiro', papel: 'Suporte físico, recuperação', vigor: 2, pericias: ['medicina', 'natureza', 'alquimia', 'intuicao', 'persuasao'], armadura: 'couro', arma: 'varinha', kit: 'Maça, couro, 2 kits médicos, ervas de Nimriel', hab: 'Mãos Firmes: estabiliza ou cura 1d6 + INT de Vigor.' },
   canalizador: { nome: 'Canalizador', papel: 'Especialista no próprio Dom', vigor: 2, pericias: ['canalizacao', 'atletismo', 'conhecimento', 'atencao', 'intimidacao'], armadura: 'couro', arma: 'cajado', kit: 'Arma simples, couro, item de foco', hab: 'Fluxo Disciplinado: +3 Fôlego; a primeira técnica de cada turno custa 1 Fôlego a menos.', soAurethian: true, extra: { folego: 3 } },
 };
 
@@ -191,7 +191,8 @@ export const RESSONANCIAS = {
   opaco: { nome: 'Opaco', desc: 'Raro, sem resposta. +2 Fôlego; a Zona 3 vem sem aviso.', extra: { folego: 2 } },
 };
 
-export const ARMAS_VISUAIS = { espada: 'Espada', machado: 'Machado', martelo: 'Martelo', lanca: 'Lança', arco: 'Arco', besta: 'Besta', adagas: 'Adagas', leques: 'Leques de guerra', cajado: 'Cajado', maca: 'Maça', nenhuma: 'Nenhuma' };
+export const ARMAS_VISUAIS = { espada: 'Espada', espada_grande: 'Espada de duas mãos', machado: 'Machado', machado_grande: 'Machado de guerra', adagas: 'Adagas', besta: 'Besta de mão', besta_pesada: 'Besta pesada', cajado: 'Cajado', varinha: 'Varinha', nenhuma: 'Nenhuma' };
+export const MODELO_POR_VOCACAO = { lamina: 'barbarian', sentinela: 'knight', batedor: 'rogue', sombra: 'rogue_hooded', alquimista: 'rogue_hooded', erudito: 'mage', orador: 'knight', curandeiro: 'mage', canalizador: 'mage' };
 export const CABELOS = { curto: 'Curto', longo: 'Longo', tranca: 'Trança', coque: 'Coque', moicano: 'Moicano', careca: 'Careca' };
 
 export function fichaVazia() {
@@ -208,9 +209,10 @@ export function aparenciaPadrao(raca, vocacao) {
   const v = VOCACOES[vocacao] || VOCACOES.lamina;
   return {
     pele: r.pele[1], cabelo: raca === 'zarathim' ? 'careca' : raca === 'dvarith' ? 'curto' : 'longo',
-    corCabelo: raca === 'veloryn' ? '#dfe8f0' : raca === 'dvarith' ? '#6a4a2a' : '#2b1d14',
+    corCabelo: raca === 'veloryn' ? '#dfe8f0' : raca === 'dvarith' ? '#8a4a22' : raca === 'zarathim' ? '#3a3d42' : '#2b1d14',
     roupa: '#7a3b2e', calca: '#3b2a1f', armadura: v.armadura === 'cota' ? 'media' : 'leve', corArmadura: '#8d8f93',
-    capa: true, corCapa: '#2f3f6a', arma: v.arma, escudo: !!v.escudo, capacete: false,
+    capa: true, corCapa: '#2f3f6a', arma: v.arma, escudo: !!v.escudo, escudoTipo: v.escudo ? 'redondo' : 'nenhum', capacete: false, chapeu: 'nenhum',
+    modelo: MODELO_POR_VOCACAO[vocacao] || 'knight',
     brilho: raca === 'sypheris' ? '#5fd3ff' : raca === 'veloryn' ? '#e8fbff' : '#ffb347',
     base: '#e2b04a', barba: raca === 'dvarith',
   };

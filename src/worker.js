@@ -501,10 +501,10 @@ export class Sala extends DurableObject {
           tipo: 'dado', nome: mestre && !pc ? 'Mestre' : (pc?.nome || att.nome), cor: pc?.cor || '#e2b04a',
           kael: pele.kael || '#d9a23a', lyra: pele.lyra || '#3f78e0', material: pele.material || 'cristal',
           dados: res.dados, total: res.total, tags: res.tags, grau: res.grau, desc: res.desc,
-          rotulo: texto(msg.rotulo, 60), oculta, t: Date.now(),
+          rotulo: texto(msg.rotulo, 60), oculta, t: Date.now(), k: pc ? 'pc:' + att.id : null, dom: !!msg.dom,
         };
         this.enviarTodos(evento, oculta);
-        this.registrar({ ...evento, dados: undefined, tipo: undefined });
+        this.registrar({ ...evento, dados: undefined, tipo: undefined, k: undefined, dom: undefined });
         await this.gravar('log');
         break;
       }

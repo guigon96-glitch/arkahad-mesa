@@ -1,5 +1,6 @@
 import { TERRENOS, LUZES as NOMES_LUZ, LUAS, num, dijkstra } from './regras.js';
 import { criarCena } from './cena3d.js';
+import { MODELOS } from './modelos.js';
 import { abrirCriador } from './criacao.js';
 import {
   ATRIBUTOS, PERICIAS, RACAS, VOCACOES, TODOS_DONS, DONS, CUSTO_DOM, DANO_DOM, ARMAS_VISUAIS, RESSONANCIAS, ORIGENS, ESTRATOS,
@@ -9,7 +10,7 @@ import {
 // ================= CONFIGURAÇÃO VISUAL (fácil de editar) =================
 const COR_LUZ = { dia: '#ffb347', noite: '#05060f', azul: '#3f6fe0', conjuncao: '#9a7fe0' };
 const MATERIAIS = { cristal: 'Cristal', osso: 'Osso', ferro: 'Ferro Lunar', brasa: 'Brasa' };
-const CORES_TERRENO = { '.': '#7d6146', '_': '#8f877b', ',': '#d3ad6a', '"': '#4d7536', '~': '#2a6585', '=': '#7a4e2c', '+': '#5a3a1e', 'v': '#1b1820', '#': '#3a342e', 'T': '#2d5a27', '^': '#6b6158', '*': '#ff8a1e' };
+const CORES_TERRENO = { '.': '#7d6146', '_': '#8f877b', ',': '#d3ad6a', '"': '#4d7536', '~': '#2a6585', '=': '#7a4e2c', '+': '#5a3a1e', 'v': '#1b1820', '#': '#3a342e', 'T': '#2d5a27', '^': '#6b6158', '*': '#ff8a1e', b: '#8a5a2a', c: '#b08a52', s: '#c8b48a', n: '#d8c8a0', a: '#7d8288', o: '#c0392f', w: '#6b4423' };
 
 // ================= ESTADO =================
 let config = {}, sessao = null, ws = null, codigoAtual = null, reconectar = true, tentativaWs = 0;
@@ -356,6 +357,11 @@ function ajustar(k, campo, d) {
 // ================= Dados (3D) =================
 async function animarDados(m) {
   if (!cena) return;
+  if (m.k) {
+    const acao = m.dom ? 'magia' : /dano|combate|pontaria|briga|ataque/i.test(m.rotulo || '') ? 'ataque' : 'usar';
+    cena.acao(m.k, acao);
+    if ((m.tags || []).some(t => /Triunfo|Coroa/.test(t))) setTimeout(() => cena.acao(m.k, 'vitoria'), 1700);
+  }
   const pos = await cena.rolar(m);
   const cam = $('camadaDados'), W = cam.clientWidth, H = cam.clientHeight;
   const p = cena.projetar(pos);
@@ -490,6 +496,7 @@ function editorNpc(id) {
     ${f('nome', 'Nome', 'text')}<div class="linha">${f('sigla', 'Sigla', 'text')}<div><label for="n_cor">Cor da base</label><input id="n_cor" type="color" value="${esc(n.cor || '#8c7a63')}"></div></div>
     <label for="n_tipo">Tipo</label><select id="n_tipo">${[['npc', 'Personagem'], ['monstro', 'Criatura hostil'], ['aliado', 'Aliado']].map(([k, t]) => `<option value="${k}" ${n.tipo === k ? 'selected' : ''}>${t}</option>`).join('')}</select>
     <div class="linha"><div><label for="n_raca">Miniatura</label><select id="n_raca">${Object.entries(RACAS_NPC).map(([k, t]) => `<option value="${k}" ${vis.raca === k ? 'selected' : ''}>${t}</option>`).join('')}</select></div>
+    <div><label for="n_modelo">Modelo</label><select id="n_modelo">${Object.entries(MODELOS).map(([k, m]) => `<option value="${k}" ${vis.aparencia.modelo === k ? 'selected' : ''}>${m.nome}</option>`).join('')}</select></div>
     <div><label for="n_arma">Arma</label><select id="n_arma">${Object.entries(ARMAS_VISUAIS).map(([k, t]) => `<option value="${k}" ${vis.aparencia.arma === k ? 'selected' : ''}>${t}</option>`).join('')}</select></div>
     <div><label for="n_roupa">Roupa / corpo</label><input id="n_roupa" type="color" value="${esc(vis.aparencia.roupa || '#8c7a63')}"></div></div>
     <div class="linha">${f('vigor', 'Vigor')}${f('vigorMax', 'Vigor máx.')}${f('defesa', 'Defesa')}</div>
@@ -505,7 +512,7 @@ function editorNpc(id) {
     e.preventDefault(); const v = k => $('n_' + k).value;
     const raca = v('raca'), base = raca === 'criatura' ? {} : aparenciaPadrao(raca, 'lamina');
     const pele = RACAS[raca]?.pele;
-    const aparencia = { ...base, ...(n.aparencia || {}), roupa: v('roupa'), arma: v('arma'), base: v('cor'), ...(n.raca !== raca && pele ? { pele: pele[Math.floor(Math.random() * pele.length)], capa: false } : {}) };
+    const aparencia = { ...base, ...(n.aparencia || {}), roupa: v('roupa'), arma: v('arma'), modelo: v('modelo'), base: v('cor'), ...(n.raca !== raca && pele ? { pele: pele[Math.floor(Math.random() * pele.length)], capa: false } : {}) };
     const dados = { nome: v('nome'), sigla: v('sigla'), cor: v('cor'), tipo: v('tipo'), raca, aparencia, vigor: num(v('vigor')), vigorMax: num(v('vigorMax')), defesa: num(v('defesa')), ini: num(v('ini')), desloc: num(v('desloc'), 6), tamanho: num(v('tamanho'), 1), visivel: $('n_visivel').checked, descricao: v('descricao'), falas: v('falas').split('\n').map(s => s.trim()).filter(Boolean), notas: v('notas') };
     npcs[id] = { ...npcs[id], ...dados }; enviar({ tipo: 'npc', id, dados });
     selecionar('npc:' + id);
