@@ -22,9 +22,9 @@
   "vars": {
     // Cole aqui o "ID do cliente OAuth" do Google para ativar o login com Google.
     // Vazio = login só por apelido.
-    "GOOGLE_CLIENT_ID": "",
+    "GOOGLE_CLIENT_ID": "746488339164-r79ol4o5p1j96r0k6c2e8h0qa99av2hv.apps.googleusercontent.com",
     // "1" = permite apelido mesmo com Google ativado.
-    "PERMITIR_APELIDO": "0"
+    "PERMITIR_APELIDO": "1"
   },
   "observability": { "enabled": true }
 }
