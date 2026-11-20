@@ -129,6 +129,8 @@ export function criarCena(el, cb = {}) {
   const grupoTerreno = new THREE.Group(), grupoTokens = new THREE.Group(), grupoEfeitos = new THREE.Group(), grupoDados = new THREE.Group();
   cena.add(grupoTerreno, grupoTokens, grupoEfeitos, grupoDados);
   const efx = criarEfeitos(grupoEfeitos);
+  // a sombra de contato (AO) trata planos transparentes como sólidos: esconde os efeitos só nessa etapa
+  if (passoAO.overrideVisibility) { const ov = passoAO.overrideVisibility.bind(passoAO); passoAO.overrideVisibility = () => { ov(); grupoEfeitos.visible = false; }; }
 
   // luzes
   const hemi = new THREE.HemisphereLight('#fff', '#333', 1); cena.add(hemi);
