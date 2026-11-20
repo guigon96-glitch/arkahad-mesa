@@ -79,7 +79,7 @@ export function normalizarArma(a) { return ARMAS_3D[a] ? a : ARMA_ANTIGA[a] || '
 
 // ---------------- carregamento ----------------
 const carregador = new GLTFLoader();
-const dados = { corpo: {}, pecas: { m: {}, f: {} }, cabelos: {}, clipes: [], armas: {}, cenario: {}, criaturas: {}, pronto: false };
+const dados = { corpo: {}, pecas: { m: {}, f: {} }, cabelos: {}, clipes: [], armas: {}, cenario: {}, criaturas: {}, natureza: {}, pronto: false };
 let promessa = null;
 let BASE = '/modelos/';
 const SKIN_REF = [0.655, 0.454, 0.316];
@@ -625,6 +625,50 @@ export function criarCriatura3D(tipo, opcoes = {}) {
     raiz.dispatchEvent?.({ type: 'carregou' });
   }).catch(e => console.error('criatura', tipo, e));
   return raiz;
+}
+
+// ---------------- natureza (Quaternius — Ultimate Stylized Nature, CC0) ----------------
+export const TEMPO = { value: 0 };   // relógio compartilhado (vento nas folhas, água)
+let promNatureza = null;
+export function carregarNatureza(base = '/modelos/') {
+  if (promNatureza) return promNatureza;
+  promNatureza = carregador.loadAsync(base + 'natureza.glb').then(g => {
+    const folhas = new Map();
+    g.scene.traverse(o => {
+      if (!o.isMesh) return;
+      const m = o.material;
+      if (m.alphaTest > 0 && !folhas.has(m)) {
+        // vento: as folhas balançam devagar, mais no alto
+        m.onBeforeCompile = sh => {
+          sh.uniforms.uTempo = TEMPO;
+          sh.vertexShader = 'uniform float uTempo;\n' + sh.vertexShader.replace('#include <begin_vertex>', `#include <begin_vertex>
+            #ifdef USE_INSTANCING
+              vec3 pw = (modelMatrix * instanceMatrix * vec4(transformed, 1.0)).xyz;
+            #else
+              vec3 pw = (modelMatrix * vec4(transformed, 1.0)).xyz;
+            #endif
+            float bal = sin(uTempo * 1.7 + pw.x * .9 + pw.z * .7) * .5 + sin(uTempo * 2.9 + pw.x * 1.7) * .25;
+            transformed.x += bal * .035 * max(transformed.y, 0.0);
+            transformed.z += bal * .025 * max(transformed.y, 0.0);`);
+        };
+        m.customProgramCacheKey = () => 'folha';
+        m.side = THREE.DoubleSide;
+        folhas.set(m, true);
+      }
+    });
+    for (const filho of [...g.scene.children]) { filho.updateMatrixWorld(true); dados.natureza[filho.name] = { obj: filho, caixa: new THREE.Box3().setFromObject(filho) }; }
+    return true;
+  });
+  return promNatureza;
+}
+export function temNatureza() { return Object.keys(dados.natureza).length > 0; }
+export function pecaNatureza(nome, altura, caber = 1) {
+  const n = dados.natureza[nome]; if (!n) return null;
+  const o = n.obj.clone(true), t = n.caixa.getSize(new THREE.Vector3()), c = n.caixa.getCenter(new THREE.Vector3());
+  const s = Math.min(altura / Math.max(t.y, .001), caber / Math.max(t.x, t.z, .001));
+  const g = new THREE.Group(); o.position.sub(new THREE.Vector3(c.x, n.caixa.min.y, c.z)); g.add(o); g.scale.setScalar(s);
+  g.traverse(m => { if (m.isMesh) { m.castShadow = true; m.receiveShadow = true; } });
+  return g;
 }
 
 // ---------------- peças de cenário ----------------

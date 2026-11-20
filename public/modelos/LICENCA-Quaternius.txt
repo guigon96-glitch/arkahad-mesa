@@ -8,6 +8,8 @@ Pacotes usados:
 - Cabelos do ecossistema Universal (Hair_*)
 - Modular Weapons Pack (armas e escudos)
 - Ultimate Monsters e Animated Animals (criaturas)
+- Ultimate Stylized Nature (árvores, arbustos, grama, flores, rochas) — arquivo natureza.glb,
+  convertido de FBX a partir de https://github.com/walterpalladino/godot-quaternius-ultimate-stylized-nature
 
 Também incluído: KayKit - Character Pack: Skeletons, por Kay Lousberg (https://kaylousberg.com), CC0 1.0.
 

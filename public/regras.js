@@ -10,7 +10,12 @@ export const TERRENOS = {
   '=': { n: 'Madeira', custo: 1 },
   '+': { n: 'Porta', custo: 1 },
   'v': { n: 'Vidro negro', custo: 2 },
-  '#': { n: 'Muro', custo: Infinity },
+  '#': { n: 'Muro de pedra', custo: Infinity, parede: 'pedra' },
+  'm': { n: 'Paliçada de madeira', custo: Infinity, parede: 'madeira' },
+  'h': { n: 'Muro baixo (cobertura)', custo: 3, parede: 'baixo', cobertura: true },
+  'k': { n: 'Arbusto', custo: 2, cobertura: true },
+  'P': { n: 'Pinheiro', custo: Infinity },
+  'Q': { n: 'Árvore seca', custo: Infinity },
   'T': { n: 'Árvore', custo: Infinity },
   '^': { n: 'Rocha', custo: Infinity },
   '*': { n: 'Fogueira', custo: Infinity },
@@ -57,6 +62,31 @@ export function custoCel(mesa, x, y) {
   return (TERRENOS[c] || TERRENOS['.']).custo;
 }
 
+// ---------- Altura do terreno ----------
+// Cada casa tem um nível: −1 fosso/vale, 0 chão, +1, +2, +3 (gravado como '0'..'4' em mesa.alt).
+export const NIVEIS = { '0': 'Fosso (−1)', '1': 'Chão (0)', '2': 'Elevado (+1)', '3': 'Alto (+2)', '4': 'Penhasco (+3)' };
+export function nivelEm(mesa, x, y) {
+  const c = (mesa?.alt?.[y] || '')[x];
+  return c >= '0' && c <= '4' ? c.charCodeAt(0) - 49 : 0;
+}
+// Subir 1 nível custa +1 casa; descer é livre; diferença de 2+ níveis exige escalar ou saltar (o Mestre move).
+export function custoSubida(mesa, x, y, nx, ny) {
+  const d = nivelEm(mesa, nx, ny) - nivelEm(mesa, x, y);
+  if (Math.abs(d) >= 2) return Infinity;
+  return d === 1 ? 1 : 0;
+}
+// Terreno alto em combate. a = atacante {x,y}, b = alvo {x,y}; distancia em casas.
+export function efeitoAltura(mesa, a, b, distancia = false) {
+  const d = nivelEm(mesa, a.x, a.y) - nivelEm(mesa, b.x, b.y), notas = [];
+  let mod = 0, alcance = 0, podeCorpo = true;
+  if (d >= 1) { mod = d >= 2 && distancia ? 3 : 2; notas.push(`Terreno alto (+${mod})`); if (distancia) { alcance = 2 * d; notas.push(`+${alcance} casas de alcance`); } }
+  if (d <= -1) { mod = -2; notas.push('Atacando de baixo (−2)'); if (distancia) notas.push('O alvo tem cobertura parcial contra disparos de baixo'); }
+  if (!distancia && Math.abs(d) >= 2) { podeCorpo = false; notas.push('Desnível de 2+ níveis: fora do alcance corpo a corpo'); }
+  return { dif: d, mod, alcance, podeCorpo, notas };
+}
+// Queda: 1d6 por nível a partir do segundo (empurrões, Terremoto, Empurrão de Escudo na beirada…)
+export function danoQueda(niveis) { return niveis >= 2 ? `${niveis - 1}d6` : null; }
+
 // Distâncias (em casas) a partir de (sx,sy). Diagonal custa 1,5; terreno multiplica.
 export function dijkstra(mesa, ocupadas, sx, sy, limite) {
   const dist = new Map([[sx + ',' + sy, 0]]);
@@ -67,8 +97,11 @@ export function dijkstra(mesa, ocupadas, sx, sy, limite) {
     if (d > (dist.get(x + ',' + y) ?? Infinity)) continue;
     for (let dx = -1; dx <= 1; dx++) for (let dy = -1; dy <= 1; dy++) {
       if (!dx && !dy) continue;
-      const nx = x + dx, ny = y + dy, c = custoCel(mesa, nx, ny);
-      if (!Number.isFinite(c)) continue;
+      const nx = x + dx, ny = y + dy, c0 = custoCel(mesa, nx, ny);
+      if (!Number.isFinite(c0)) continue;
+      const sobe = custoSubida(mesa, x, y, nx, ny);
+      if (!Number.isFinite(sobe)) continue;
+      const c = c0 + sobe;
       if (dx && dy && (!Number.isFinite(custoCel(mesa, x + dx, y)) || !Number.isFinite(custoCel(mesa, x, y + dy)))) continue;
       const nd = d + c * (dx && dy ? 1.5 : 1);
       if (nd > limite) continue;

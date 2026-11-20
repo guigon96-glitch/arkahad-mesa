@@ -401,11 +401,14 @@ export class Sala extends DurableObject {
         if ('nome' in d) { mesa.nome = texto(d.nome, 60); s.meta.nome = mesa.nome; await this.gravar('meta'); }
         if ('luz' in d && LUZES[d.luz]) mesa.luz = d.luz;
         if ('lua' in d && LUAS[d.lua]) mesa.lua = d.lua;
-        if ('cols' in d || 'rows' in d || 'grid' in d) {
+        if ('cols' in d || 'rows' in d || 'grid' in d || 'alt' in d) {
           const cols = Math.max(6, Math.min(60, Math.round(num(d.cols, mesa.cols))));
           const rows = Math.max(6, Math.min(60, Math.round(num(d.rows, mesa.rows))));
           const g = Array.isArray(d.grid) ? d.grid : mesa.grid;
           mesa.grid = Array.from({ length: rows }, (_, y) => [...String(g[y] || '').padEnd(cols, ',').slice(0, cols)].map(c => TERRENOS[c] ? c : '.').join(''));
+          // altura de cada casa: '0' fosso, '1' chão, '2'..'4' terreno alto
+          const a = Array.isArray(d.alt) ? d.alt : (mesa.alt || []);
+          mesa.alt = Array.from({ length: rows }, (_, y) => [...String(a[y] || '').padEnd(cols, '1').slice(0, cols)].map(c => /[0-4]/.test(c) ? c : '1').join(''));
           mesa.cols = cols; mesa.rows = rows;
         }
         await this.gravar('mesa');

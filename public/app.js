@@ -1,4 +1,4 @@
-import { TERRENOS, LUZES as NOMES_LUZ, LUAS, num, dijkstra } from './regras.js';
+import { TERRENOS, LUZES as NOMES_LUZ, LUAS, NIVEIS, num, dijkstra, nivelEm, efeitoAltura } from './regras.js';
 import { criarCena } from './cena3d.js';
 import { CRIATURAS_3D, ARMAS_3D, SECUNDARIAS, SEXOS, ESTILO_DOM } from './modelos.js';
 import { abrirCriador } from './criacao.js';
@@ -11,12 +11,12 @@ import {
 // ================= CONFIGURAÇÃO VISUAL (fácil de editar) =================
 const COR_LUZ = { dia: '#ffb347', noite: '#05060f', azul: '#3f6fe0', conjuncao: '#9a7fe0' };
 const MATERIAIS = { cristal: 'Cristal', osso: 'Osso', ferro: 'Ferro Lunar', brasa: 'Brasa' };
-const CORES_TERRENO = { '.': '#7d6146', '_': '#8f877b', ',': '#d3ad6a', '"': '#4d7536', '~': '#2a6585', '=': '#7a4e2c', '+': '#5a3a1e', 'v': '#1b1820', '#': '#3a342e', 'T': '#2d5a27', '^': '#6b6158', '*': '#ff8a1e', b: '#8a5a2a', c: '#b08a52', s: '#c8b48a', n: '#d8c8a0', a: '#7d8288', o: '#c0392f', w: '#6b4423' };
+const CORES_TERRENO = { '.': '#7d6146', '_': '#8f877b', ',': '#d3ad6a', '"': '#4d7536', '~': '#2a6585', '=': '#7a4e2c', '+': '#5a3a1e', 'v': '#1b1820', '#': '#3a342e', m: '#6b4a2a', h: '#7a7468', k: '#4f8a3a', P: '#24502a', Q: '#6a5040', 'T': '#2d5a27', '^': '#6b6158', '*': '#ff8a1e', b: '#8a5a2a', c: '#b08a52', s: '#c8b48a', n: '#d8c8a0', a: '#7d8288', o: '#c0392f', w: '#6b4423' };
 
 // ================= ESTADO =================
 let config = {}, sessao = null, ws = null, codigoAtual = null, reconectar = true, tentativaWs = 0;
 let voce = null, sala = null, mesa = null, pcs = {}, npcs = {}, log = [], online = [];
-let selecionado = null, aba = 'ficha', modoMestre = 'mover', pincel = '.', tamPincel = 1;
+let selecionado = null, aba = 'ficha', modoMestre = 'mover', pincel = '.', tamPincel = 1, pincelAlt = '2', pintandoAlt = null, tocadas = null;
 let pintando = null, arrasto = null, alcance = null, npcParaEditar = null, cena = null, quadroPendente = false;
 const memo = { mod: 0, dif: '', expr: '1d8+3' };
 const $ = id => document.getElementById(id);
@@ -154,7 +154,7 @@ function receber(m) {
       const t = tokenPorK(selecionado);
       if (selecionado && !t) { selecionado = null; alcance = null; $('cartao').hidden = true; }
       else if (t) calcAlcance(t);
-      if (!pintando) render();
+      if (!pintando && !pintandoAlt) render();
       if (aba !== 'dados' || primeira) painel();
       atualizarOnline();
       if (t && !$('cartao').hidden && !$('formNpc')) cartao(t);
@@ -273,12 +273,14 @@ function dentro(x, y) { return mesa && x >= 0 && y >= 0 && x < mesa.cols && y < 
 function aoPressionar(i, e) {
   if (!mesa) return;
   if (souMestre() && modoMestre === 'pintar') { pintando = mesa.grid.slice(); pintar(i.x, i.y); return; }
+  if (souMestre() && modoMestre === 'altura') { pintandoAlt = altDe(mesa).slice(); tocadas = new Set(); pintarAlt(i.x, i.y); return; }
   if (souMestre() && modoMestre === 'npc' && !i.k) { if (dentro(i.x, i.y)) enviar({ tipo: 'npc', dados: { x: i.x, y: i.y } }); return; }
   if (i.k) arrasto = { k: i.k, x: i.x, y: i.y };
 }
-function aoMover(i) { if (pintando) pintar(i.x, i.y); }
+function aoMover(i) { if (pintando) pintar(i.x, i.y); if (pintandoAlt) pintarAlt(i.x, i.y); }
 function aoSoltar(i) {
   if (pintando) { const g = pintando; pintando = null; enviar({ tipo: 'mesa', dados: { grid: g } }); return; }
+  if (pintandoAlt) { const a = pintandoAlt; pintandoAlt = null; tocadas = null; enviar({ tipo: 'mesa', dados: { alt: a } }); return; }
   if (arrasto) {
     const a = arrasto; arrasto = null; const t = tokenPorK(a.k);
     if (!t || (a.x === i.x && a.y === i.y) || i.k === a.k) { selecionar(a.k); return; }
@@ -296,6 +298,19 @@ function pintar(x, y) {
     const l = pintando[py]; pintando[py] = l.slice(0, px) + pincel + l.slice(px + 1);
   }
   mesa = { ...mesa, grid: pintando.slice() }; agendarRender();
+}
+function altDe(m) { return Array.from({ length: m.rows }, (_, y) => String(m.alt?.[y] || '').padEnd(m.cols, '1').slice(0, m.cols)); }
+function pintarAlt(x, y) {
+  for (let i = 0; i < tamPincel; i++) for (let j = 0; j < tamPincel; j++) {
+    const px = x + i, py = y + j, ch = px + ',' + py;
+    if (!dentro(px, py) || tocadas.has(ch)) continue; tocadas.add(ch);
+    const l = pintandoAlt[py], atual = l[px];
+    let novo = pincelAlt;
+    if (pincelAlt === '+') novo = String(Math.min(4, Number(atual) + 1));
+    if (pincelAlt === '-') novo = String(Math.max(0, Number(atual) - 1));
+    pintandoAlt[py] = l.slice(0, px) + novo + l.slice(px + 1);
+  }
+  mesa = { ...mesa, alt: pintandoAlt.slice() }; agendarRender();
 }
 function mostrarPing(x, y, cor) { cena?.ping(x, y, cor); }
 $('zMais').onclick = () => cena?.zoom(.8);
@@ -323,7 +338,22 @@ function cartao(t) {
   let h = `<button class="fecha" id="fechaCartao" aria-label="Fechar">×</button>
     <h2 style="font-size:20px;padding-right:40px">${esc(t.nome)}</h2>
     <div style="color:var(--mudo);font-size:14px;margin:2px 0 8px">${t.tipo === 'pc' ? (linhaClasse(t) || 'Personagem jogador') : t.tipo === 'monstro' ? 'Criatura' : t.tipo === 'aliado' ? 'Aliado' : 'Personagem do Mestre'}${t.visivel === false ? ' · oculto aos jogadores' : ''}</div>`;
+  const nv = nivelEm(mesa, num(t.x), num(t.y));
+  if (nv) h += `<p style="margin:2px 0 6px"><span class="tag">${nv > 0 ? 'Terreno alto' : 'No fosso'} · nível ${nv > 0 ? '+' : ''}${nv}</span></p>`;
   if (t.descricao) h += `<p style="margin:6px 0">${esc(t.descricao)}</p>`;
+  const eu_ = pcs[eu()];
+  if (eu_?.ficha && t.k !== 'pc:' + eu()) {
+    const at = ataqueArma(eu_.ficha, !!eu_.imbuido), dist = at.tipo === 'distancia';
+    const ef = efeitoAltura(mesa, { x: num(eu_.x), y: num(eu_.y) }, { x: num(t.x), y: num(t.y) }, dist);
+    const casas = Math.max(Math.abs(num(eu_.x) - num(t.x)), Math.abs(num(eu_.y) - num(t.y)));
+    const notas = [...ef.notas];
+    const cob = TERRENOS[(mesa.grid[num(t.y)] || '')[num(t.x)]]?.cobertura;
+    if (dist && cob) notas.push('Alvo atrás de cobertura (+2 Defesa dele)');
+    if (!dist && casas > 1) notas.push(`Está a ${casas} casas — aproxime-se para o corpo a corpo`);
+    const mod = at.mod + ef.mod, rot = `Ataque em ${t.nome}`.slice(0, 40) + (ef.mod ? ` (altura ${sinal(ef.mod)})` : '');
+    h += `<div class="bloco" style="margin:8px 0;padding:10px"><button class="pri" id="atacarAlvo" data-rot="${esc(rot)}" data-mod="${mod}" style="width:100%" ${!dist && (casas > 1 || !ef.podeCorpo) ? 'disabled' : ''}>Atacar com ${esc(at.nome)} ${sinal(mod)}</button>
+      ${notas.length ? `<ul style="margin:6px 0 0;padding-left:18px;font-size:13px;color:var(--mudo)">${notas.map(n => `<li>${esc(n)}</li>`).join('')}</ul>` : ''}</div>`;
+  }
   if (t.tipo === 'pc' && t.ficha?.conceito) h += `<p style="margin:6px 0;font-style:italic">${esc(t.ficha.conceito)}</p>`;
   if (t.tipo === 'pc' || souMestre()) {
     h += `<div class="linha" style="margin:8px 0"><span class="chip">Defesa ${num(t.defesa)}</span><span class="chip">Desl. ${num(t.desloc, 6)}</span><span class="chip">Inic. ${sinal(num(t.ini))}</span>${t.protecao ? `<span class="chip">Prot. ${num(t.protecao)}</span>` : ''}</div>`;
@@ -339,6 +369,7 @@ function cartao(t) {
   $('fechaCartao').onclick = () => { c.hidden = true; selecionado = null; alcance = null; render(); };
   let iFala = 0; if ($('outraFala')) $('outraFala').onclick = () => { iFala = (iFala + 1) % falas.length; $('fala').textContent = '“' + falas[iFala] + '”'; };
   c.querySelectorAll('[data-mv]').forEach(b => b.onclick = () => ajustar(b.dataset.k, b.dataset.mv, num(b.dataset.d)));
+  if ($('atacarAlvo')) $('atacarAlvo').onclick = e => rolarTeste(e.currentTarget.dataset.rot, num(e.currentTarget.dataset.mod));
   if (edita) {
     $('editarNpc').onclick = () => editorNpc(t.id);
     $('visNpc').onclick = () => enviar({ tipo: 'npc', id: t.id, dados: { visivel: t.visivel === false } });
@@ -484,8 +515,10 @@ function htmlRegistro() {
 function htmlMestre() {
   if (!souMestre() || !mesa) return '';
   const cb = mesa.combate || {};
-  return `<div class="bloco"><h3>Ferramenta</h3><div class="linha">${[['mover', 'Mover'], ['pintar', 'Pintar terreno'], ['npc', 'Colocar NPC']].map(([k, n]) => `<button data-modo="${k}" class="${modoMestre === k ? 'ativo' : ''}">${n}</button>`).join('')}</div>
+  return `<div class="bloco"><h3>Ferramenta</h3><div class="linha">${[['mover', 'Mover'], ['pintar', 'Pintar terreno'], ['altura', 'Altura'], ['npc', 'Colocar NPC']].map(([k, n]) => `<button data-modo="${k}" class="${modoMestre === k ? 'ativo' : ''}">${n}</button>`).join('')}</div>
     ${modoMestre === 'pintar' ? `<div class="paleta" style="margin-top:10px">${Object.entries(TERRENOS).map(([k, t]) => `<button data-pincel="${esc(k)}" class="${pincel === k ? 'ativo' : ''}"><i class="amostra" style="background:${CORES_TERRENO[k]}"></i>${esc(t.n)}</button>`).join('')}</div><label for="m_tam">Tamanho do pincel</label><select id="m_tam">${[1, 2, 3].map(n => `<option ${tamPincel === n ? 'selected' : ''}>${n}</option>`).join('')}</select>` : ''}
+    ${modoMestre === 'altura' ? `<div class="paleta" style="margin-top:10px">${[...Object.entries(NIVEIS), ['+', 'Subir 1 nível'], ['-', 'Descer 1 nível']].map(([k, n]) => `<button data-alt="${k}" class="${pincelAlt === k ? 'ativo' : ''}"><i class="amostra" style="background:${{ '0': '#2a3a4a', '1': '#7d6146', '2': '#9a7a52', '3': '#b8956a', '4': '#d8c09a', '+': '#5d9a4a', '-': '#c0392f' }[k]}"></i>${esc(n)}</button>`).join('')}</div><label for="m_tam">Tamanho do pincel</label><select id="m_tam">${[1, 2, 3].map(n => `<option ${tamPincel === n ? 'selected' : ''}>${n}</option>`).join('')}</select>
+      <p class="cr-nota" style="margin:8px 0 0">Arraste no mapa para elevar ou afundar. Subir 1 nível custa +1 casa de movimento; desníveis de 2+ só escalando (você move). Quem ataca de cima ganha +2; de baixo, −2.</p>` : ''}
     ${modoMestre === 'npc' ? '<p style="margin:8px 0 0;color:var(--mudo)">Clique numa casa vazia para criar um NPC.</p>' : ''}</div>
     <div class="bloco"><h3>Céu da cena</h3><label for="m_luz">Luz</label><select id="m_luz">${Object.entries(NOMES_LUZ).map(([k, n]) => `<option value="${k}" ${mesa.luz === k ? 'selected' : ''}>${n}</option>`).join('')}</select>
     <label for="m_lua">Lua dominante</label><select id="m_lua">${Object.entries(LUAS).map(([k, n]) => `<option value="${k}" ${mesa.lua === k ? 'selected' : ''}>${n}</option>`).join('')}</select></div>
@@ -558,6 +591,7 @@ function ligar() {
   document.querySelectorAll('[data-rapido]').forEach(b => b.onclick = () => enviar({ tipo: 'rolar', modo: 'expr', expr: b.dataset.rapido, rotulo: b.dataset.rapido, oculta: !!q('#d_oculta')?.checked }));
   document.querySelectorAll('[data-modo]').forEach(b => b.onclick = () => { modoMestre = b.dataset.modo; painel(); });
   document.querySelectorAll('[data-pincel]').forEach(b => b.onclick = () => { pincel = b.dataset.pincel; painel(); });
+  document.querySelectorAll('[data-alt]').forEach(b => b.onclick = () => { pincelAlt = b.dataset.alt; painel(); });
   document.querySelectorAll('[data-ed]').forEach(b => b.onclick = () => editorNpc(b.dataset.ed));
   if (q('#m_tam')) q('#m_tam').onchange = e => tamPincel = num(e.target.value, 1);
   if (q('#m_luz')) q('#m_luz').onchange = e => enviar({ tipo: 'mesa', dados: { luz: e.target.value } });
@@ -568,6 +602,9 @@ function ligar() {
   if (q('#proxTurno')) q('#proxTurno').onclick = () => enviar({ tipo: 'combate', acao: 'proximo' });
   if (q('#fimCombate')) q('#fimCombate').onclick = () => enviar({ tipo: 'combate', acao: 'encerrar' });
 }
+
+// ganchos para testes automáticos (só no servidor local)
+if (['127.0.0.1', 'localhost'].includes(location.hostname)) globalThis.__arkahad = { selecionar, enviar, get cena() { return cena; } };
 
 // ================= Início =================
 (async () => {

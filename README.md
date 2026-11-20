@@ -51,7 +51,7 @@ Abra <http://localhost:8787>.
 
 | Quero mudar… | Arquivo |
 | --- | --- |
-| Terrenos, custos de movimento, regras dos dados | `public/regras.js` |
+| Terrenos, paredes, custos de movimento, **altura do terreno e terreno alto em combate**, regras dos dados | `public/regras.js` |
 | Raças, vocações, Dons, armas, **árvores de talentos** e cálculo da ficha | `public/conteudo.js` |
 | Personagens 3D (corpo, roupas, cabelos, armas, Dom na arma, criaturas) | `public/modelos.js` |
 | Miniaturas simples (reserva) e dados 3D | `public/miniatura.js` |
@@ -71,4 +71,4 @@ Abra <http://localhost:8787>.
 
 ## Créditos
 
-Modelos 3D: personagens, roupas, cabelos, animações, armas e criaturas de **Quaternius** ([quaternius.com](https://quaternius.com)) — Universal Base Characters, Modular Character Outfits, Universal Animation Library, Modular Weapons, Ultimate Monsters; armas, esqueletos e cenário do **KayKit** de Kay Lousberg ([kaylousberg.com](https://www.kaylousberg.com)). Tudo licença CC0 1.0. Bibliotecas: three.js (MIT). Fontes: Cinzel e Alegreya Sans (OFL). Lista completa em `public/creditos.html` (também no site, em /creditos.html), e os textos das licenças em `public/modelos/`.
+Modelos 3D: personagens, roupas, cabelos, animações, armas e criaturas de **Quaternius** ([quaternius.com](https://quaternius.com)) — Universal Base Characters, Modular Character Outfits, Universal Animation Library, Modular Weapons, Ultimate Monsters, Ultimate Stylized Nature (árvores e rochas); armas, esqueletos e cenário do **KayKit** de Kay Lousberg ([kaylousberg.com](https://www.kaylousberg.com)). Tudo licença CC0 1.0. Bibliotecas: three.js (MIT). Fontes: Cinzel e Alegreya Sans (OFL). Lista completa em `public/creditos.html` (também no site, em /creditos.html), e os textos das licenças em `public/modelos/`.
