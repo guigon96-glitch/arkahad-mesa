@@ -102,7 +102,8 @@ body.rolavel{overflow:auto}
 .pers{display:grid;grid-template-columns:1fr 1fr;gap:4px}
 .per,.tec{display:flex;justify-content:space-between;align-items:center;gap:6px;text-align:left;min-height:36px;padding:4px 10px;font-size:14px}
 .per small,.tec small{color:var(--mudo);font-size:12px}.per b{color:var(--ouro)}
-.tec{width:100%;margin:3px 0;flex-wrap:wrap}
+.tec{width:100%;margin:3px 0;flex-wrap:wrap}.tec .tec-ef{flex-basis:100%}
+.dom-notas{font-size:12px;color:var(--mudo);margin-bottom:6px;line-height:1.4}
 details summary{cursor:pointer;color:var(--mudo);margin:8px 0;font-size:14px}
 @media(max-width:420px){.pers{grid-template-columns:1fr}}
 /* ===== criador ===== */

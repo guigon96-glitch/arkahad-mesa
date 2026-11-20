@@ -3,7 +3,7 @@ import { criarCena } from './cena3d.js';
 import { CRIATURAS_3D, ARMAS_3D, SECUNDARIAS, SEXOS, ESTILO_DOM } from './modelos.js';
 import { abrirCriador } from './criacao.js';
 import {
-  ATRIBUTOS, PERICIAS, RACAS, VOCACOES, TODOS_DONS, DONS, CUSTO_DOM, RESSONANCIAS, ORIGENS, ESTRATOS,
+  ATRIBUTOS, PERICIAS, RACAS, VOCACOES, TODOS_DONS, DONS, CUSTO_DOM, notasDom, RESSONANCIAS, ORIGENS, ESTRATOS,
   ataqueArma, danoTecnica, bonusTesteDom, temImbuir, TALENTO, ARVORES, pontosTalento, alcanceTecnica,
   aparenciaPadrao, atributosFinais, gradPericia, bonusPericia, ehAurethian, nivelDom, derivados,
 } from './conteudo.js';
@@ -583,7 +583,7 @@ function htmlFichaCompleta(p) {
   const destaques = pers.filter(x => x.g > 0 || x.b > 0).sort((x, y) => y.tot - x.tot);
   const outras = pers.filter(x => !(x.g > 0 || x.b > 0));
   const linhaPer = x => `<button class="per" data-rolar="${esc(x.nome)}" data-mod="${x.tot}" ${x.treinada && !x.g ? 'disabled title="Exige treino"' : ''}><span>${esc(x.nome)} <small>${x.attr}${x.g ? ' · ' + x.g : ''}</small></span><b>${sinal(x.tot)}</b></button>`;
-  const tecnicas = (dd, nn) => dd.tec.slice(0, nn).map((t, i) => `<button class="tec" data-tec="${i + 1}" data-nome="${esc(t)}" ${dd !== dom ? 'data-sec="1"' : ''}><span><b>N${i + 1}</b> ${esc(t)}</span><small>${CUSTO_DOM[i]} Fôlego · ${danoTecnica(f, i + 1)}</small></button>`).join('');
+  const tecnicas = (dd, nn) => dd.tec.slice(0, nn).map((t, i) => `<button class="tec" data-tec="${i + 1}" data-nome="${esc(t)}" ${dd !== dom ? 'data-sec="1"' : ''}><span><b>N${i + 1}</b> ${esc(t)}</span><small>${esc(dd.inf[i].acao)} · ${danoTecnica(f, i + 1)}</small><small class="tec-ef">${esc(dd.inf[i].alc)} — ${esc(dd.inf[i].ef)}</small></button>`).join('');
   const at = ataqueArma(f, !!p.imbuido);
   const tals = (f.talentos || []).map(id => TALENTO[id]).filter(Boolean);
   const blocoCombate = `<div class="bloco"><h3>Combate · ${esc(at.nome)}</h3>
@@ -597,7 +597,7 @@ function htmlFichaCompleta(p) {
     <div class="linha" style="margin-top:8px"><div><label for="fichaDif">DIF</label><input id="fichaDif" type="number" placeholder="—"></div><div><label for="fichaTirith">Dado de Tirith</label><select id="fichaTirith"><option value="normal">Normal</option><option value="vantagem">Vantagem</option><option value="desvantagem">Desvantagem</option></select></div></div>
     <p class="cr-nota" style="margin:6px 0 0">Clique num atributo, perícia ou técnica para rolar.</p></div>
     ${blocoCombate}
-    ${dom ? `<div class="bloco"><h3 style="color:${dom.cor}">${esc(dom.nome)} — ${esc(dom.tema)}</h3><div style="font-size:13px;color:var(--mudo);margin-bottom:6px">Chave ${dom.chave} · Canalização ${gradPericia(f, 'canalizacao')} · Cristal ${esc(RESSONANCIAS[f.ressonancia]?.nome || '')}</div>${tecnicas(dom, n)}
+    ${dom ? `<div class="bloco"><h3 style="color:${dom.cor}">${esc(dom.nome)} — ${esc(dom.tema)}</h3><div style="font-size:13px;color:var(--mudo);margin-bottom:6px">Chave ${dom.chave} · Canalização ${gradPericia(f, 'canalizacao')} · Cristal ${esc(RESSONANCIAS[f.ressonancia]?.nome || '')}</div><div class="dom-notas">${notasDom(dom).map(esc).join('<br>')}</div>${tecnicas(dom, n)}
       ${dom2 ? `<h3 style="color:${dom2.cor};margin-top:10px">${esc(dom2.nome)} (secundário)</h3>${tecnicas(dom2, Math.max(1, n - 1))}` : ''}</div>` : ''}
     <div class="bloco"><h3>Perícias</h3><div class="pers">${destaques.map(linhaPer).join('')}</div>
       <details><summary>Outras perícias</summary><div class="pers">${outras.map(linhaPer).join('')}</div></details></div>
@@ -816,7 +816,7 @@ function hud() {
   const cb = mesa.combate || {}, arma = armaDoAtor(t), f = t.tipo === 'pc' ? t.ficha : null;
   const dom = f && ehAurethian(f) ? TODOS_DONS[f.dom] : null, n = f ? nivelDom(f) : 0;
   const resta = acoesDe(t), minha = vezDe(t.k), pode = podeAgir(t);
-  const tecs = dom ? dom.tec.slice(0, n).map((nome, i) => { const al = alcanceTecnica(f, i + 1); return { nome, nivel: i + 1, custo: CUSTO_DOM[i], dano: danoTecnica(f, i + 1), ...al }; }) : [];
+  const tecs = dom ? dom.tec.slice(0, n).map((nome, i) => { const al = alcanceTecnica(f, i + 1); return { nome, nivel: i + 1, custo: CUSTO_DOM[i], inf: dom.inf[i], dano: danoTecnica(f, i + 1), ...al }; }) : [];
   let topoHud = '';
   if (cb.ativo) {
     const vez = tokenPorK(cb.ordem?.[cb.turno]?.k);
@@ -828,7 +828,7 @@ function hud() {
     <div class="hud-acoes">
       <button class="hud-b ${mira?.tipo === 'arma' ? 'on' : ''}" data-hud="arma" ${pode ? '' : 'disabled'} title="${esc(arma.nome)} · ${arma.tipo === 'distancia' ? `alcance ${arma.alcance} (até ${arma.longo} com −3)` : `alcance ${arma.alcance}`}"><span class="ic">⚔</span><span>Atacar</span><small>${esc(arma.nome)} · ${sinal(arma.mod)}</small></button>
       ${dom ? `<div class="hud-grupo"><button class="hud-b ${menuTec || mira?.tipo === 'tec' ? 'on' : ''}" data-hud="tecs" ${pode ? '' : 'disabled'} style="--cor:${dom.cor}"><span class="ic" style="color:${dom.cor}">✦</span><span>Técnicas</span><small>${esc(dom.nome)} · Fôlego ${num(t.folego)}</small></button>
-        ${menuTec ? `<div class="hud-menu">${tecs.map(x => `<button data-tec-hud="${x.nivel}"><b>N${x.nivel} ${esc(x.nome)}</b><small>${x.custo} Fôlego · ${x.raio ? `área ${x.raio * 2 + 1}×${x.raio * 2 + 1}` : 'um alvo'} · alcance ${x.alcance} · ${esc(x.dano)}</small></button>`).join('')}</div>` : ''}</div>` : ''}
+        ${menuTec ? `<div class="hud-menu">${tecs.map(x => `<button data-tec-hud="${x.nivel}"><b>N${x.nivel} ${esc(x.nome)}</b><small>${esc(x.inf.alc)} — ${esc(x.inf.ef)}</small><small>${esc(x.inf.acao)} · ${x.raio ? `área ${x.raio * 2 + 1}×${x.raio * 2 + 1}` : 'um alvo'} · alcance ${x.alcance} · ${esc(x.dano)}</small></button>`).join('')}</div>` : ''}</div>` : ''}
       ${f && temImbuir(f) ? `<button class="hud-b ${t.imbuido ? 'on' : ''}" data-hud="imbuir" style="--cor:${dom.cor}"><span class="ic" style="color:${dom.cor}">🜂</span><span>${t.imbuido ? 'Imbuída' : 'Imbuir'}</span><small>${f.talentos.includes('imb4') ? 'grátis' : '1 Fôlego'}</small></button>` : ''}
       ${t.tipo === 'pc' ? `<button class="hud-b ${t.guarda ? 'on' : ''}" data-hud="defender" ${pode && !t.guarda ? '' : 'disabled'}><span class="ic">⛨</span><span>Defender</span><small>+2 Defesa até seu turno</small></button>` : ''}
       <label class="hud-tirith" title="Dado de Tirith"><select id="hudTirith"><option value="normal">Normal</option><option value="vantagem">Vantagem</option><option value="desvantagem">Desvant.</option></select></label>

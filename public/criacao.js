@@ -4,7 +4,7 @@ import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { criarMiniatura } from './miniatura.js';
 import { carregarModelos, criarPersonagem, modelosProntos, ARMAS_3D, SECUNDARIAS, CABELOS_3D, ROUPAS, ACESSORIOS, SEXOS, ESTILO_DOM } from './modelos.js';
 import {
-  ATRIBUTOS, PERICIAS, RACAS, ORIGENS, ESTRATOS, FACANHAS, VOCACOES, DONS, DONS_ELITE, TODOS_DONS, RESSONANCIAS,
+  ATRIBUTOS, PERICIAS, RACAS, ORIGENS, ESTRATOS, FACANHAS, VOCACOES, DONS, DONS_ELITE, TODOS_DONS, notasDom, RESSONANCIAS,
   CUSTO_DOM, fichaVazia, aparenciaPadrao, pontosAtributo, atributosFinais, ARVORES, TALENTO, pontosTalento, arvoresPermitidas, pontosNaArvore, bloqueioTalento,
   ataqueArma, danoTecnica, ARMA_POR_VOCACAO, SECUNDARIA_POR_VOCACAO,
   pontosPericia, gradPericia, bonusPericia, ehAurethian, nivelDom, derivados, validar,
@@ -101,10 +101,10 @@ export function abrirCriador({ ficha, dadosCor, aoSalvar, aoFechar }) {
   function passoDom() {
     if (!ehAurethian(f)) return `<h3>Sem Dom</h3><p>Vellunari não têm Dom — e por isso recebem mais atributos, perícias, Fôlego e duas Façanhas. Mude o estrato no passo 2 se quiser um Aurethian.</p>`;
     const lista = f.estrato === 'elite' ? { ...DONS, ...DONS_ELITE } : DONS, n = nivelDom(f);
-    const tecs = d => d.tec.slice(0, n).map((t, i) => `<li><b>N${i + 1} ${esc(t)}</b> · ${CUSTO_DOM[i]} Fôlego · ${danoTecnica(f, i + 1)}</li>`).join('');
+    const tecs = d => d.tec.slice(0, n).map((t, i) => `<li><b>N${i + 1} ${esc(t)}</b> · ${esc(d.inf[i].acao)} · ${danoTecnica(f, i + 1)}<br><small>${esc(d.inf[i].alc)} — ${esc(d.inf[i].ef)}</small></li>`).join('');
     const d1 = TODOS_DONS[f.dom];
     return `<h3>${f.estrato === 'dualista' ? 'Dom primário' : 'Dom'} (Nível ${n})</h3><div class="cr-grade quatro">${Object.entries(lista).map(([k, d]) => cartao(f.dom === k, 'dom', k, `<i class="ponto" style="background:${d.cor}"></i>${esc(d.nome)}${d.elite ? ' ✦' : ''}`, `<small>${esc(d.tema)} · ${d.chave}</small>`)).join('')}</div>
-      ${d1 ? `<ul class="cr-tracos">${tecs(d1)}</ul>` : ''}
+      ${d1 ? `<p class="cr-nota">${notasDom(d1).map(esc).join('<br>')}</p><ul class="cr-tracos">${tecs(d1)}</ul>` : ''}
       ${f.estrato === 'dualista' ? `<h3>Dom secundário</h3><div class="cr-grade quatro">${Object.entries(DONS).map(([k, d]) => cartao(f.dom2 === k, 'dom2', k, `<i class="ponto" style="background:${d.cor}"></i>${esc(d.nome)}`, `<small>${esc(d.tema)}</small>`, k === f.dom)).join('')}</div>` : ''}
       <h3>Ressonância do cristal</h3><div class="cr-grade tres">${Object.entries(RESSONANCIAS).map(([k, r]) => cartao(f.ressonancia === k, 'ressonancia', k, r.nome, `<small>${esc(r.desc)}</small>`)).join('')}</div>`;
   }
