@@ -55,7 +55,8 @@ Abra <http://localhost:8787>.
 | Raças, vocações, Dons, armas, **árvores de talentos** e cálculo da ficha | `public/conteudo.js` |
 | Personagens 3D (corpo, roupas, cabelos, armas, Dom na arma, criaturas) | `public/modelos.js` |
 | Miniaturas simples (reserva) e dados 3D | `public/miniatura.js` |
-| Cenário 3D, luzes e texturas | `public/cena3d.js` |
+| Cenário 3D, céus (HDRI), luzes, água, paredes e pós-processamento | `public/cena3d.js` |
+| Relevo contínuo do chão e mistura de texturas | `public/terreno.js` (texturas em `public/texturas/`) |
 | Criador de personagem | `public/criacao.js` |
 | Visual do mapa, luzes, cores dos dados | `public/app.js` (topo do arquivo) |
 | Cores e layout | `public/style.css` |

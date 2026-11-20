@@ -273,7 +273,7 @@ export class Sala extends DurableObject {
     s.meta = { ...info, membros: {}, criada: Date.now() };
     s.mesa = {
       nome: info.nome, cols: 24, rows: 16,
-      grid: Array.from({ length: 16 }, () => ','.repeat(24)),
+      grid: Array.from({ length: 16 }, () => '"'.repeat(24)),
       luz: 'dia', lua: 'nenhuma', combate: { ...COMBATE_VAZIO },
     };
     await this.gravar('meta', 'mesa', 'pcs', 'npcs', 'log');

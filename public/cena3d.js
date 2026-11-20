@@ -3,21 +3,29 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { TERRENOS, nivelEm } from './regras.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
+import { RGBELoader } from 'three/addons/loaders/RGBELoader.js';
+import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+import { GTAOPass } from 'three/addons/postprocessing/GTAOPass.js';
+import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
+import { construirSolo, carregarTexturasSolo, pontosDaMargem, NIVEL_H as NIVEL_SOLO } from './terreno.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { criarMiniatura, criarDado, rotulo } from './miniatura.js';
 import { carregarModelos, carregarNatureza, criarPersonagem, criarCriatura3D, CRIATURAS_3D, pecaCenario, pecaNatureza, temCenario, temNatureza, modelosProntos, TEMPO } from './modelos.js';
 
 // ---------- configuração fácil de editar ----------
 const ALTURA = { '.': .12, '_': .16, ',': .1, '"': .14, '~': .04, '=': .17, '+': .16, 'v': .12, '#': .16, m: .12, h: .12, k: .14, P: .14, Q: .12, 'T': .14, '^': .12, '*': .12, b: .12, c: .12, s: .12, n: .14, a: .16, o: .14, w: .12 };
-const NIVEL_H = .65; // altura de um nível de terreno
-const PAREDES = { '#': { h: 1.45, t: .4, tex: 'muro' }, m: { h: 1.35, t: .3, tex: 'tronco' }, h: { h: .55, t: .42, tex: 'muro' } };
+const NIVEL_H = NIVEL_SOLO; // altura de um nível de terreno
+const PAREDES = { '#': { h: 1.7, t: .4, tex: 'muro' }, m: { h: 1.6, t: .3, tex: 'tronco' }, h: { h: .8, t: .42, tex: 'muro' } };
 const OBJETOS = { b: ['barril'], c: ['caixote', 'caixotes'], s: ['saco'], n: ['tenda'], a: ['suporte_armas'], o: ['alvo'], w: ['carrinho', 'balde'] };
 const TEXTURA_DE = { '.': 'terra', '_': 'ladrilho', ',': 'areia', '"': 'mato', '~': 'leito', '=': 'madeira', '+': 'madeira', 'v': 'vidro', '#': 'ladrilho', m: 'terra', h: 'terra', k: 'mato', P: 'mato', Q: 'terra', 'T': 'mato', '^': 'terra', '*': 'terra', b: 'terra', c: 'terra', s: 'terra', n: 'mato', a: 'ladrilho', o: 'mato', w: 'terra' };
+// Céus: fotos 360° (HDRI da Poly Haven, CC0) iluminam a cena; as luzes de Kael e Lyra dão as sombras.
 const CEUS = {
-  dia: { env: .45, fundo: '#b08a58', nevoa: '#c9a46c', hemi: ['#fff1d6', '#4a3a28', .55], kael: [1.9, [-.6, 1, .45]], lyra: [0], amb: .12 },
-  noite: { env: .02, fundo: '#05060c', nevoa: '#05060c', hemi: ['#2a3350', '#0a0a10', .18], kael: [0], lyra: [0], amb: .05, luaForte: true },
-  azul: { env: .06, fundo: '#0a1c46', nevoa: '#0f2a5c', hemi: ['#5f8cff', '#0a1430', .75], kael: [0], lyra: [2.3, [.7, 1, -.35]], amb: .1 },
-  conjuncao: { env: .1, fundo: '#2b1f3d', nevoa: '#3a2a4a', hemi: ['#c0a0ff', '#20141a', .35], kael: [1.7, [-1, .42, .25]], lyra: [1.5, [1, .45, -.2]], amb: .1 },
+  dia: { hdr: 'quarry_01_1k', env: .75, fundo: .95, exp: .9, nevoa: '#c8c4b8', dens: .012, hemi: ['#fff1d6', '#4a3a28', .25], kael: [2.6, [-.55, .75, .4]], lyra: [0], amb: 0 },
+  noite: { hdr: 'moonless_golf_1k', fundoCor: '#05070e', env: .35, fundo: .5, exp: 1, nevoa: '#0a0d18', dens: .02, hemi: ['#2a3350', '#0a0a10', .18], kael: [0], lyra: [0], amb: .03, luaForte: true },
+  azul: { hdr: 'moonless_golf_1k', fundoCor: '#0b1f4a', env: .45, fundo: .55, exp: 1.05, nevoa: '#0c2350', dens: .018, hemi: ['#5f8cff', '#0a1430', .6], kael: [0], lyra: [2.4, [.7, 1, -.35]], amb: .05 },
+  conjuncao: { hdr: 'venice_sunset_1k', env: .55, fundo: .8, exp: .95, nevoa: '#6a4a5a', dens: .014, hemi: ['#c0a0ff', '#20141a', .25], kael: [2, [-1, .42, .25]], lyra: [1.6, [1, .45, -.2]], amb: .03 },
 };
 const LUAS = { aranor: '#ff3a2a', nimriel: '#2fe3c4', tirith: '#eaf6ff' };
 
@@ -89,6 +97,7 @@ export function criarCena(el, cb = {}) {
   renderer.setPixelRatio(Math.min(devicePixelRatio, 1.75));
   renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
   renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = .95;
+  const hdrs = {}, carregaHdr = new RGBELoader();
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   el.appendChild(renderer.domElement);
   renderer.domElement.style.touchAction = 'none';
@@ -98,6 +107,15 @@ export function criarCena(el, cb = {}) {
   cena.environment = pmrem.fromScene(new RoomEnvironment(), .04).texture;
   const camera = new THREE.PerspectiveCamera(40, 1, .1, 300);
   const controles = new OrbitControls(camera, renderer.domElement);
+  // pós-processamento: sombra de contato (AO), brilho de fogo/magia e saída com cor de cinema
+  const composer = new EffectComposer(renderer);
+  composer.addPass(new RenderPass(cena, camera));
+  const passoAO = new GTAOPass(cena, camera, 2, 2); passoAO.blendIntensity = .9;
+  passoAO.updateGtaoMaterial({ radius: .45, distanceExponent: 1.4, thickness: 1, scale: 1 });
+  composer.addPass(passoAO);
+  const passoBrilho = new UnrealBloomPass(new THREE.Vector2(2, 2), .28, .5, .92);
+  composer.addPass(passoBrilho);
+  composer.addPass(new OutputPass());
   controles.enableDamping = true; controles.dampingFactor = .12;
   controles.maxPolarAngle = 1.32; controles.minDistance = 3; controles.maxDistance = 70;
   controles.mouseButtons = { LEFT: -1, MIDDLE: THREE.MOUSE.PAN, RIGHT: THREE.MOUSE.ROTATE };
@@ -126,10 +144,19 @@ export function criarCena(el, cb = {}) {
   }
   const nivel = (x, y) => nivelEm(mesa, x, y);
   const baseNivel = n => (n + 1) * NIVEL_H;                // topo do "chão" daquele nível (antes do piso)
+  let solo = null, texSolo = null;
+  function texReserva() {
+    const cores = [[70, 100, 40], [110, 82, 56], [200, 172, 120], [120, 114, 104], [140, 134, 124], [130, 90, 56], [30, 28, 40], [84, 66, 44]];
+    const d = new Uint8Array(8 * 4), n = new Uint8Array(8 * 4);
+    cores.forEach((c, i) => { d.set([...c, 255], i * 4); n.set([128, 128, 255, 255], i * 4); });
+    const mk = (dados, srgb) => { const t = new THREE.DataArrayTexture(dados, 1, 1, 8); if (srgb) t.colorSpace = THREE.SRGBColorSpace; t.needsUpdate = true; return t; };
+    return { cor: mk(d, true), nrm: mk(n, false) };
+  }
   function alturaEm(x, y) {
-    if (!mesa) return NIVEL_H + .12;
+    if (!mesa || !solo) return .1;
     const c = (mesa.grid[y] || '')[x];
-    return baseNivel(nivel(x, y)) + (c === '~' ? .1 : (ALTURA[c] ?? .12));
+    const h = solo.alturaPonto(x + .5, y + .5);
+    return c === '~' ? Math.max(h, nivel(x, y) * NIVEL_H - .16) : h;
   }
   let alvosClique = [];
   const ehParede = c => !!PAREDES[c];
@@ -148,46 +175,26 @@ export function criarCena(el, cb = {}) {
       (porTipo[c] ||= []).push([x, y]);
     }
     const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), cor = new THREE.Color(), up = new THREE.Vector3(0, 1, 0), um = new THREE.Vector3(1, 1, 1);
-    // 1) corpo do terreno (penhascos): uma coluna por casa, do tabuleiro até o nível dela
-    const porAltura = {};
-    for (let y = 0; y < R; y++) for (let x = 0; x < C; x++) (porAltura[nivel(x, y) + 1] ||= []).push([x, y]);
-    for (const [k, cels] of Object.entries(porAltura)) {
-      const n = Number(k); if (!n) continue;
-      const h = n * NIVEL_H, t = tex.penhasco.clone(); t.needsUpdate = true; t.repeat.set(1, n * .5);
-      const inst = new THREE.InstancedMesh(new THREE.BoxGeometry(1, h, 1), new THREE.MeshStandardMaterial({ map: t, roughness: .95 }), cels.length);
-      cels.forEach(([x, y], i) => { m4.compose(new THREE.Vector3(x + .5, h / 2, y + .5), q.identity(), um); inst.setMatrixAt(i, m4); cor.setScalar(.85 + acaso(x, y, 7) * .25); inst.setColorAt(i, cor); });
-      inst.receiveShadow = inst.castShadow = true; grupoTerreno.add(inst); alvosClique.push(inst);
-    }
-    // 2) piso de cada tipo de terreno, por cima do nível
-    for (const [tipo, celulas] of Object.entries(porTipo)) {
-      const h = ALTURA[tipo] ?? .12;
-      const geo = new THREE.BoxGeometry(1, h, 1);
-      const material = new THREE.MeshStandardMaterial({ map: tex[TEXTURA_DE[tipo]] || tex.terra, roughness: tipo === 'v' ? .12 : .92, metalness: tipo === 'v' ? .5 : 0 });
-      const inst = new THREE.InstancedMesh(geo, material, celulas.length);
-      celulas.forEach(([x, y], i) => {
-        q.setFromAxisAngle(up, Math.floor(acaso(x, y) * 4) * Math.PI / 2);
-        m4.compose(new THREE.Vector3(x + .5, baseNivel(nivel(x, y)) + h / 2, y + .5), q, um);
-        inst.setMatrixAt(i, m4);
-        cor.setScalar(.88 + acaso(x, y, 3) * .22); inst.setColorAt(i, cor);
-      });
-      inst.receiveShadow = true;
-      grupoTerreno.add(inst); alvosClique.push(inst);
-    }
+    // 1) relevo contínuo com texturas misturadas
+    solo = construirSolo(mesa, texSolo || texReserva());
+    grupoTerreno.add(solo.malha); alvosClique.push(solo.malha);
+    if (!texSolo) carregarTexturasSolo().then(t => { texSolo = t; if (solo) { solo.uniforms.uCor.value = t.cor; solo.uniforms.uNrm.value = t.nrm; } }).catch(() => {});
     // 3) água: superfície única, com ondas, espuma na margem e cor pela profundidade
     if (porTipo['~']) {
       const agu = new Set(porTipo['~'].map(([x, y]) => x + ',' + y));
-      const molhado = (x, y, n) => agu.has(x + ',' + y) && nivel(x, y) === n;
+      // a superfície cobre a água e um pouco além; o próprio relevo desenha a margem
+      const nivelAgua = new Map();
+      for (const [x, y] of porTipo['~']) for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
+        const k = (x + dx) + ',' + (y + dy), n = nivel(x, y) * NIVEL_H - .13;
+        if (!nivelAgua.has(k) || (agu.has(k) && dx === 0 && dy === 0)) nivelAgua.set(k, agu.has(k) ? nivel(x + dx, y + dy) * NIVEL_H - .13 : Math.min(nivelAgua.get(k) ?? 99, n));
+      }
       const S = 4, pos = [], costa = [], idx = [];
-      for (const [x, y] of porTipo['~']) {
-        const n = nivel(x, y), yy = baseNivel(n) + .1, base = pos.length / 3;
+      for (const [k, yy] of nivelAgua) {
+        const [x, y] = k.split(',').map(Number); if (x < -1 || y < -1 || x > mesa.cols || y > mesa.rows) continue;
+        const base = pos.length / 3;
         for (let j = 0; j <= S; j++) for (let i = 0; i <= S; i++) {
-          const fx = i / S, fz = j / S; pos.push(x + fx, yy, y + fz);
-          let d = 1;
-          if (!molhado(x - 1, y, n)) d = Math.min(d, fx); if (!molhado(x + 1, y, n)) d = Math.min(d, 1 - fx);
-          if (!molhado(x, y - 1, n)) d = Math.min(d, fz); if (!molhado(x, y + 1, n)) d = Math.min(d, 1 - fz);
-          if (!molhado(x - 1, y - 1, n)) d = Math.min(d, Math.hypot(fx, fz)); if (!molhado(x + 1, y - 1, n)) d = Math.min(d, Math.hypot(1 - fx, fz));
-          if (!molhado(x - 1, y + 1, n)) d = Math.min(d, Math.hypot(fx, 1 - fz)); if (!molhado(x + 1, y + 1, n)) d = Math.min(d, Math.hypot(1 - fx, 1 - fz));
-          costa.push(d);
+          const px = x + i / S, pz = y + j / S; pos.push(px, yy, pz);
+          costa.push(Math.max(0, Math.min(1, (yy - solo.alturaPonto(px, pz)) / .3)));
         }
         for (let j = 0; j < S; j++) for (let i = 0; i < S; i++) { const a0 = base + j * (S + 1) + i, a1 = a0 + 1, b0 = a0 + S + 1, b1 = b0 + 1; idx.push(a0, b0, a1, a1, b0, b1); }
       }
@@ -214,9 +221,9 @@ export function criarCena(el, cb = {}) {
             float fundo = smoothstep(0.0, .5, vCosta);
             diffuseColor.rgb = mix(vec3(.25, .62, .6), vec3(.03, .2, .32), fundo);
             float ruido = sin(vMundo.x * 21. + uTempo * 2.) * sin(vMundo.z * 17. - uTempo * 1.7);
-            float espuma = (1. - smoothstep(.03, .14 + ruido * .03, vCosta));
+            float espuma = (1. - smoothstep(.02, .1 + ruido * .03, vCosta)) * step(.001, vCosta);
             diffuseColor.rgb = mix(diffuseColor.rgb, vec3(.92, .96, .97), espuma * .85);
-            diffuseColor.a = mix(.72, .93, fundo) + espuma * .1;`);
+            diffuseColor.a = (mix(.55, .92, fundo) + espuma * .2) * smoothstep(0., .02, vCosta);`);
       };
       mat.customProgramCacheKey = () => 'agua2';
       const malha = new THREE.Mesh(geo, mat); malha.receiveShadow = true; malha.renderOrder = 2;
@@ -225,10 +232,11 @@ export function criarCena(el, cb = {}) {
         const r0 = acaso(x, y, 60); if (r0 > .3) return;
         let perto = false; for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) if (!agu.has((x + dx) + ',' + (y + dy))) perto = true;
         const p = pecaCenario(r0 < .1 && perto ? 'planta_a' : r0 < .16 && perto ? 'planta_b' : acaso(x, y, 61) < .5 ? 'lirio_a' : 'lirio_b', .7);
-        if (p) { p.position.set(x + .3 + acaso(x, y, 62) * .4, baseNivel(nivel(x, y)) + .1, y + .3 + acaso(x, y, 63) * .4); p.rotation.y = acaso(x, y, 64) * 6.3; grupoTerreno.add(p); }
+        if (p) { p.position.set(x + .3 + acaso(x, y, 62) * .4, nivel(x, y) * NIVEL_H - .12, y + .3 + acaso(x, y, 63) * .4); p.rotation.y = acaso(x, y, 64) * 6.3; grupoTerreno.add(p); }
       });
     }
-    const chaoDe = (x, y) => baseNivel(nivel(x, y)) + (ALTURA[mesa.grid[y][x]] ?? .12);
+    const chaoDe = (x, y) => solo.alturaPonto(x + .5, y + .5);
+    const chaoEm = (px, pz) => solo.alturaPonto(px, pz);
     // 4) objetos (barris, caixotes, tenda…)
     if (temCenario()) for (const [ch, nomes] of Object.entries(OBJETOS)) for (const [x, y] of porTipo[ch] || []) {
       const p = pecaCenario(nomes[Math.floor(acaso(x, y, 70) * nomes.length)], 1);
@@ -240,7 +248,8 @@ export function criarCena(el, cb = {}) {
         const nome = nomes[Math.floor(acaso(x, y, k0) * nomes.length)];
         const p = temNatureza() ? pecaNatureza(nome, altura * (.85 + acaso(x, y, k0 + 1) * .35), caber) : null;
         if (!p) continue;
-        p.position.set(x + .5 + (acaso(x, y, k0 + 2) - .5) * .2, chaoDe(x, y), y + .5 + (acaso(x, y, k0 + 3) - .5) * .2);
+        const px = x + .5 + (acaso(x, y, k0 + 2) - .5) * .2, pz = y + .5 + (acaso(x, y, k0 + 3) - .5) * .2;
+        p.position.set(px, chaoEm(px, pz) - .03, pz);
         p.rotation.y = acaso(x, y, k0 + 4) * 6.3; grupoTerreno.add(p);
       }
     };
@@ -251,16 +260,25 @@ export function criarCena(el, cb = {}) {
       plantar(porTipo['Q'] || [], ['deadtree_1', 'deadtree_2', 'deadtree_3'], 2.0, 88, 1.4);
       plantar(porTipo['k'] || [], ['bush', 'bush_flowers', 'bush_large', 'bush_small'], .6, 92, 1);
       // mato: tufos de grama e flores espalhados
-      for (const [x, y] of [...(porTipo['"'] || []), ...(porTipo['T'] || []), ...(porTipo['P'] || [])]) for (let k = 0; k < 2; k++) {
-        const r0 = acaso(x, y, 100 + k); if (r0 > .55) continue;
+      for (const [x, y] of [...(porTipo['"'] || []), ...(porTipo['T'] || []), ...(porTipo['P'] || [])]) for (let k = 0; k < 1; k++) {
+        const r0 = acaso(x, y, 100 + k); if (r0 > .32) continue;
         const nome = r0 < .3 ? 'grass_small' : r0 < .42 ? 'grass_large' : r0 < .5 ? 'flower_3_clump' : 'flower_4_clump';
         const p = pecaNatureza(nome, nome.startsWith('grass') ? .22 : .2, .5); if (!p) continue;
-        p.position.set(x + .15 + acaso(x, y, 110 + k) * .7, chaoDe(x, y), y + .15 + acaso(x, y, 120 + k) * .7); p.rotation.y = acaso(x, y, 130 + k) * 6.3; p.traverse(o => { o.castShadow = false; }); grupoTerreno.add(p);
+        const gx = x + .15 + acaso(x, y, 110 + k) * .7, gz = y + .15 + acaso(x, y, 120 + k) * .7;
+        p.position.set(gx, chaoEm(gx, gz) - .02, gz); p.rotation.y = acaso(x, y, 130 + k) * 6.3; p.traverse(o => { o.castShadow = false; }); grupoTerreno.add(p);
       }
       // rochas
       for (const [x, y] of porTipo['^'] || []) for (let k = 0; k < 2; k++) {
         const p = pecaNatureza('rock_' + (1 + Math.floor(acaso(x, y, 90 + k) * 5)), k ? .3 + acaso(x, y, 92) * .2 : .55 + acaso(x, y, 93) * .35, k ? .5 : 1); if (!p) continue;
-        p.position.set(x + .5 + (k ? (acaso(x, y, 94) - .5) * .6 : 0), chaoDe(x, y), y + .5 + (k ? (acaso(x, y, 95) - .5) * .6 : 0)); p.rotation.y = acaso(x, y, 96) * 6.3; grupoTerreno.add(p);
+        const rx = x + .5 + (k ? (acaso(x, y, 94) - .5) * .6 : 0), rz = y + .5 + (k ? (acaso(x, y, 95) - .5) * .6 : 0);
+        p.position.set(rx, chaoEm(rx, rz) - .06, rz); p.rotation.y = acaso(x, y, 96) * 6.3; grupoTerreno.add(p);
+      }
+      // paisagem em volta do tabuleiro: bosques, arbustos e pedras
+      for (const [px, pz, f, r] of pontosDaMargem(mesa, .09)) {
+        const nome = r < .1 ? 'rock_' + (1 + Math.floor(r * 50)) : f > .55 ? (r < .6 ? 'pinetree_' + [1, 2, 3, 5][Math.floor(r * 40) % 4] : 'normaltree_' + (1 + Math.floor(r * 50) % 5)) : r < .45 ? 'bush_large' : 'normaltree_' + (1 + Math.floor(r * 70) % 5);
+        const alto = nome.startsWith('rock') ? .5 : nome.startsWith('bush') ? .6 : 2.2 + r * .9;
+        const p = pecaNatureza(nome, alto, nome.startsWith('rock') ? .9 : 1.6); if (!p) continue;
+        p.position.set(px, chaoEm(px, pz) - .05, pz); p.rotation.y = r * 40; grupoTerreno.add(p);
       }
     } else {
       // reserva enquanto os modelos carregam
@@ -277,7 +295,7 @@ export function criarCena(el, cb = {}) {
     const tronco = new THREE.CylinderGeometry(.07, .08, 1, 7);
     const ponta = new THREE.ConeGeometry(.075, .16, 7);
     for (const tipo of Object.keys(PAREDES)) for (const [x, y] of porTipo[tipo] || []) {
-      const P = PAREDES[tipo], y0 = chaoDe(x, y), cx = x + .5, cz = y + .5;
+      const P = PAREDES[tipo], y0 = chaoDe(x, y) - .25, cx = x + .5, cz = y + .5;
       const viz = [[1, 0], [-1, 0], [0, 1], [0, -1]].filter(([dx, dy]) => liga(x + dx, y + dy));
       const reto = viz.length === 2 && viz[0][0] === -viz[1][0] && viz[0][1] === -viz[1][1];
       if (tipo === 'm') {
@@ -332,30 +350,21 @@ export function criarCena(el, cb = {}) {
       if (luzes++ < 6) { const pl = new THREE.PointLight('#ff9a3a', 2.2, 6, 1.6); pl.position.y = .6; g.add(pl); chamas.push([pl, null, x + y]); }
       grupoTerreno.add(g);
     }
-    // 8) grade, acompanhando a altura de cada casa
-    const pts = [];
-    for (let y = 0; y < R; y++) for (let x = 0; x < C; x++) {
-      const c = mesa.grid[y][x]; if (ehParede(c) && c !== 'h') continue;
-      const yy = chaoDe(x, y) + .006;
-      pts.push(x, yy, y, x + 1, yy, y, x, yy, y, x, yy, y + 1);
-      if (x === C - 1) pts.push(x + 1, yy, y, x + 1, yy, y + 1);
-      if (y === R - 1) pts.push(x, yy, y + 1, x + 1, yy, y + 1);
-    }
-    const lg = new THREE.BufferGeometry(); lg.setAttribute('position', new THREE.Float32BufferAttribute(pts, 3));
-    grupoTerreno.add(new THREE.LineSegments(lg, new THREE.LineBasicMaterial({ color: '#000000', transparent: true, opacity: .2 })));
-    // 9) mesa de madeira ao redor
-    const tm = tex.mesa.clone(); tm.needsUpdate = true; tm.repeat.set((C + 16) / 4, (R + 16) / 4);
-    const chao = new THREE.Mesh(new THREE.PlaneGeometry(C + 16, R + 16), new THREE.MeshStandardMaterial({ map: tm, roughness: .8 }));
-    chao.rotation.x = -Math.PI / 2; chao.position.set(C / 2, -.005, R / 2); chao.receiveShadow = true; grupoTerreno.add(chao);
-    const moldura = new THREE.Mesh(new THREE.BoxGeometry(C + .4, .1, R + .4), new THREE.MeshStandardMaterial({ color: '#3a2412', roughness: .7 }));
-    moldura.position.set(C / 2, .03, R / 2); moldura.receiveShadow = true; grupoTerreno.add(moldura);
-    for (const l of [kael, lyra]) { const s = Math.max(C, R) * .75; Object.assign(l.shadow.camera, { left: -s, right: s, top: s, bottom: -s, near: .5, far: 120 }); l.shadow.camera.updateProjectionMatrix(); }
+    for (const l of [kael, lyra]) { const s = Math.max(C, R) * .85; Object.assign(l.shadow.camera, { left: -s, right: s, top: s, bottom: -s, near: .5, far: 120 }); l.shadow.camera.updateProjectionMatrix(); }
   }
 
+  let ceuAtual = '';
   function aplicarCeu(luz, lua) {
     const c = CEUS[luz] || CEUS.dia, alvo = new THREE.Vector3(mesa.cols / 2, 0, mesa.rows / 2), d = Math.max(mesa.cols, mesa.rows) * 1.2;
-    cena.background = new THREE.Color(c.fundo); cena.environmentIntensity = c.env;
-    cena.fog = new THREE.Fog(c.nevoa, d * 1.6, d * 3.5);
+    if (ceuAtual !== luz) {
+      ceuAtual = luz;
+      const usar = t => { if (ceuAtual !== luz) return; cena.environment = t; cena.background = c.fundoCor ? new THREE.Color(c.fundoCor) : t; };
+      if (hdrs[c.hdr]) usar(hdrs[c.hdr]);
+      else carregaHdr.loadAsync('/ceus/' + c.hdr + '.hdr').then(eq => { const t = pmrem.fromEquirectangular(eq).texture; eq.dispose(); hdrs[c.hdr] = t; usar(t); }).catch(() => {});
+    }
+    cena.environmentIntensity = c.env; cena.backgroundIntensity = c.fundo; cena.backgroundBlurriness = .06;
+    renderer.toneMappingExposure = c.exp;
+    cena.fog = new THREE.FogExp2(c.nevoa, c.dens * 24 / Math.max(24, Math.max(mesa.cols, mesa.rows)));
     hemi.color.set(c.hemi[0]); hemi.groundColor.set(c.hemi[1]); hemi.intensity = c.hemi[2]; amb.intensity = c.amb;
     for (const [l, cfg] of [[kael, c.kael], [lyra, c.lyra]]) {
       l.intensity = cfg[0]; l.visible = cfg[0] > 0; l.castShadow = cfg[0] > 0;
@@ -370,7 +379,7 @@ export function criarCena(el, cb = {}) {
   function enquadrar() {
     const cx = mesa.cols / 2, cz = mesa.rows / 2, d = Math.max(mesa.cols, mesa.rows);
     controles.target.set(cx, 0, cz);
-    camera.position.set(cx, d * .55, cz + d * .62);
+    camera.position.set(cx, d * .5, cz + d * .66);
     controles.update();
   }
 
@@ -447,13 +456,8 @@ export function criarCena(el, cb = {}) {
   }
 
   function mostrarAlcance(alcance) {
-    if (alcanceMesh) { grupoEfeitos.remove(alcanceMesh); alcanceMesh.geometry.dispose(); alcanceMesh = null; }
-    if (!alcance || !alcance.size) return;
-    const celulas = [...alcance.entries()].filter(([, d]) => d > 0);
-    alcanceMesh = new THREE.InstancedMesh(new THREE.PlaneGeometry(.86, .86), new THREE.MeshBasicMaterial({ color: '#ffd76a', transparent: true, opacity: .28, depthWrite: false }), celulas.length);
-    const m4 = new THREE.Matrix4(), q = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), -Math.PI / 2);
-    celulas.forEach(([key], i) => { const [x, y] = key.split(',').map(Number); m4.compose(new THREE.Vector3(x + .5, alturaEm(x, y) + .02, y + .5), q, new THREE.Vector3(1, 1, 1)); alcanceMesh.setMatrixAt(i, m4); });
-    grupoEfeitos.add(alcanceMesh);
+    if (!alcance || !alcance.size) { solo?.marcarAlcance(null); return; }
+    solo?.marcarAlcance(alcance);
   }
 
   function ping(x, y, cor) {
@@ -534,7 +538,8 @@ export function criarCena(el, cb = {}) {
 
   // ----------- laço -----------
   const relogio = new THREE.Clock();
-  const ro = new ResizeObserver(() => { const w = el.clientWidth, h = el.clientHeight; if (!w || !h) return; renderer.setSize(w, h); camera.aspect = w / h; camera.updateProjectionMatrix(); });
+  let usarPos = true;
+  const ro = new ResizeObserver(() => { const w = el.clientWidth, h = el.clientHeight; if (!w || !h) return; renderer.setSize(w, h); composer.setPixelRatio(renderer.getPixelRatio()); composer.setSize(w, h); camera.aspect = w / h; camera.updateProjectionMatrix(); });
   ro.observe(el);
   let ativo = true, pausado = false, quadros = 0, inicioMedida = performance.now(), qualidadeReduzida = false;
   function medirDesempenho(agora) {
@@ -545,6 +550,7 @@ export function criarCena(el, cb = {}) {
     if (fps < 24) {
       // aparelho fraco: menos pixels e sombras mais leves
       qualidadeReduzida = true;
+      usarPos = false;
       renderer.setPixelRatio(1);
       renderer.shadowMap.type = THREE.PCFShadowMap;
       for (const l of [kael, lyra]) { l.shadow.mapSize.set(1024, 1024); l.shadow.map?.dispose(); l.shadow.map = null; }
@@ -576,7 +582,7 @@ export function criarCena(el, cb = {}) {
     if (selecaoAnel?.parent) { selecaoAnel.rotation.z = t; selecaoAnel.scale.setScalar(1 + Math.sin(t * 4) * .04); }
     for (let i = pings.length - 1; i >= 0; i--) { const p = pings[i], a = (agora - p.t0) / 1400; p.m.scale.setScalar(1 + a * 3); p.m.material.opacity = 1 - a; if (a >= 1) { grupoEfeitos.remove(p.m); p.m.geometry.dispose(); pings.splice(i, 1); } }
     simularDados(dt, agora);
-    renderer.render(cena, camera);
+    if (usarPos) composer.render(dt); else renderer.render(cena, camera);
   }
   laco();
 
@@ -594,7 +600,7 @@ export function criarCena(el, cb = {}) {
       ultimo = estado;
       const { mesa: m, tokens: lista, selecionado, alcance } = estado;
       if (!m) return;
-      const novaChave = m.cols + 'x' + m.rows + ':' + m.grid.join('');
+      const novaChave = m.cols + 'x' + m.rows + ':' + m.grid.join('') + ':' + (m.alt || []).join('');
       const tamanhoMudou = !mesa || mesa.cols !== m.cols || mesa.rows !== m.rows;
       mesa = m;
       if (novaChave !== chaveTerreno) { chaveTerreno = novaChave; construirTerreno(); }
@@ -607,9 +613,10 @@ export function criarCena(el, cb = {}) {
     projetar(v) { const p = v.clone().project(camera), r = dom.getBoundingClientRect(); return { x: (p.x + 1) / 2 * r.width, y: (1 - p.y) / 2 * r.height }; },
     girar(ang) { const off = camera.position.clone().sub(controles.target); off.applyAxisAngle(new THREE.Vector3(0, 1, 0), ang); camera.position.copy(controles.target).add(off); },
     zoom(f) { const off = camera.position.clone().sub(controles.target).multiplyScalar(f); if (off.length() > 3 && off.length() < 70) camera.position.copy(controles.target).add(off); },
-    focar(x, y) { const novo = new THREE.Vector3(x + .5, 0, y + .5), d = novo.clone().sub(controles.target); controles.target.add(d); camera.position.add(d); },
+    focar(x, y) { const novo = new THREE.Vector3(x + .5, mesa ? alturaEm(x, y) : 0, y + .5), d = novo.clone().sub(controles.target); controles.target.add(d); camera.position.add(d); },
     enquadrar() { if (mesa) enquadrar(); },
     pausar(v) { pausado = !!v; if (!v) relogio.getDelta(); },
+    _cam: camera, _ctl: controles, _alt: (x, z) => solo?.alturaPonto(x, z),
     destruir() { ativo = false; ro.disconnect(); controles.dispose(); renderer.dispose(); dom.remove(); },
   };
   return api;
