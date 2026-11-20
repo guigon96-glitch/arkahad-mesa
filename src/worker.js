@@ -202,7 +202,7 @@ export class Saguao extends DurableObject {
 // =====================================================================
 const COMBATE_VAZIO = { ativo: false, ordem: [], turno: 0, rodada: 1 };
 const CAMPOS_PC = ['nome', 'sigla', 'cor', 'vigor', 'vigorMax', 'folego', 'folegoMax', 'tensao', 'limiar', 'defesa', 'desloc', 'ini', 'dados', 'robustez', 'determinacao', 'protecao', 'limiarFer', 'ficha', 'aparencia', 'imbuido', 'itens', 'moedas', 'barra'];
-const CAMPOS_NPC = ['nome', 'sigla', 'cor', 'tipo', 'vigor', 'vigorMax', 'defesa', 'ini', 'desloc', 'tamanho', 'visivel', 'descricao', 'falas', 'notas', 'x', 'y', 'raca', 'aparencia', 'ataque', 'dano', 'alcance', 'protecao'];
+const CAMPOS_NPC = ['nome', 'sigla', 'cor', 'tipo', 'vigor', 'vigorMax', 'defesa', 'ini', 'desloc', 'tamanho', 'visivel', 'descricao', 'falas', 'notas', 'x', 'y', 'raca', 'aparencia', 'ataque', 'dano', 'alcance', 'protecao', 'xp'];
 const RACAS_OK = ['sarthani', 'zarathim', 'veloryn', 'draveth', 'sypheris', 'dvarith', 'criatura'];
 function objetoLimitado(v, max) {
   if (!v || typeof v !== 'object' || Array.isArray(v)) return undefined;
@@ -236,6 +236,7 @@ function limparNpc(d) {
   if ('cor' in o) o.cor = cor(o.cor);
   if ('tipo' in o) o.tipo = ['npc', 'monstro', 'aliado'].includes(o.tipo) ? o.tipo : 'npc';
   for (const k of ['vigor', 'vigorMax', 'defesa', 'ini', 'desloc', 'x', 'y', 'ataque', 'protecao']) if (k in o) o[k] = Math.round(num(o[k]));
+  if ('xp' in o) o.xp = Math.max(0, Math.min(200, Math.round(num(o.xp))));
   if ('alcance' in o) o.alcance = Math.max(1, Math.min(40, Math.round(num(o.alcance, 1))));
   if ('dano' in o) o.dano = /^[0-9d+\-]{1,20}$/i.test(String(o.dano || '')) ? String(o.dano).toLowerCase() : '1d6';
   if ('tamanho' in o) o.tamanho = Math.max(1, Math.min(4, Math.round(num(o.tamanho, 1))));
@@ -273,13 +274,14 @@ export class Sala extends DurableObject {
 
   async carregar() {
     if (this.s) return this.s;
-    const m = await this.ctx.storage.get(['meta', 'mesa', 'mapas', 'pcs', 'npcs', 'log']);
+    const m = await this.ctx.storage.get(['meta', 'mesa', 'mapas', 'pcs', 'npcs', 'log', 'pedidos']);
     this.s = {
       meta: m.get('meta') || null,
       mapas: m.get('mapas') || null,
       pcs: m.get('pcs') || {},
       npcs: m.get('npcs') || {},
       log: m.get('log') || [],
+      pedidos: m.get('pedidos') || [],
     };
     // sessões antigas tinham um mapa só ("mesa"): vira o primeiro mapa da sessão
     if (!this.s.mapas && m.get('mesa')) {
@@ -374,7 +376,8 @@ export class Sala extends DurableObject {
       sala: { codigo: s.meta.codigo, nome: s.meta.nome, mestreNome: s.meta.mestreNome, max: MAX_JOGADORES, mapaInicial: s.meta.mapaInicial },
       mapas: Object.values(s.mapas).map(m => ({ id: m.id, nome: m.nome, cols: m.cols, rows: m.rows })),
       mesa, pcs, npcs,
-      log: s.log.filter(l => att.mestre || !l.oculta).slice(0, 40),
+      log: s.log.filter(l => att.mestre || !l.oculta).slice(0, 40).map(l => att.mestre ? l : { ...l, difMestre: undefined }),
+      pedidos: s.pedidos.filter(p => att.mestre || p.pc === att.id),
       online,
     };
   }
@@ -520,12 +523,8 @@ export class Sala extends DurableObject {
         const ids = (Array.isArray(msg.alvos) ? msg.alvos : []).map(String).filter(id => s.pcs[id]);
         if (!delta || !ids.length) return;
         const motivo = texto(msg.motivo, 60) || 'XP';
-        for (const id of ids) {
-          const p = s.pcs[id]; p.xp = Math.max(0, Math.min(999, num(p.xp) + delta));
-          const pode = nivelPorXp(p.xp), atual = num(p.ficha?.nivel, 1);
-          this.registrar({ nome: p.nome, cor: p.cor, rotulo: 'Experiência', total: delta, grau: `${p.xp} XP`, desc: motivo, tags: pode > atual ? [`Pode subir para o nível ${atual + 1}`] : [] });
-        }
-        await this.gravar('pcs');
+        for (const id of ids) this.darXp(id, delta, motivo);
+        await this.gravar('pcs', 'log');
         break;
       }
       case 'npc': {
@@ -692,17 +691,20 @@ export class Sala extends DurableObject {
           // dano = Lyra + dano da arma/técnica com seus modificadores (vazio = só Lyra)
           const d = (msg.dano && rolarExpr(msg.dano)) || { dados: [], total: 0, desc: '' };
           // crítico: Lyra conta como 20 e o alvo usa só metade da Proteção
-          const somaDano = res.lyra + d.total, somaCrit = 20 + d.total, tagsD = critico ? ['Crítico: Lyra 20, ½ Proteção'] : [];
+          const somaDano = res.lyra + d.total, somaCrit = 20 + d.total, tagsD = critico ? ['Crítico: Lyra 20, ½ Proteção'] : [], abatidos = [];
           for (const [, o, crit] of acertos) {
             const prot = crit ? Math.floor(num(o.protecao) / 2) : num(o.protecao);
             const sofre = Math.max(0, (crit ? somaCrit : somaDano) - prot);
-            o.vigor = Math.max(-99, num(o.vigor) - sofre);
+            const antes = num(o.vigor);
+            o.vigor = Math.max(-99, antes - sofre);
+            if (antes > 0 && o.vigor <= 0 && o.tipo !== 'aliado' && Object.values(s.npcs).includes(o) && (de.startsWith('pc:') || autor.tipo === 'aliado')) abatidos.push(o);
             tagsD.push(`${o.nome} −${sofre}${prot ? ` (Proteção ${prot})` : ''}`);
           }
           mandar({ ...base, t: Date.now() + 1, dados: [dadoLyra, ...d.dados], total: critico ? somaCrit : somaDano, tags: tagsD, grau: '', desc: `Lyra ${res.lyra}${d.desc ? ' + ' + d.desc : ''}`, rotulo: 'Dano · ' + texto(msg.rotulo, 50) });
           // shortcut: tabela de punição ainda não existe; ligar aqui quando o dono montar
           if (dadoAranor) mandar({ ...base, t: Date.now() + 2, dados: [dadoAranor], total: res.aranor, tags: [`Aranor ${res.aranor}: punição do Dom`], grau: '', desc: `Aranor ${res.aranor}`, rotulo: 'Punição · ' + texto(msg.rotulo, 46) });
           this.enviarTodos({ tipo: 'golpe', k: de, dom: !!msg.dom, alvos: acertos.map(([k]) => k), distancia: !!msg.distancia });
+          for (const o of abatidos) this.xpAbate(o, de);
         }
         await this.gravar('pcs', 'npcs', 'log');
         break;
@@ -729,6 +731,43 @@ export class Sala extends DurableObject {
         this.enviarTodos(evento, oculta);
         this.registrar({ ...evento, dados: undefined, tipo: undefined, k: undefined, dom: undefined });
         await this.gravar('log');
+        break;
+      }
+      case 'pedir': {
+        // jogador pede um teste; o Mestre define a DIF (oculta) e aprova ou recusa
+        const pc = s.pcs[att.id];
+        if (mestre || !pc) return;
+        if (s.pedidos.filter(p => p.pc === att.id).length >= 3) return erro('Aguarde o Mestre responder seus pedidos.');
+        s.pedidos.push({ id: hex(crypto.getRandomValues(new Uint8Array(5))), pc: att.id, nome: pc.nome, cor: pc.cor, rotulo: texto(msg.rotulo, 60) || 'Teste', mod: Math.max(-20, Math.min(30, Math.round(num(msg.mod)))), tirith: ['vantagem', 'desvantagem'].includes(msg.tirith) ? msg.tirith : 'normal', t: Date.now() });
+        await this.gravar('pedidos');
+        break;
+      }
+      case 'decidir': {
+        if (!mestre) return;
+        const i = s.pedidos.findIndex(p => p.id === String(msg.id));
+        if (i < 0) return;
+        const [ped] = s.pedidos.splice(i, 1), pc = s.pcs[ped.pc];
+        if (!msg.aprovar || !pc) {
+          this.enviarTodos({ tipo: 'aviso', texto: `O Mestre recusou o teste de ${ped.rotulo} de ${ped.nome}.` });
+          await this.gravar('pedidos');
+          break;
+        }
+        const dif = Math.max(1, Math.min(40, Math.round(num(msg.dif, 15))));
+        const tirith = ['vantagem', 'desvantagem'].includes(msg.tirith) ? msg.tirith : ped.tirith;
+        const res = rolar2d10(ped.mod, tirith, dif, false);
+        const ok = /^Sucesso/.test(res.grau) && !res.grau.endsWith('?');
+        const pele = pc.dados || {};
+        // a DIF não vai para os jogadores: só o grau (sucesso/falha) aparece
+        const evento = {
+          tipo: 'dado', nome: pc.nome, cor: pc.cor || '#e2b04a', kael: pele.kael || '#d9a23a', lyra: pele.lyra || '#3f78e0', material: pele.material || 'cristal',
+          dados: res.dados, total: res.total, tags: res.tags, grau: res.grau, desc: res.desc.replace(/ vs DIF \d+/, ''),
+          rotulo: ped.rotulo, t: Date.now(), k: 'pc:' + ped.pc, dom: false,
+        };
+        this.enviarTodos(evento);
+        this.registrar({ ...evento, dados: undefined, tipo: undefined, k: undefined, dom: undefined, difMestre: dif });
+        const xp = Math.max(0, Math.min(20, Math.round(num(msg.xp))));
+        if (ok && xp) this.darXp(ped.pc, xp, `Sucesso em ${ped.rotulo}`);
+        await this.gravar('pedidos', 'pcs', 'log');
         break;
       }
       case 'ping': {
@@ -765,6 +804,22 @@ export class Sala extends DurableObject {
   objetoDe(k) {
     k = String(k || ''); const i = k.indexOf(':'), t = k.slice(0, i), id = k.slice(i + 1);
     return t === 'pc' ? this.s.pcs[id] : t === 'npc' ? this.s.npcs[id] : null;
+  }
+
+  // XP só para personagens dos jogadores (NPCs e Mestre não sobem de nível).
+  darXp(id, delta, motivo) {
+    const p = this.s.pcs[id]; delta = Math.round(num(delta)); if (!p || !delta) return;
+    p.xp = Math.max(0, Math.min(999, num(p.xp) + delta));
+    const atual = num(p.ficha?.nivel, 1);
+    this.registrar({ nome: p.nome, cor: p.cor, rotulo: 'Experiência', total: delta, grau: `${p.xp} XP`, desc: motivo, tags: nivelPorXp(p.xp) > atual ? [`Pode subir para o nível ${atual + 1}`] : [] });
+  }
+  // Inimigo derrubado: XP dividida entre os PCs do mapa; quem deu o último golpe ganha +50%.
+  xpAbate(npc, autorK) {
+    const total = npc.xp ?? Math.max(1, Math.round(num(npc.vigorMax, 10) / 5));
+    const mapa = this.idMapa(npc), grupo = Object.keys(this.s.pcs).filter(id => this.idMapa(this.s.pcs[id]) === mapa);
+    if (!total || !grupo.length) return;
+    const parte = Math.max(1, Math.round(total / grupo.length)), matador = autorK?.startsWith('pc:') ? autorK.slice(3) : null;
+    for (const id of grupo) this.darXp(id, parte + (id === matador ? Math.ceil(total / 2) : 0), `${npc.nome} derrotado${id === matador ? ' (último golpe)' : ''}`);
   }
 
   registrar(entrada) {

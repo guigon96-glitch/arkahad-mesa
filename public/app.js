@@ -16,7 +16,7 @@ const CORES_TERRENO = { '.': '#7d6146', '_': '#8f877b', ',': '#d3ad6a', '"': '#4
 
 // ================= ESTADO =================
 let config = {}, sessao = null, ws = null, codigoAtual = null, reconectar = true, tentativaWs = 0;
-let voce = null, sala = null, mesa = null, pcs = {}, npcs = {}, log = [], online = [];
+let voce = null, sala = null, mesa = null, pcs = {}, npcs = {}, log = [], online = [], pedidos = [];
 let selecionado = null, aba = 'ficha', modoMestre = 'mover', pincel = '.', tamPincel = 1, pincelAlt = '2', mapas = [];
 let arrasto = null, alcance = null, npcParaEditar = null, cena = null, quadroPendente = false;
 const memo = { mod: 0, dif: '', expr: '1d8+3' };
@@ -152,6 +152,8 @@ function receber(m) {
       const primeira = !voce;
       const recAntes = recursosDe(pcs?.[m.voce?.id]);
       voce = m.voce; sala = m.sala; mapas = m.mapas || []; const trocouMapa = mesa?.id !== m.mesa?.id; mesa = m.mesa; if (trocouMapa) { desfazer.length = 0; refazer.length = 0; if (mira) cancelarMira(); } pcs = m.pcs || {}; npcs = m.npcs || {}; log = m.log || []; online = m.online || [];
+      const novos = (m.pedidos || []).filter(x => !pedidos.some(y => y.id === x.id)); pedidos = m.pedidos || [];
+      if (!primeira && voce?.mestre && novos.length) avisar(`Pedido de teste: ${novos.map(x => `${x.nome} · ${x.rotulo}`).join(', ')}`, 5000);
       if (primeira) avisar('');
       $('abaMestre').hidden = !souMestre();
       if (!souMestre() && aba === 'mestre') aba = 'ficha';
@@ -605,6 +607,8 @@ async function animarDados(m) {
 
 // ================= Ficha completa =================
 function rolarTeste(rotulo, mod, dom = false) {
+  // jogador pede o teste; o Mestre define a DIF (oculta) e aprova
+  if (!souMestre() && !dom) { enviar({ tipo: 'pedir', rotulo, mod, tirith: $('fichaTirith')?.value || 'normal' }); return avisar(`Pedido de ${rotulo} enviado ao Mestre.`, 2500); }
   enviar({ tipo: 'rolar', modo: 'teste', mod, tirith: $('fichaTirith')?.value || 'normal', dif: num($('fichaDif')?.value), dom, rotulo });
 }
 function usarTecnica(nivel, nome) {
@@ -638,8 +642,9 @@ function htmlFichaCompleta(p) {
     ${medidor('Vigor', 'vigor', 'vigorMax', '#5d9a4a', { ...p, k: 'pc:' + eu() }, true)}${medidor('Fôlego', 'folego', 'folegoMax', '#5f92f0', { ...p, k: 'pc:' + eu() }, true)}${medidor('Tensão', 'tensao', 'limiar', '#c0392f', { ...p, k: 'pc:' + eu() }, true)}
     <div class="ficha-attrs">${ATRIBUTOS.map(([k]) => `<button data-rolar="${k}" data-mod="${a[k]}"><b>${a[k]}</b>${k}</button>`).join('')}</div>
     <div class="ficha-der"><span>Defesa <b>${d.defesa}</b></span><span>Robustez <b>${d.robustez}</b></span><span>Determ. <b>${d.determinacao}</b></span><span>Proteção <b>${d.protecao}</b></span><span>Lim. Ferim. <b>${d.limiarFer}</b></span><span>Desl. <b>${d.desloc}</b></span></div>
-    <div class="linha" style="margin-top:8px"><div><label for="fichaDif">DIF</label><input id="fichaDif" type="number" placeholder="—"></div><div><label for="fichaTirith">Dado de Tirith</label><select id="fichaTirith"><option value="normal">Normal</option><option value="vantagem">Vantagem</option><option value="desvantagem">Desvantagem</option></select></div></div>
-    <p class="cr-nota" style="margin:6px 0 0">Clique num atributo, perícia ou técnica para rolar.</p></div>
+    <div class="linha" style="margin-top:8px">${souMestre() ? '<div><label for="fichaDif">DIF</label><input id="fichaDif" type="number" placeholder="—"></div>' : ''}<div><label for="fichaTirith">Dado de Tirith</label><select id="fichaTirith"><option value="normal">Normal</option><option value="vantagem">Vantagem</option><option value="desvantagem">Desvantagem</option></select></div></div>
+    <p class="cr-nota" style="margin:6px 0 0">${souMestre() ? 'Clique num atributo, perícia ou técnica para rolar.' : 'Clique num atributo ou perícia para pedir o teste ao Mestre. Técnicas rolam direto.'}</p>
+    ${pedidos.length && !souMestre() ? `<p style="margin:6px 0 0;color:var(--ouro)">Aguardando o Mestre: ${pedidos.map(x => esc(x.rotulo)).join(', ')}</p>` : ''}</div>
     ${blocoCombate}
     ${dom ? `<div class="bloco"><h3 style="color:${dom.cor}">${esc(dom.nome)} — ${esc(dom.tema)}</h3><div style="font-size:13px;color:var(--mudo);margin-bottom:6px">Chave ${dom.chave} · Canalização ${gradPericia(f, 'canalizacao')} · Cristal ${esc(RESSONANCIAS[f.ressonancia]?.nome || '')}</div><div class="dom-notas">${notasDom(dom).map(esc).join('<br>')}</div>${tecnicas(dom, n)}
       ${dom2 ? `<h3 style="color:${dom2.cor};margin-top:10px">${esc(dom2.nome)} (secundário)</h3>${tecnicas(dom2, Math.max(1, n - 1))}` : ''}</div>` : ''}
@@ -761,7 +766,7 @@ function htmlDados() {
     <button class="pri" id="rolarExpr" style="width:100%;margin-top:10px">Rolar</button></div>`;
 }
 function htmlRegistro() {
-  return `<ul class="registro">${log.length ? log.map(x => `<li><span class="ponto" style="display:inline-block;background:${esc(x.cor)}"></span> <b>${esc(x.nome)}</b>${x.rotulo ? ' · ' + esc(x.rotulo) : ''}${x.oculta ? ' · oculta' : ''} — <b style="color:var(--ouro);font-size:18px">${num(x.total)}</b>${x.grau ? ' · ' + esc(x.grau) : ''}<div style="color:var(--mudo);font-size:13px">${esc(x.desc)} · ${new Date(x.t).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</div>${(x.tags || []).map(t => `<span class="tag ${/Ruína|Aranor|Eco/.test(t) ? 'ruim' : ''}">${esc(t)}</span>`).join('')}</li>`).join('') : '<li>Nenhuma rolagem ainda.</li>'}</ul>`;
+  return `<ul class="registro">${log.length ? log.map(x => `<li><span class="ponto" style="display:inline-block;background:${esc(x.cor)}"></span> <b>${esc(x.nome)}</b>${x.rotulo ? ' · ' + esc(x.rotulo) : ''}${x.oculta ? ' · oculta' : ''} — <b style="color:var(--ouro);font-size:18px">${num(x.total)}</b>${x.grau ? ' · ' + esc(x.grau) : ''}<div style="color:var(--mudo);font-size:13px">${esc(x.desc)}${x.difMestre ? ` · DIF ${num(x.difMestre)} (só você vê)` : ''} · ${new Date(x.t).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</div>${(x.tags || []).map(t => `<span class="tag ${/Ruína|Aranor|Eco/.test(t) ? 'ruim' : ''}">${esc(t)}</span>`).join('')}</li>`).join('') : '<li>Nenhuma rolagem ainda.</li>'}</ul>`;
 }
 const GRUPOS_TERRENO = [
   ['Chão', ['"', '.', ',', '_', '=', 'v']], ['Água', ['~']], ['Vegetação', ['T', 'P', 'Q', 'k']],
@@ -775,7 +780,10 @@ function htmlMestre() {
       <div class="linha" style="margin-top:8px;align-items:end"><div><label for="m_tam">Tamanho</label><select id="m_tam">${[1, 2, 3, 4, 5, 7].map(n => `<option ${tamPincel === n ? 'selected' : ''}>${n}</option>`).join('')}</select></div>
       <div><label for="m_forma">Forma</label><select id="m_forma"><option value="quadrado" ${formaPincel === 'quadrado' ? 'selected' : ''}>Quadrado</option><option value="circulo" ${formaPincel === 'circulo' ? 'selected' : ''}>Círculo</option></select></div>
       <div class="desfaz"><button id="m_desfazer" ${desfazer.length ? '' : 'disabled'} title="Desfazer (Ctrl+Z)">↶</button><button id="m_refazer" ${refazer.length ? '' : 'disabled'} title="Refazer (Ctrl+Y)">↷</button></div></div>` : '';
-  return `<div class="bloco"><h3>Ferramenta</h3><div class="linha">${[['mover', 'Mover'], ['pintar', 'Terreno'], ['altura', 'Altura'], ['portal', 'Portal'], ['npc', 'Colocar NPC']].map(([k, n]) => `<button data-modo="${k}" class="${modoMestre === k ? 'ativo' : ''}">${n}</button>`).join('')}</div>
+  const blocoPedidos = pedidos.length ? `<div class="bloco"><h3>Pedidos de teste</h3>${pedidos.map(x => `<div style="border-bottom:1px solid var(--borda,#3335);padding:6px 0"><div><span class="ponto" style="display:inline-block;background:${esc(x.cor)}"></span> <b>${esc(x.nome)}</b> · ${esc(x.rotulo)} <small>(${x.mod >= 0 ? '+' : ''}${x.mod}${x.tirith !== 'normal' ? ' · ' + esc(x.tirith) : ''})</small></div>
+      <div class="linha" style="align-items:end"><div><label for="pd_dif_${esc(x.id)}">DIF (oculta)</label><input id="pd_dif_${esc(x.id)}" type="number" value="15"></div><div><label for="pd_xp_${esc(x.id)}">XP se passar</label><input id="pd_xp_${esc(x.id)}" type="number" min="0" max="20" value="1"></div>
+      <button class="pri" data-aprovar="${esc(x.id)}">Aprovar</button><button data-recusar="${esc(x.id)}">Recusar</button></div></div>`).join('')}</div>` : '';
+  return `${blocoPedidos}<div class="bloco"><h3>Ferramenta</h3><div class="linha">${[['mover', 'Mover'], ['pintar', 'Terreno'], ['altura', 'Altura'], ['portal', 'Portal'], ['npc', 'Colocar NPC']].map(([k, n]) => `<button data-modo="${k}" class="${modoMestre === k ? 'ativo' : ''}">${n}</button>`).join('')}</div>
     ${blocoFerr}
     ${modoMestre === 'pintar' ? GRUPOS_TERRENO.map(([g, l]) => `<div class="grupo-pal">${g}</div><div class="paleta">${l.map(k => `<button data-pincel="${esc(k)}" class="${pincel === k ? 'ativo' : ''}"><i class="amostra" style="background:${CORES_TERRENO[k]}"></i>${esc(TERRENOS[k].n)}</button>`).join('')}</div>`).join('') + `<button id="m_tudo" style="width:100%;margin-top:8px">Preencher o mapa todo com “${esc(TERRENOS[pincel]?.n || '')}”</button>` : ''}
     ${modoMestre === 'altura' ? `<div class="paleta" style="margin-top:10px">${[...Object.entries(NIVEIS), ['+', 'Subir 1 nível'], ['-', 'Descer 1 nível']].map(([k, n]) => `<button data-alt="${k}" class="${pincelAlt === k ? 'ativo' : ''}"><i class="amostra" style="background:${{ '0': '#2a3a4a', '1': '#7d6146', '2': '#9a7a52', '3': '#b8956a', '4': '#d8c09a', '+': '#5d9a4a', '-': '#c0392f' }[k]}"></i>${esc(n)}</button>`).join('')}</div>
@@ -816,7 +824,7 @@ function editorNpc(id) {
     <p class="cr-nota" style="margin:2px 0 0">Para monstros escolha Miniatura “Criatura” e o modelo em “Criatura 3D”. Para pessoas, a raça define pele e traços.</p>
     <div class="linha">${f('vigor', 'Vigor')}${f('vigorMax', 'Vigor máx.')}${f('defesa', 'Defesa')}</div>
     <div class="linha">${f('ini', 'Bônus inic.')}${f('desloc', 'Desloc.')}${f('tamanho', 'Tamanho (casas)')}</div>
-    <div class="linha">${f('ataque', 'Bônus de ataque')}${f('dano', 'Dano', 'text')}${f('alcance', 'Alcance (casas)')}${f('protecao', 'Proteção')}</div>
+    <div class="linha">${f('ataque', 'Bônus de ataque')}${f('dano', 'Dano', 'text')}${f('alcance', 'Alcance (casas)')}${f('protecao', 'Proteção')}<div><label for="n_xp">XP ao derrotar</label><input id="n_xp" type="number" min="0" placeholder="${Math.max(1, Math.round(num(n.vigorMax, 10) / 5))}" value="${esc(n.xp ?? '')}"></div></div>
     <label style="display:flex;gap:8px;align-items:center;font-size:15px;color:var(--ink)"><input id="n_visivel" type="checkbox" style="width:auto" ${n.visivel !== false ? 'checked' : ''}> Visível para os jogadores</label>
     <label for="n_descricao">Descrição (jogadores veem)</label><textarea id="n_descricao">${esc(n.descricao)}</textarea>
     <label for="n_falas">Falas (uma por linha)</label><textarea id="n_falas">${esc((n.falas || []).join('\n'))}</textarea>
@@ -829,7 +837,7 @@ function editorNpc(id) {
     const raca = v('raca'), sexo = v('sexo'), base = raca === 'criatura' ? {} : aparenciaPadrao(raca, 'lamina', sexo);
     const pele = RACAS[raca]?.pele, trocou = n.raca !== raca || (n.aparencia?.sexo || 'm') !== sexo;
     const aparencia = { ...base, ...(trocou ? {} : n.aparencia || {}), sexo, corRoupa: v('roupa'), arma: v('arma'), secundaria: v('sec'), criatura: v('criatura'), base: v('cor'), ...(trocou && pele ? { pele: pele[Math.floor(Math.random() * pele.length)] } : {}) };
-    const dados = { nome: v('nome'), sigla: v('sigla'), cor: v('cor'), tipo: v('tipo'), raca, aparencia, vigor: num(v('vigor')), vigorMax: num(v('vigorMax')), defesa: num(v('defesa')), ini: num(v('ini')), desloc: num(v('desloc'), 6), tamanho: num(v('tamanho'), 1), ataque: num(v('ataque'), 3), dano: v('dano') || '2', alcance: num(v('alcance'), 1), protecao: num(v('protecao')), visivel: $('n_visivel').checked, descricao: v('descricao'), falas: v('falas').split('\n').map(s => s.trim()).filter(Boolean), notas: v('notas') };
+    const dados = { nome: v('nome'), sigla: v('sigla'), cor: v('cor'), tipo: v('tipo'), raca, aparencia, vigor: num(v('vigor')), vigorMax: num(v('vigorMax')), defesa: num(v('defesa')), ini: num(v('ini')), desloc: num(v('desloc'), 6), tamanho: num(v('tamanho'), 1), ataque: num(v('ataque'), 3), dano: v('dano') || '2', alcance: num(v('alcance'), 1), protecao: num(v('protecao')), ...(v('xp') !== '' ? { xp: num(v('xp')) } : {}), visivel: $('n_visivel').checked, descricao: v('descricao'), falas: v('falas').split('\n').map(s => s.trim()).filter(Boolean), notas: v('notas') };
     npcs[id] = { ...npcs[id], ...dados }; enviar({ tipo: 'npc', id, dados });
     selecionar('npc:' + id);
   };
@@ -838,6 +846,8 @@ function ligar() {
   const q = s => document.querySelector(s);
   if (q('#abrirCriador')) q('#abrirCriador').onclick = abrirCriacao;
   if (q('#subirNivel')) q('#subirNivel').onclick = subirNivel;
+  document.querySelectorAll('[data-aprovar]').forEach(b => b.onclick = () => { const id = b.dataset.aprovar; enviar({ tipo: 'decidir', id, aprovar: true, dif: num(q('#pd_dif_' + id).value, 15), xp: num(q('#pd_xp_' + id).value) }); });
+  document.querySelectorAll('[data-recusar]').forEach(b => b.onclick = () => enviar({ tipo: 'decidir', id: b.dataset.recusar, aprovar: false }));
   if (q('#darXp')) q('#darXp').onclick = () => {
     const alvos = [...document.querySelectorAll('[data-xpalvo]:checked')].map(c => c.dataset.xpalvo), valor = num(q('#xpValor').value);
     if (!alvos.length || !valor) return avisar('Escolha os jogadores e a quantidade de XP.', 2500);
