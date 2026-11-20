@@ -369,14 +369,14 @@ export class Sala extends DurableObject {
       if (!att.mestre && (n.visivel === false || mapa !== mesa.id)) continue;
       npcs[id] = att.mestre ? { ...n, mapa } : { ...n, mapa, notas: undefined };
     }
-    for (const [id, p] of Object.entries(s.pcs)) pcs[id] = { ...p, mapa: this.idMapa(p) };
+    for (const [id, p] of Object.entries(s.pcs)) pcs[id] = att.mestre ? { ...p, mapa: this.idMapa(p) } : { ...p, mapa: this.idMapa(p), notasMestre: undefined, ...(id === att.id ? {} : { notasJogador: undefined, ajuda: undefined }) };
     return {
       tipo: 'estado',
       voce: { id: att.id, nome: att.nome, mestre: att.mestre },
       sala: { codigo: s.meta.codigo, nome: s.meta.nome, mestreNome: s.meta.mestreNome, max: MAX_JOGADORES, mapaInicial: s.meta.mapaInicial },
       mapas: Object.values(s.mapas).map(m => ({ id: m.id, nome: m.nome, cols: m.cols, rows: m.rows })),
       mesa, pcs, npcs,
-      log: s.log.filter(l => att.mestre || !l.oculta).slice(0, 40).map(l => att.mestre ? l : { ...l, difMestre: undefined }),
+      log: s.log.filter(l => att.mestre || !l.oculta || l.para === att.id).slice(0, 40).map(l => att.mestre ? l : { ...l, difMestre: undefined }),
       pedidos: s.pedidos.filter(p => att.mestre || p.pc === att.id),
       online,
     };
@@ -523,7 +523,7 @@ export class Sala extends DurableObject {
         const ids = (Array.isArray(msg.alvos) ? msg.alvos : []).map(String).filter(id => s.pcs[id]);
         if (!delta || !ids.length) return;
         const motivo = texto(msg.motivo, 60) || 'XP';
-        for (const id of ids) this.darXp(id, delta, motivo);
+        for (const id of ids) this.darXp(id, delta, motivo, !!msg.secreta);
         await this.gravar('pcs', 'log');
         break;
       }
@@ -733,6 +733,29 @@ export class Sala extends DurableObject {
         await this.gravar('log');
         break;
       }
+      case 'fichaMestre': {
+        // anotações do Mestre: secretas (só ele) e para o jogador (só o dono vê)
+        const p = mestre && s.pcs[String(msg.id)];
+        if (!p) return;
+        if ('notasMestre' in msg) p.notasMestre = texto(msg.notasMestre, 3000);
+        if ('notasJogador' in msg) p.notasJogador = texto(msg.notasJogador, 2000);
+        await this.gravar('pcs');
+        break;
+      }
+      case 'ajuda': {
+        // dica e/ou bônus no próximo teste aprovado; secreta = só o jogador vê
+        if (!mestre) return;
+        const id = String(msg.id), p = s.pcs[id];
+        if (!p) return;
+        const bonus = Math.max(0, Math.min(5, Math.round(num(msg.bonus)))), dica = texto(msg.texto, 300), secreta = !!msg.secreta;
+        if (!bonus && !dica) return erro('Escreva a ajuda ou dê um bônus.');
+        if (bonus) p.ajuda = bonus;
+        const txt = `Ajuda do Mestre para ${p.nome}${bonus ? ` (+${bonus} no próximo teste)` : ''}${dica ? ': ' + dica : ''}`;
+        if (secreta) this.enviarPara(id, { tipo: 'aviso', texto: txt }); else this.enviarTodos({ tipo: 'aviso', texto: txt });
+        this.registrar({ nome: 'Mestre', cor: '#e2b04a', rotulo: 'Ajuda', total: bonus, grau: p.nome, desc: dica || 'Bônus no próximo teste', ...(secreta ? { oculta: true, para: id } : {}) });
+        await this.gravar('pcs', 'log');
+        break;
+      }
       case 'pedir': {
         // jogador pede um teste; o Mestre define a DIF (oculta) e aprova ou recusa
         const pc = s.pcs[att.id];
@@ -754,7 +777,9 @@ export class Sala extends DurableObject {
         }
         const dif = Math.max(1, Math.min(40, Math.round(num(msg.dif, 15))));
         const tirith = ['vantagem', 'desvantagem'].includes(msg.tirith) ? msg.tirith : ped.tirith;
-        const res = rolar2d10(ped.mod, tirith, dif, false);
+        const ajuda = num(pc.ajuda); delete pc.ajuda;
+        const res = rolar2d10(ped.mod + ajuda, tirith, dif, false);
+        if (ajuda) res.tags.push(`Ajuda do Mestre +${ajuda}`);
         const ok = /^Sucesso/.test(res.grau) && !res.grau.endsWith('?');
         const pele = pc.dados || {};
         // a DIF não vai para os jogadores: só o grau (sucesso/falha) aparece
@@ -807,11 +832,16 @@ export class Sala extends DurableObject {
   }
 
   // XP só para personagens dos jogadores (NPCs e Mestre não sobem de nível).
-  darXp(id, delta, motivo) {
+  darXp(id, delta, motivo, secreta = false) {
     const p = this.s.pcs[id]; delta = Math.round(num(delta)); if (!p || !delta) return;
     p.xp = Math.max(0, Math.min(999, num(p.xp) + delta));
     const atual = num(p.ficha?.nivel, 1);
-    this.registrar({ nome: p.nome, cor: p.cor, rotulo: 'Experiência', total: delta, grau: `${p.xp} XP`, desc: motivo, tags: nivelPorXp(p.xp) > atual ? [`Pode subir para o nível ${atual + 1}`] : [] });
+    this.registrar({ nome: p.nome, cor: p.cor, rotulo: 'Experiência', total: delta, grau: `${p.xp} XP`, desc: motivo, tags: nivelPorXp(p.xp) > atual ? [`Pode subir para o nível ${atual + 1}`] : [], ...(secreta ? { oculta: true, para: id } : {}) });
+    if (secreta) this.enviarPara(id, { tipo: 'aviso', texto: `O Mestre lhe deu ${delta > 0 ? '+' : ''}${delta} XP: ${motivo}` });
+  }
+  enviarPara(id, msg) {
+    const t = JSON.stringify(msg);
+    for (const { ws, att } of this.conectados()) if (att.id === id || att.mestre) { try { ws.send(t); } catch {} }
   }
   // Inimigo derrubado: XP dividida entre os PCs do mapa; quem deu o último golpe ganha +50%.
   xpAbate(npc, autorK) {

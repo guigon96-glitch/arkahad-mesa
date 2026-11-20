@@ -16,7 +16,7 @@ const CORES_TERRENO = { '.': '#7d6146', '_': '#8f877b', ',': '#d3ad6a', '"': '#4
 
 // ================= ESTADO =================
 let config = {}, sessao = null, ws = null, codigoAtual = null, reconectar = true, tentativaWs = 0;
-let voce = null, sala = null, mesa = null, pcs = {}, npcs = {}, log = [], online = [], pedidos = [];
+let voce = null, sala = null, mesa = null, pcs = {}, npcs = {}, log = [], online = [], pedidos = [], fichaMestreId = null;
 let selecionado = null, aba = 'ficha', modoMestre = 'mover', pincel = '.', tamPincel = 1, pincelAlt = '2', mapas = [];
 let arrasto = null, alcance = null, npcParaEditar = null, cena = null, quadroPendente = false;
 const memo = { mod: 0, dif: '', expr: '1d8+3' };
@@ -653,6 +653,7 @@ function htmlFichaCompleta(p) {
     <div class="bloco"><h3>${esc(voc.nome)}</h3>${habilidadesVocacao(f).map(h => `<p style="margin:0 0 6px${h.ok ? '' : ';opacity:.45'}" title="${h.ok ? 'Liberada' : 'Libera no nível ' + h.nivel}"><b>N${h.nivel}${h.ok ? '' : ' 🔒'}</b> ${esc(h.texto)}</p>`).join('')}<div style="font-size:14px;color:var(--mudo)">Kit: ${esc(voc.kit)} · Armadura: ${esc(d.armadura)} · Proficiência: ${esc(HAB_VOCACAO[f.vocacao]?.armaduras || '')}</div>
       ${f.fardo ? `<p style="margin:8px 0 0"><b>Fardo:</b> ${esc(f.fardo)}</p>` : ''}${f.juramento ? `<p style="margin:4px 0 0"><b>Juramento:</b> ${esc(f.juramento)}</p>` : ''}
       ${(f.facanhas || []).length ? `<p style="margin:4px 0 0"><b>Façanhas:</b> ${f.facanhas.map(esc).join(', ')}</p>` : ''}</div>
+    ${p.notasJogador || p.ajuda ? `<div class="bloco"><h3>Do Mestre</h3>${p.ajuda ? `<p style="margin:0 0 6px;color:var(--ouro)">Ajuda: +${num(p.ajuda)} no seu próximo teste aprovado.</p>` : ''}${p.notasJogador ? `<p style="margin:0;white-space:pre-wrap">${esc(p.notasJogador)}</p>` : ''}</div>` : ''}
     ${blocoXp(p, f)}
     <button class="pri" id="abrirCriador" style="width:100%">Editar personagem</button>`;
 }
@@ -694,10 +695,14 @@ function abrirCriacao() {
 }
 
 // ================= Painel lateral =================
+$('conteudo').addEventListener('input', e => { if (e.target.id) e.target.dataset.mexido = 1; });
 $('abas').addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; aba = b.dataset.aba; painel(); });
 function painel() {
   document.querySelectorAll('#abas button').forEach(x => x.classList.toggle('ativo', x.dataset.aba === aba));
-  const c = $('conteudo'), rolagem = c.scrollTop, dif = $('fichaDif')?.value, tir = $('fichaTirith')?.value, itemN = $('itemNome')?.value, focoItem = document.activeElement?.id === 'itemNome';
+  const c = $('conteudo');
+  // campos que o usuário editou sobrevivem ao redesenho (o estado chega a toda hora)
+  const mexidos = [...c.querySelectorAll('[data-mexido][id]')].map(el => [el.id, el.type === 'checkbox' ? el.checked : el.value]), foco = document.activeElement?.closest('#conteudo') ? document.activeElement.id : null;
+  const rolagem = c.scrollTop, dif = $('fichaDif')?.value, tir = $('fichaTirith')?.value, itemN = $('itemNome')?.value, focoItem = document.activeElement?.id === 'itemNome';
   if (aba === 'ficha') c.innerHTML = htmlFicha();
   else if (aba === 'dados') c.innerHTML = htmlDados();
   else if (aba === 'registro') c.innerHTML = htmlRegistro();
@@ -708,6 +713,8 @@ function painel() {
   if ($('fichaTirith') && tir) $('fichaTirith').value = tir;
   if ($('itemNome') && itemN) $('itemNome').value = itemN;
   if (focoItem) $('itemNome')?.focus();
+  for (const [id, v] of mexidos) { const el = $(id); if (!el) continue; if (el.type === 'checkbox') el.checked = v; else el.value = v; el.dataset.mexido = 1; }
+  if (foco && foco !== 'itemNome') $(foco)?.focus();
   ligar();
   if (aba === 'itens') ligarItens();
 }
@@ -772,6 +779,22 @@ const GRUPOS_TERRENO = [
   ['Chão', ['"', '.', ',', '_', '=', 'v']], ['Água', ['~']], ['Vegetação', ['T', 'P', 'Q', 'k']],
   ['Paredes', ['#', 'm', 'h', '+']], ['Objetos', ['^', '*', 'b', 'c', 's', 'n', 'a', 'o', 'w']],
 ];
+function blocoFichasMestre() {
+  const lista = Object.entries(pcs).filter(([, p]) => p?.nome);
+  if (!lista.length) return '';
+  if (!pcs[fichaMestreId]) fichaMestreId = lista[0][0];
+  const id = fichaMestreId, p = pcs[id], f = p.ficha || {}, sel = esc(id);
+  return `<div class="bloco"><h3>Fichas dos personagens</h3>
+    <select id="fm_pc">${lista.map(([k, x]) => `<option value="${esc(k)}" ${k === id ? 'selected' : ''}>${esc(x.nome)}</option>`).join('')}</select>
+    <div style="font-size:14px;color:var(--mudo);margin:6px 0">${esc([RACAS[f.raca]?.nome, VOCACOES[f.vocacao]?.nome].filter(Boolean).join(' · '))} · N${num(f.nivel, 1)} · ${num(p.xp)} XP · Vigor ${num(p.vigor)}/${num(p.vigorMax)} · Fôlego ${num(p.folego)}/${num(p.folegoMax)} · Tensão ${num(p.tensao)}${p.ajuda ? ` · ajuda +${num(p.ajuda)} pendente` : ''}</div>
+    <label for="fm_nm_${sel}">Notas secretas (só você vê)</label><textarea id="fm_nm_${sel}">${esc(p.notasMestre || '')}</textarea>
+    <label for="fm_nj_${sel}">Anotações para o jogador (ele vê na ficha)</label><textarea id="fm_nj_${sel}">${esc(p.notasJogador || '')}</textarea>
+    <button id="fm_salvar" style="width:100%;margin-top:6px">Salvar anotações</button>
+    <div class="linha" style="margin-top:10px;align-items:end"><div><label for="fm_xp">XP</label><input id="fm_xp" type="number" value="1"></div><div><label for="fm_xpm">Motivo</label><input id="fm_xpm" type="text" maxlength="60" value="Boa ideia"></div><button class="pri" id="fm_darxp">Dar XP</button></div>
+    <label for="fm_aj">Ajuda (dica)</label><input id="fm_aj" type="text" maxlength="300" placeholder="Ex.: a porta tem uma runa escondida">
+    <div class="linha" style="align-items:end"><div><label for="fm_ajb">Bônus no próximo teste</label><input id="fm_ajb" type="number" min="0" max="5" value="0"></div><button class="pri" id="fm_ajudar">Enviar ajuda</button></div>
+    <label style="display:flex;gap:8px;align-items:center;font-size:15px;color:var(--ink)"><input id="fm_secreta" type="checkbox" style="width:auto" checked> Secreto (só este jogador fica sabendo)</label></div>`;
+}
 function htmlMestre() {
   if (!souMestre() || !mesa) return '';
   const cb = mesa.combate || {}, editando = modoMestre === 'pintar' || modoMestre === 'altura';
@@ -797,9 +820,11 @@ function htmlMestre() {
     <div class="bloco"><h3>Céu deste mapa</h3><label for="m_luz">Luz</label><select id="m_luz">${Object.entries(NOMES_LUZ).map(([k, n]) => `<option value="${k}" ${mesa.luz === k ? 'selected' : ''}>${n}</option>`).join('')}</select>
     <label for="m_lua">Lua dominante</label><select id="m_lua">${Object.entries(LUAS).map(([k, n]) => `<option value="${k}" ${mesa.lua === k ? 'selected' : ''}>${n}</option>`).join('')}</select></div>
     <div class="bloco"><h3>Combate</h3>${cb.ativo ? `<p style="margin:0 0 8px">Rodada ${num(cb.rodada, 1)} · vez de <b>${esc(nomeDe(cb.ordem?.[cb.turno]?.k))}</b></p><div class="linha"><button class="pri" id="proxTurno">Próximo turno</button><button id="fimCombate">Encerrar combate</button></div>` : `<button class="pri" id="iniCombate" style="width:100%">Iniciar combate (rola iniciativa)</button><p style="color:var(--mudo);font-size:13px">Entram os jogadores e os NPCs visíveis deste mapa.</p>`}</div>
+    ${blocoFichasMestre()}
     <div class="bloco"><h3>Experiência</h3>${Object.entries(pcs).filter(([, p]) => p?.nome).map(([id, p]) => `<label style="display:flex;gap:8px;align-items:center;margin:4px 0;font-size:15px;color:var(--ink)"><input type="checkbox" style="width:auto" data-xpalvo="${esc(id)}" checked><span class="cresce">${esc(p.nome)}</span><small>N${num(p.ficha?.nivel, 1)} · ${num(p.xp)} XP${nivelPorXp(p.xp) > num(p.ficha?.nivel, 1) ? ' · pode subir' : ''}</small></label>`).join('') || '<p>Nenhum personagem.</p>'}
       <label for="xpFonte">Fonte</label><select id="xpFonte"><option value="">Outra…</option>${FONTES_XP.map(([n, v], i) => `<option value="${i}">${esc(n)} (+${v})</option>`).join('')}</select>
       <div class="linha"><div><label for="xpValor">XP (negativo tira)</label><input id="xpValor" type="number" value="2"></div><div><label for="xpMotivo">Motivo</label><input id="xpMotivo" type="text" maxlength="60" value="Comparecer à sessão"></div></div>
+      <label style="display:flex;gap:8px;align-items:center;font-size:15px;color:var(--ink)"><input id="xpSecreta" type="checkbox" style="width:auto"> Secreta (só cada jogador vê a sua)</label>
       <button class="pri" id="darXp" style="width:100%;margin-top:8px">Dar XP aos marcados</button></div>
     <div class="bloco"><h3>NPCs e criaturas deste mapa</h3>${Object.entries(npcs).filter(([, n]) => (n.mapa || mesa.id) === mesa.id).map(([id, n]) => `<div style="display:flex;gap:6px;align-items:center;margin:4px 0"><span class="ponto" style="background:${esc(n.cor)}"></span><span class="cresce">${esc(n.nome)}${n.visivel === false ? ' (oculto)' : ''}</span><button class="mini" data-ed="${esc(id)}">Editar</button></div>`).join('') || '<p>Nenhum. Use “Colocar NPC”.</p>'}</div>
     <div class="bloco"><h3>Este mapa e a sessão</h3><label for="m_nome">Nome do mapa</label><input id="m_nome" type="text" value="${esc(mesa.nome)}">
@@ -846,12 +871,19 @@ function ligar() {
   const q = s => document.querySelector(s);
   if (q('#abrirCriador')) q('#abrirCriador').onclick = abrirCriacao;
   if (q('#subirNivel')) q('#subirNivel').onclick = subirNivel;
+  if (q('#fm_pc')) {
+    const id = fichaMestreId, sec = () => q('#fm_secreta').checked;
+    q('#fm_pc').onchange = e => { fichaMestreId = e.target.value; painel(); };
+    q('#fm_salvar').onclick = () => { enviar({ tipo: 'fichaMestre', id, notasMestre: $('fm_nm_' + id).value, notasJogador: $('fm_nj_' + id).value }); avisar('Anotações salvas.', 2000); };
+    q('#fm_darxp').onclick = () => { const valor = num(q('#fm_xp').value); if (valor) enviar({ tipo: 'xp', alvos: [id], valor, motivo: q('#fm_xpm').value, secreta: sec() }); };
+    q('#fm_ajudar').onclick = () => { enviar({ tipo: 'ajuda', id, texto: q('#fm_aj').value, bonus: num(q('#fm_ajb').value), secreta: sec() }); q('#fm_aj').value = ''; delete q('#fm_aj').dataset.mexido; };
+  }
   document.querySelectorAll('[data-aprovar]').forEach(b => b.onclick = () => { const id = b.dataset.aprovar; enviar({ tipo: 'decidir', id, aprovar: true, dif: num(q('#pd_dif_' + id).value, 15), xp: num(q('#pd_xp_' + id).value) }); });
   document.querySelectorAll('[data-recusar]').forEach(b => b.onclick = () => enviar({ tipo: 'decidir', id: b.dataset.recusar, aprovar: false }));
   if (q('#darXp')) q('#darXp').onclick = () => {
     const alvos = [...document.querySelectorAll('[data-xpalvo]:checked')].map(c => c.dataset.xpalvo), valor = num(q('#xpValor').value);
     if (!alvos.length || !valor) return avisar('Escolha os jogadores e a quantidade de XP.', 2500);
-    enviar({ tipo: 'xp', alvos, valor, motivo: q('#xpMotivo').value });
+    enviar({ tipo: 'xp', alvos, valor, motivo: q('#xpMotivo').value, secreta: q('#xpSecreta').checked });
   };
   if (q('#xpFonte')) q('#xpFonte').onchange = e => { const [n, v] = FONTES_XP[e.target.value] || []; if (n) { q('#xpValor').value = v; q('#xpMotivo').value = n; } };
   document.querySelectorAll('#conteudo [data-mv]').forEach(b => b.onclick = () => ajustar(b.dataset.k, b.dataset.mv, num(b.dataset.d)));
