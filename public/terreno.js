@@ -125,8 +125,9 @@ export function construirSolo(mesa, tex, opcoes = {}) {
   geo.computeBoundingSphere();
 
   // realce de alcance de movimento (uma textura de casas)
-  const realceDados = new Uint8Array(C * R);
-  const realce = new THREE.DataTexture(realceDados, C, R, THREE.RedFormat);
+  // R = alcance de movimento, G = alcance de ataque/técnica, B = área sob o cursor
+  const realceDados = new Uint8Array(C * R * 4);
+  const realce = new THREE.DataTexture(realceDados, C, R, THREE.RGBAFormat);
   realce.magFilter = realce.minFilter = THREE.NearestFilter; realce.needsUpdate = true;
 
   const mat = new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: .9, metalness: 0 });
@@ -192,8 +193,11 @@ export function construirSolo(mesa, tex, opcoes = {}) {
         vec2 cel = floor(vMundo.xz); vec2 f = fract(vMundo.xz);
         float linha = 1. - smoothstep(0., .035, min(min(f.x, 1. - f.x), min(f.y, 1. - f.y)));
         float borda = 1. - smoothstep(0., .06, min(min(abs(vMundo.x), abs(vMundo.x - uTab.x)), min(abs(vMundo.z), abs(vMundo.z - uTab.y))));
-        float rr = noTab > .5 ? texture2D(uRealce, (cel + .5) / uTab).r : 0.;
+        vec4 rx = noTab > .5 ? texture2D(uRealce, (cel + .5) / uTab) : vec4(0.);
+        float rr = rx.r;
         albedo = mix(albedo, albedo * .45, linha * uGrade * noTab);
+        albedo = mix(albedo, albedo * .5 + vec3(.62, .14, .08), rx.g * (.3 + linha * .55));
+        albedo = mix(albedo, albedo * .4 + vec3(.55, .35, .9), rx.b * (.55 + linha * .45));
         albedo = mix(albedo, vec3(.9, .72, .3), borda * .55 * step(distTab, .1));
         albedo = mix(albedo, albedo * .6 + vec3(.55, .43, .12), rr * (.35 + linha * .5));
         diffuseColor.rgb *= albedo;
@@ -217,12 +221,17 @@ export function construirSolo(mesa, tex, opcoes = {}) {
     const a = alt[j * W + i], b = alt[j * W + i + 1], c = alt[(j + 1) * W + i], d = alt[(j + 1) * W + i + 1];
     return (a + (b - a) * tx) * (1 - tz) + (c + (d - c) * tx) * tz;
   }
-  function marcarAlcance(mapa) {
-    realceDados.fill(0);
-    if (mapa) for (const [key, d] of mapa) { if (d <= 0) continue; const [x, y] = key.split(',').map(Number); if (x >= 0 && y >= 0 && x < C && y < R) realceDados[y * C + x] = 255; }
+  // canal 0 = movimento, 1 = alcance, 2 = área. mapa: Map 'x,y' → força (0..1) ou distância (>0 = marcado)
+  function marcar(canal, mapa, comoForca = false) {
+    for (let i = 0; i < C * R; i++) realceDados[i * 4 + canal] = 0;
+    if (mapa) for (const [key, v] of mapa) {
+      const [x, y] = key.split(',').map(Number); if (x < 0 || y < 0 || x >= C || y >= R) continue;
+      const f = comoForca ? v : (v > 0 ? 1 : 0); if (f > 0) realceDados[(y * C + x) * 4 + canal] = Math.round(255 * Math.min(1, f));
+    }
     realce.needsUpdate = true;
   }
-  return { malha, alturaPonto, marcarAlcance, uniforms: u, margem: M };
+  const marcarAlcance = mapa => marcar(0, mapa);
+  return { malha, alturaPonto, marcarAlcance, marcar, uniforms: u, margem: M };
 }
 
 // pontos para espalhar árvores na paisagem em volta do tabuleiro

@@ -134,7 +134,18 @@ export function criarCena(el, cb = {}) {
   const luzLua = new THREE.DirectionalLight('#ffffff', 0); cena.add(luzLua, luzLua.target);
 
   let mesa = null, chaveTerreno = '', agua = null, chamas = [], selecaoAnel = null;
-  const tokens = new Map(), dados = [], pings = [];
+  const tokens = new Map(), dados = [], pings = [], projeteis = [], faiscas = [];
+  // dados batendo na mesa fazem as miniaturas perto balançarem
+  function tremer(pos, forca) {
+    for (const tk of tokens.values()) {
+      const d = Math.hypot(tk.g.position.x - pos.x, tk.g.position.z - pos.z);
+      if (d > 3.2) continue;
+      const amp = Math.min(.22, forca * .05 * (1 - d / 3.2));
+      if (amp < .01) continue;
+      const ang = Math.atan2(tk.g.position.z - pos.z, tk.g.position.x - pos.x);
+      tk.tremor = { amp: Math.max(amp, tk.tremor?.amp || 0), dx: Math.cos(ang), dz: Math.sin(ang), t0: performance.now(), f: 15 + Math.random() * 6 };
+    }
+  }
   let alcanceMesh = null;
 
   // ----------- terreno -----------
@@ -493,6 +504,7 @@ export function criarCena(el, cb = {}) {
         d.m.position.addScaledVector(d.vel, dt);
         const chao = (mesa ? alturaEm(Math.floor(d.m.position.x), Math.floor(d.m.position.z)) : .62) + .3;
         if (d.m.position.y < chao) {
+          if (Math.abs(d.vel.y) > 1.2) tremer(d.m.position, Math.abs(d.vel.y));
           d.m.position.y = chao; d.vel.y = Math.abs(d.vel.y) * .42; d.vel.x *= .62; d.vel.z *= .62; d.ang2.multiplyScalar(.6);
           if (Math.abs(d.vel.y) < .5) d.vel.y = 0;
         }
@@ -577,11 +589,34 @@ export function criarCena(el, cb = {}) {
         if (p >= 1) { tk.anim = null; if (tk.pers && (tk.vigor === undefined || tk.vigor > 0)) tk.pers.tocar('parado'); }
       }
       const cr = tk.mini.getObjectByName('cristal'); if (cr) cr.rotation.y = t * 2;
+      if (tk.tremor) {
+        // balança sobre a base, como miniatura de chumbo numa mesa batida
+        const tt = (agora - tk.tremor.t0) / 1000, a = tk.tremor.amp * Math.exp(-tt * 3.2) * Math.sin(tt * tk.tremor.f);
+        tk.g.rotation.x = a * tk.tremor.dz; tk.g.rotation.z = -a * tk.tremor.dx;
+        if (tt > 1.8) { tk.g.rotation.x = tk.g.rotation.z = 0; tk.tremor = null; }
+      }
       if (tk.pers) tk.pers.atualizar ? tk.pers.atualizar(dt) : tk.pers.mixer?.update(dt);
     }
     if (selecaoAnel?.parent) { selecaoAnel.rotation.z = t; selecaoAnel.scale.setScalar(1 + Math.sin(t * 4) * .04); }
     for (let i = pings.length - 1; i >= 0; i--) { const p = pings[i], a = (agora - p.t0) / 1400; p.m.scale.setScalar(1 + a * 3); p.m.material.opacity = 1 - a; if (a >= 1) { grupoEfeitos.remove(p.m); p.m.geometry.dispose(); pings.splice(i, 1); } }
     simularDados(dt, agora);
+    for (let i = projeteis.length - 1; i >= 0; i--) {
+      const p = projeteis[i], k = (agora - p.t0) / p.dur;
+      if (k < 0) { p.m.visible = false; continue; }
+      p.m.visible = true;
+      const e = Math.min(1, k), pos = p.p0.clone().lerp(p.p1, e); pos.y += Math.sin(e * Math.PI) * (p.magia ? .4 : .7) * Math.min(1, p.p0.distanceTo(p.p1) / 6);
+      if (!p.magia) p.m.lookAt(pos.clone().add(p.p1.clone().sub(p.p0)));
+      p.m.position.copy(pos);
+      if (k >= 1) {
+        grupoEfeitos.remove(p.m); p.m.geometry.dispose();
+        // estouro no impacto
+        const s = new THREE.Mesh(new THREE.SphereGeometry(.12, 12, 8), new THREE.MeshBasicMaterial({ color: p.cor, transparent: true, opacity: .9, depthWrite: false }));
+        s.position.copy(p.p1); grupoEfeitos.add(s); faiscas.push({ m: s, t0: agora });
+        const alvo = tokens.get(p.para); if (alvo) { alvo.tremor = { amp: .12, dx: p.p1.x - p.p0.x, dz: p.p1.z - p.p0.z, t0: agora, f: 22 }; const n = Math.hypot(alvo.tremor.dx, alvo.tremor.dz) || 1; alvo.tremor.dx /= n; alvo.tremor.dz /= n; }
+        projeteis.splice(i, 1);
+      }
+    }
+    for (let i = faiscas.length - 1; i >= 0; i--) { const f = faiscas[i], a = (agora - f.t0) / 450; f.m.scale.setScalar(1 + a * 5); f.m.material.opacity = .9 * (1 - a); if (a >= 1) { grupoEfeitos.remove(f.m); f.m.geometry.dispose(); faiscas.splice(i, 1); } }
     if (usarPos) composer.render(dt); else renderer.render(cena, camera);
   }
   laco();
@@ -610,13 +645,31 @@ export function criarCena(el, cb = {}) {
       mostrarAlcance(alcance);
     },
     rolar, ping,
+    impacto(para, de) {
+      const b = tokens.get(para), a = tokens.get(de); if (!b) return;
+      let dx = 1, dz = 0; if (a) { dx = b.g.position.x - a.g.position.x; dz = b.g.position.z - a.g.position.z; const n = Math.hypot(dx, dz) || 1; dx /= n; dz /= n; a.mini.rotation.y = Math.atan2(dx, dz); }
+      b.tremor = { amp: .14, dx, dz, t0: performance.now(), f: 20 };
+    },
+    marcar(canal, mapa, forca) { solo?.marcar(canal, mapa, forca); },
+    projetil(de, para, cor, magia) {
+      const a = tokens.get(de), b = tokens.get(para); if (!a || !b) return;
+      const p0 = a.g.position.clone().add(new THREE.Vector3(0, a.alturaMini * .6, 0)), p1 = b.g.position.clone().add(new THREE.Vector3(0, b.alturaMini * .55, 0));
+      a.mini.rotation.y = Math.atan2(p1.x - p0.x, p1.z - p0.z);
+      const corP = new THREE.Color(cor || (magia ? '#9ad0ff' : '#f2e6c8'));
+      const m = magia
+        ? new THREE.Mesh(new THREE.SphereGeometry(.11, 14, 10), new THREE.MeshStandardMaterial({ color: corP, emissive: corP, emissiveIntensity: 4 }))
+        : new THREE.Mesh(new THREE.CylinderGeometry(.012, .012, .5, 5).rotateX(Math.PI / 2), new THREE.MeshStandardMaterial({ color: '#d8c8a0', emissive: corP, emissiveIntensity: .6 }));
+      const luz = magia ? new THREE.PointLight(corP, 3, 3) : null; if (luz) m.add(luz);
+      grupoEfeitos.add(m);
+      projeteis.push({ m, p0, p1, t0: performance.now() + 380, dur: Math.max(260, p0.distanceTo(p1) * 70), magia, cor: corP, para });
+    },
     projetar(v) { const p = v.clone().project(camera), r = dom.getBoundingClientRect(); return { x: (p.x + 1) / 2 * r.width, y: (1 - p.y) / 2 * r.height }; },
     girar(ang) { const off = camera.position.clone().sub(controles.target); off.applyAxisAngle(new THREE.Vector3(0, 1, 0), ang); camera.position.copy(controles.target).add(off); },
     zoom(f) { const off = camera.position.clone().sub(controles.target).multiplyScalar(f); if (off.length() > 3 && off.length() < 70) camera.position.copy(controles.target).add(off); },
     focar(x, y) { const novo = new THREE.Vector3(x + .5, mesa ? alturaEm(x, y) : 0, y + .5), d = novo.clone().sub(controles.target); controles.target.add(d); camera.position.add(d); },
     enquadrar() { if (mesa) enquadrar(); },
     pausar(v) { pausado = !!v; if (!v) relogio.getDelta(); },
-    _cam: camera, _ctl: controles, _alt: (x, z) => solo?.alturaPonto(x, z),
+    _cam: camera, _ctl: controles, _alt: (x, z) => solo?.alturaPonto(x, z), get _solo() { return solo; },
     destruir() { ativo = false; ro.disconnect(); controles.dispose(); renderer.dispose(); dom.remove(); },
   };
   return api;

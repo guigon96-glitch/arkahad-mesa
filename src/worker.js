@@ -202,7 +202,7 @@ export class Saguao extends DurableObject {
 // =====================================================================
 const COMBATE_VAZIO = { ativo: false, ordem: [], turno: 0, rodada: 1 };
 const CAMPOS_PC = ['nome', 'sigla', 'cor', 'vigor', 'vigorMax', 'folego', 'folegoMax', 'tensao', 'limiar', 'defesa', 'desloc', 'ini', 'dados', 'robustez', 'determinacao', 'protecao', 'limiarFer', 'ficha', 'aparencia', 'imbuido'];
-const CAMPOS_NPC = ['nome', 'sigla', 'cor', 'tipo', 'vigor', 'vigorMax', 'defesa', 'ini', 'desloc', 'tamanho', 'visivel', 'descricao', 'falas', 'notas', 'x', 'y', 'raca', 'aparencia'];
+const CAMPOS_NPC = ['nome', 'sigla', 'cor', 'tipo', 'vigor', 'vigorMax', 'defesa', 'ini', 'desloc', 'tamanho', 'visivel', 'descricao', 'falas', 'notas', 'x', 'y', 'raca', 'aparencia', 'ataque', 'dano', 'alcance', 'protecao'];
 const RACAS_OK = ['sarthani', 'zarathim', 'veloryn', 'draveth', 'sypheris', 'dvarith', 'criatura'];
 function objetoLimitado(v, max) {
   if (!v || typeof v !== 'object' || Array.isArray(v)) return undefined;
@@ -232,7 +232,9 @@ function limparNpc(d) {
   if ('sigla' in o) o.sigla = texto(o.sigla, 3);
   if ('cor' in o) o.cor = cor(o.cor);
   if ('tipo' in o) o.tipo = ['npc', 'monstro', 'aliado'].includes(o.tipo) ? o.tipo : 'npc';
-  for (const k of ['vigor', 'vigorMax', 'defesa', 'ini', 'desloc', 'x', 'y']) if (k in o) o[k] = Math.round(num(o[k]));
+  for (const k of ['vigor', 'vigorMax', 'defesa', 'ini', 'desloc', 'x', 'y', 'ataque', 'protecao']) if (k in o) o[k] = Math.round(num(o[k]));
+  if ('alcance' in o) o.alcance = Math.max(1, Math.min(40, Math.round(num(o.alcance, 1))));
+  if ('dano' in o) o.dano = /^[0-9d+\-]{1,20}$/i.test(String(o.dano || '')) ? String(o.dano).toLowerCase() : '1d6';
   if ('tamanho' in o) o.tamanho = Math.max(1, Math.min(4, Math.round(num(o.tamanho, 1))));
   if ('visivel' in o) o.visivel = o.visivel !== false;
   if ('descricao' in o) o.descricao = texto(o.descricao, 1000);
@@ -475,8 +477,9 @@ export class Sala extends DurableObject {
         break;
       }
       case 'combate': {
-        if (!mestre) return;
         const cb = mesa.combate || { ...COMBATE_VAZIO };
+        // o jogador pode encerrar o próprio turno
+        if (!mestre && !(msg.acao === 'proximo' && cb.ativo && cb.ordem[cb.turno]?.k === 'pc:' + att.id)) return;
         if (msg.acao === 'iniciar') {
           const lista = [
             ...Object.entries(s.pcs).map(([id, p]) => ({ k: 'pc:' + id, b: num(p.ini), nome: p.nome })),
@@ -489,10 +492,81 @@ export class Sala extends DurableObject {
           let turno = cb.turno + 1, rodada = cb.rodada;
           if (turno >= cb.ordem.length) { turno = 0; rodada++; }
           mesa.combate = { ...cb, turno, rodada };
+          const vez = this.objetoDe(cb.ordem[turno]?.k);
+          if (vez) delete vez.guarda;   // a Defesa extra dura até o próximo turno de quem defendeu
+          const nomeVez = vez?.nome || '—';
+          this.enviarTodos({ tipo: 'turno', k: cb.ordem[turno]?.k, nome: nomeVez, rodada });
+          await this.gravar('pcs', 'npcs');
         } else if (msg.acao === 'encerrar') {
           mesa.combate = { ...COMBATE_VAZIO };
         }
         await this.gravar('mesa', 'log');
+        break;
+      }
+      case 'defender': {
+        const pc = s.pcs[att.id], cb = mesa.combate;
+        if (!pc) return;
+        if (cb?.ativo) {
+          if (cb.ordem[cb.turno]?.k !== 'pc:' + att.id) return erro('Aguarde o seu turno.');
+          const chave = `${cb.rodada}:${cb.turno}`, usadas = pc.acoes?.chave === chave ? num(pc.acoes.usadas) : 0;
+          if (usadas >= 3) return erro('Você já usou as 3 ações.');
+          pc.acoes = { chave, usadas: usadas + 1 };
+        }
+        pc.guarda = true;
+        this.enviarTodos({ tipo: 'aviso', texto: `${pc.nome} assume a guarda (+2 Defesa até o próximo turno).` });
+        await this.gravar('pcs');
+        break;
+      }
+      case 'ataque': {
+        // ataque ou técnica: o servidor rola, compara com a Defesa de cada alvo e aplica o dano
+        const de = String(msg.de || '');
+        const autor = this.objetoDe(de);
+        if (!autor) return;
+        if (!mestre && de !== 'pc:' + att.id) return erro('Você só ataca com o seu personagem.');
+        const cb = mesa.combate;
+        if (cb?.ativo && de.startsWith('pc:')) {
+          if (cb.ordem[cb.turno]?.k !== de) { if (!mestre) return erro('Aguarde o seu turno.'); }
+          else {
+          const chave = `${cb.rodada}:${cb.turno}`, usadas = autor.acoes?.chave === chave ? num(autor.acoes.usadas) : 0;
+          if (usadas >= 3 && !mestre) return erro('Você já usou as 3 ações.');
+          autor.acoes = { chave, usadas: Math.min(3, usadas + 1) };
+          }
+        }
+        const alvos = [...new Set((Array.isArray(msg.alvos) ? msg.alvos : []).map(String))].slice(0, 16).map(k => [k, this.objetoDe(k)]).filter(([, o]) => o);
+        if (!alvos.length) return erro('Escolha um alvo.');
+        const cob = msg.cob && typeof msg.cob === 'object' ? msg.cob : {};
+        const res = rolar2d10(msg.mod, msg.tirith, 0, !!msg.dom);
+        const coroa = res.tags.includes('Coroa de Kael'), olho = res.tags.includes('Olho de Aranor');
+        const acertos = [], tags = [...res.tags.filter(t => !/Triunfo se passar/.test(t))];
+        for (const [k, o] of alvos) {
+          const def = num(o.defesa, 10) + Math.max(0, Math.min(5, Math.round(num(cob[k])))) + (o.guarda ? 2 : 0);
+          const ok = coroa || (!olho && res.total >= def);
+          if (ok) acertos.push([k, o]);
+          tags.push(`${o.nome}: ${ok ? (coroa ? 'crítico!' : 'acertou') : 'errou'}`);
+        }
+        const pele = (de.startsWith('pc:') ? autor.dados : null) || {};
+        const base = {
+          tipo: 'dado', nome: autor.nome, cor: autor.cor || '#e2b04a', kael: pele.kael || '#d9a23a', lyra: pele.lyra || '#3f78e0', material: pele.material || 'cristal',
+          t: Date.now(), k: de, dom: !!msg.dom, alvos: alvos.map(([k]) => k), distancia: !!msg.distancia,
+        };
+        const ev1 = { ...base, dados: res.dados, total: res.total, tags, grau: acertos.length ? (alvos.length > 1 ? `${acertos.length} de ${alvos.length} atingidos` : 'Acertou') : 'Errou', desc: res.desc, rotulo: texto(msg.rotulo, 60) };
+        this.enviarTodos(ev1);
+        this.registrar({ ...ev1, dados: undefined, tipo: undefined, k: undefined, dom: undefined, alvos: undefined, distancia: undefined });
+        if (acertos.length && msg.dano) {
+          const d = rolarExpr(msg.dano);
+          if (d) {
+            const total = coroa ? d.total * 2 : d.total, tagsD = coroa ? ['Crítico: dano ×2'] : [];
+            for (const [, o] of acertos) {
+              const sofre = Math.max(0, total - num(o.protecao));
+              o.vigor = Math.max(-99, num(o.vigor) - sofre);
+              tagsD.push(`${o.nome} −${sofre}${num(o.protecao) ? ` (Proteção ${num(o.protecao)})` : ''}`);
+            }
+            const ev2 = { ...base, alvos: acertos.map(([k]) => k), dados: d.dados, total, tags: tagsD, grau: '', desc: d.desc, rotulo: 'Dano · ' + texto(msg.rotulo, 50), dano: true, t: Date.now() + 1 };
+            this.enviarTodos(ev2);
+            this.registrar({ ...ev2, dados: undefined, tipo: undefined, k: undefined, dom: undefined, alvos: undefined, distancia: undefined, dano: undefined });
+          }
+        }
+        await this.gravar('pcs', 'npcs', 'log');
         break;
       }
       case 'rolar': {
@@ -541,6 +615,11 @@ export class Sala extends DurableObject {
       default: return;
     }
     await this.difundir();
+  }
+
+  objetoDe(k) {
+    k = String(k || ''); const i = k.indexOf(':'), t = k.slice(0, i), id = k.slice(i + 1);
+    return t === 'pc' ? this.s.pcs[id] : t === 'npc' ? this.s.npcs[id] : null;
   }
 
   registrar(entrada) {

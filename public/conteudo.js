@@ -200,10 +200,10 @@ export const ARMAS = {
   machado: { nome: 'Machado', tipo: 'peso', dano: '1d8+1' }, machadinha: { nome: 'Machadinha', tipo: 'peso', dano: '1d8' },
   machado_guerra: { nome: 'Machado de guerra', tipo: 'peso', dano: '2d6+1', duas: true }, machado_duplo: { nome: 'Machado duplo', tipo: 'peso', dano: '2d8', duas: true },
   martelo: { nome: 'Martelo', tipo: 'peso', dano: '1d8' }, martelo_guerra: { nome: 'Martelo de guerra', tipo: 'peso', dano: '2d6+2', duas: true },
-  foice: { nome: 'Foice de guerra', tipo: 'peso', dano: '2d6', duas: true },
-  arco: { nome: 'Arco de madeira', tipo: 'distancia', dano: '1d8', duas: true }, arco_recurvo: { nome: 'Arco recurvo', tipo: 'distancia', dano: '1d8+1', duas: true },
-  arco_dourado: { nome: 'Arco dourado', tipo: 'distancia', dano: '1d10', duas: true }, arco_sombrio: { nome: 'Arco sombrio', tipo: 'distancia', dano: '1d10', duas: true },
-  besta: { nome: 'Besta de mão', tipo: 'distancia', dano: '1d8' }, besta_pesada: { nome: 'Besta pesada', tipo: 'distancia', dano: '2d6', duas: true },
+  foice: { nome: 'Foice de guerra', tipo: 'peso', dano: '2d6', duas: true, alcance: 2 },
+  arco: { nome: 'Arco de madeira', tipo: 'distancia', dano: '1d8', duas: true, alcance: 14 }, arco_recurvo: { nome: 'Arco recurvo', tipo: 'distancia', dano: '1d8+1', duas: true, alcance: 16 },
+  arco_dourado: { nome: 'Arco dourado', tipo: 'distancia', dano: '1d10', duas: true, alcance: 18 }, arco_sombrio: { nome: 'Arco sombrio', tipo: 'distancia', dano: '1d10', duas: true, alcance: 18 },
+  besta: { nome: 'Besta de mão', tipo: 'distancia', dano: '1d8', alcance: 10 }, besta_pesada: { nome: 'Besta pesada', tipo: 'distancia', dano: '2d6', duas: true, alcance: 18 },
 };
 export const PERICIA_ARMA = { lamina: 'combate_leve', peso: 'combate_pesado', distancia: 'pontaria', briga: 'briga' };
 const ARMA_ANTIGA = { espada_grande: 'espada_longa', machado_grande: 'machado_guerra', adagas: 'adaga', cajado: 'espada', varinha: 'adaga', lanca: 'foice', maca: 'martelo', leques: 'adaga' };
@@ -343,13 +343,22 @@ export function ataqueArma(f, imbuida = false) {
   const fixo = atrDano + num(e.danoFixo?.[arma.tipo]);
   let dano = arma.dano + (e.dano?.[arma.tipo] ? '+' + e.dano[arma.tipo] : '') + (fixo ? (fixo > 0 ? '+' : '') + fixo : '');
   if (imbuida && temImbuir(f)) dano += '+' + (e.imbuir || '1d4');
-  return { id, nome: arma.nome, tipo: arma.tipo, pericia: per, mod, dano };
+  let alcance = arma.alcance || 1;
+  if (arma.tipo === 'distancia' && (f.talentos || []).includes('dis4a')) alcance *= 2;
+  return { id, nome: arma.nome, tipo: arma.tipo, pericia: per, mod, dano, alcance, longo: arma.tipo === 'distancia' ? alcance * 2 : alcance };
 }
 export function danoTecnica(f, nivel) {
   const e = efeitos(f);
   return DANO_DOM[nivel - 1] + (e.danoDom ? '+' + e.danoDom : '') + (e.danoDomDado ? '+' + e.danoDomDado : '');
 }
 export function bonusTesteDom(f) { return num(efeitos(f).testeDom); }
+// Alcance e área das técnicas de Dom por nível (em casas). Raio 1 = área 3×3; raio 2 = 5×5.
+export const ALCANCE_DOM = [6, 8, 10, 12];
+export const AREA_DOM = [0, 0, 1, 2];
+export function alcanceTecnica(f, nivel) {
+  const t = f.talentos || [];
+  return { alcance: ALCANCE_DOM[nivel - 1] + (t.includes('pot1b') ? 3 : 0), raio: AREA_DOM[nivel - 1] + (t.includes('pot2a') && AREA_DOM[nivel - 1] ? 1 : 0) };
+}
 
 export function fichaVazia() {
   return {

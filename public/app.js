@@ -1,10 +1,10 @@
-import { TERRENOS, LUZES as NOMES_LUZ, LUAS, NIVEIS, num, dijkstra, nivelEm, efeitoAltura } from './regras.js';
+import { TERRENOS, LUZES as NOMES_LUZ, LUAS, NIVEIS, num, dijkstra, nivelEm, efeitoAltura, linhaDeVisao, distanciaCasas } from './regras.js';
 import { criarCena } from './cena3d.js';
 import { CRIATURAS_3D, ARMAS_3D, SECUNDARIAS, SEXOS, ESTILO_DOM } from './modelos.js';
 import { abrirCriador } from './criacao.js';
 import {
   ATRIBUTOS, PERICIAS, RACAS, VOCACOES, TODOS_DONS, DONS, CUSTO_DOM, RESSONANCIAS, ORIGENS, ESTRATOS,
-  ataqueArma, danoTecnica, bonusTesteDom, temImbuir, TALENTO, ARVORES, pontosTalento,
+  ataqueArma, danoTecnica, bonusTesteDom, temImbuir, TALENTO, ARVORES, pontosTalento, alcanceTecnica,
   aparenciaPadrao, atributosFinais, gradPericia, bonusPericia, ehAurethian, nivelDom, derivados,
 } from './conteudo.js';
 
@@ -167,7 +167,8 @@ function receber(m) {
       $('erroSenha').textContent = m.erro || '';
       $('modalSenha').hidden = false; $('senhaSala').value = ''; $('senhaSala').focus();
       break;
-    case 'dado': animarDados(m); break;
+    case 'dado': filaDados = filaDados.then(() => animarDados(m)).catch(() => {}); break;
+    case 'turno': anunciarTurno(m); break;
     case 'ping': mostrarPing(num(m.x), num(m.y), String(m.cor || '#e2b04a')); break;
     case 'aviso': avisar(m.texto, 4000); break;
     case 'erro':
@@ -223,7 +224,7 @@ function render() {
     })),
     selecionado, alcance,
   });
-  topo();
+  topo(); hud(); trilha();
 }
 function agendarRender() { if (!quadroPendente) { quadroPendente = true; requestAnimationFrame(render); } }
 function topo() {
@@ -271,14 +272,15 @@ function moverToken(t, x, y) {
 // ================= Entrada no mapa =================
 function dentro(x, y) { return mesa && x >= 0 && y >= 0 && x < mesa.cols && y < mesa.rows; }
 function aoPressionar(i, e) {
-  if (!mesa) return;
+  if (!mesa || mira) return;
   if (souMestre() && modoMestre === 'pintar') { pintando = mesa.grid.slice(); pintar(i.x, i.y); return; }
   if (souMestre() && modoMestre === 'altura') { pintandoAlt = altDe(mesa).slice(); tocadas = new Set(); pintarAlt(i.x, i.y); return; }
   if (souMestre() && modoMestre === 'npc' && !i.k) { if (dentro(i.x, i.y)) enviar({ tipo: 'npc', dados: { x: i.x, y: i.y } }); return; }
   if (i.k) arrasto = { k: i.k, x: i.x, y: i.y };
 }
-function aoMover(i) { if (pintando) pintar(i.x, i.y); if (pintandoAlt) pintarAlt(i.x, i.y); }
+function aoMover(i, e) { if (pintando) pintar(i.x, i.y); if (pintandoAlt) pintarAlt(i.x, i.y); if (mira) mirarEm(i, e); }
 function aoSoltar(i) {
+  if (mira) { dispararMira(i); return; }
   if (pintando) { const g = pintando; pintando = null; enviar({ tipo: 'mesa', dados: { grid: g } }); return; }
   if (pintandoAlt) { const a = pintandoAlt; pintandoAlt = null; tocadas = null; enviar({ tipo: 'mesa', dados: { alt: a } }); return; }
   if (arrasto) {
@@ -369,7 +371,7 @@ function cartao(t) {
   $('fechaCartao').onclick = () => { c.hidden = true; selecionado = null; alcance = null; render(); };
   let iFala = 0; if ($('outraFala')) $('outraFala').onclick = () => { iFala = (iFala + 1) % falas.length; $('fala').textContent = '“' + falas[iFala] + '”'; };
   c.querySelectorAll('[data-mv]').forEach(b => b.onclick = () => ajustar(b.dataset.k, b.dataset.mv, num(b.dataset.d)));
-  if ($('atacarAlvo')) $('atacarAlvo').onclick = e => rolarTeste(e.currentTarget.dataset.rot, num(e.currentTarget.dataset.mod));
+  if ($('atacarAlvo')) $('atacarAlvo').onclick = () => { const a = atorAtivo(); if (a) atacarAlvos(a, { tipo: 'arma' }, [t.k], { x: num(t.x), y: num(t.y) }); };
   if (edita) {
     $('editarNpc').onclick = () => editorNpc(t.id);
     $('visNpc').onclick = () => enviar({ tipo: 'npc', id: t.id, dados: { visivel: t.visivel === false } });
@@ -390,7 +392,15 @@ function ajustar(k, campo, d) {
 // ================= Dados (3D) =================
 async function animarDados(m) {
   if (!cena) return;
-  if (m.k && !/^dano/i.test(m.rotulo || '')) {
+  if (m.alvos?.length && !m.dano) {
+    // ataque com alvo: animação de quem ataca, projétil ou golpe chegando
+    cena.acao(m.k, m.dom ? 'magia' : 'ataque');
+    const cor = corDoDom(m.k);
+    for (const a of m.alvos) {
+      if (m.dom || m.distancia) cena.projetil(m.k, a, m.dom ? cor : null, !!m.dom);
+      else setTimeout(() => cena.impacto(a, m.k), 450);
+    }
+  } else if (m.k && !/^dano/i.test(m.rotulo || '')) {
     const acao = m.dom ? 'magia' : /combate|pontaria|briga|ataque/i.test(m.rotulo || '') ? 'ataque' : 'usar';
     cena.acao(m.k, acao);
     if ((m.tags || []).some(t => /Triunfo|Coroa/.test(t))) setTimeout(() => cena.acao(m.k, 'vitoria'), 1700);
@@ -491,7 +501,6 @@ function htmlFicha() {
   const p = pcs[eu()];
   let h = '';
   if (souMestre() && !p) h += `<div class="bloco"><h3>Você é o Mestre</h3><p style="margin:0">Use a aba Mestre para o mapa, NPCs e combate. Se quiser, crie também um personagem.</p></div>`;
-  if (mesa?.combate?.ativo && p) h += `<div class="bloco"><h3>${minhaVez() ? 'Sua vez!' : 'Combate em andamento'}</h3>${minhaVez() ? `<p style="margin:0 0 8px">Ações neste turno (mover gasta 1):</p><div class="pips">${[0, 1, 2].map(i => `<button data-pip="${i}" class="${i < acoesUsadas() ? 'usada' : ''}">${i + 1}</button>`).join('')}</div><button id="fimTurno" style="margin-top:10px">Avisar fim do turno</button>` : '<p style="margin:0">Aguarde seu turno para se mover.</p>'}</div>`;
   if (p?.ficha) return h + htmlFichaCompleta(p);
   if (p) return h + `<div class="bloco"><h3>${esc(p.nome)}</h3>${medidor('Vigor', 'vigor', 'vigorMax', '#5d9a4a', { ...p, k: 'pc:' + eu() }, true)}<p>Este personagem foi criado no modo simples.</p></div><button class="pri" id="abrirCriador" style="width:100%">Criar ficha completa</button>`;
   return h + `<div class="bloco"><h3>Sem personagem nesta mesa</h3><p style="margin:0 0 10px">Monte sua miniatura: raça, vocação, Dom, atributos, perícias e aparência — tudo equilibrado pelas regras de Arkahad.</p><button class="pri" id="abrirCriador" style="width:100%">Criar personagem</button></div>`;
@@ -546,6 +555,7 @@ function editorNpc(id) {
     <p class="cr-nota" style="margin:2px 0 0">Para monstros escolha Miniatura “Criatura” e o modelo em “Criatura 3D”. Para pessoas, a raça define pele e traços.</p>
     <div class="linha">${f('vigor', 'Vigor')}${f('vigorMax', 'Vigor máx.')}${f('defesa', 'Defesa')}</div>
     <div class="linha">${f('ini', 'Bônus inic.')}${f('desloc', 'Desloc.')}${f('tamanho', 'Tamanho (casas)')}</div>
+    <div class="linha">${f('ataque', 'Bônus de ataque')}${f('dano', 'Dano', 'text')}${f('alcance', 'Alcance (casas)')}${f('protecao', 'Proteção')}</div>
     <label style="display:flex;gap:8px;align-items:center;font-size:15px;color:var(--ink)"><input id="n_visivel" type="checkbox" style="width:auto" ${n.visivel !== false ? 'checked' : ''}> Visível para os jogadores</label>
     <label for="n_descricao">Descrição (jogadores veem)</label><textarea id="n_descricao">${esc(n.descricao)}</textarea>
     <label for="n_falas">Falas (uma por linha)</label><textarea id="n_falas">${esc((n.falas || []).join('\n'))}</textarea>
@@ -558,7 +568,7 @@ function editorNpc(id) {
     const raca = v('raca'), sexo = v('sexo'), base = raca === 'criatura' ? {} : aparenciaPadrao(raca, 'lamina', sexo);
     const pele = RACAS[raca]?.pele, trocou = n.raca !== raca || (n.aparencia?.sexo || 'm') !== sexo;
     const aparencia = { ...base, ...(trocou ? {} : n.aparencia || {}), sexo, corRoupa: v('roupa'), arma: v('arma'), secundaria: v('sec'), criatura: v('criatura'), base: v('cor'), ...(trocou && pele ? { pele: pele[Math.floor(Math.random() * pele.length)] } : {}) };
-    const dados = { nome: v('nome'), sigla: v('sigla'), cor: v('cor'), tipo: v('tipo'), raca, aparencia, vigor: num(v('vigor')), vigorMax: num(v('vigorMax')), defesa: num(v('defesa')), ini: num(v('ini')), desloc: num(v('desloc'), 6), tamanho: num(v('tamanho'), 1), visivel: $('n_visivel').checked, descricao: v('descricao'), falas: v('falas').split('\n').map(s => s.trim()).filter(Boolean), notas: v('notas') };
+    const dados = { nome: v('nome'), sigla: v('sigla'), cor: v('cor'), tipo: v('tipo'), raca, aparencia, vigor: num(v('vigor')), vigorMax: num(v('vigorMax')), defesa: num(v('defesa')), ini: num(v('ini')), desloc: num(v('desloc'), 6), tamanho: num(v('tamanho'), 1), ataque: num(v('ataque'), 3), dano: v('dano') || '1d6', alcance: num(v('alcance'), 1), protecao: num(v('protecao')), visivel: $('n_visivel').checked, descricao: v('descricao'), falas: v('falas').split('\n').map(s => s.trim()).filter(Boolean), notas: v('notas') };
     npcs[id] = { ...npcs[id], ...dados }; enviar({ tipo: 'npc', id, dados });
     selecionar('npc:' + id);
   };
@@ -603,8 +613,206 @@ function ligar() {
   if (q('#fimCombate')) q('#fimCombate').onclick = () => enviar({ tipo: 'combate', acao: 'encerrar' });
 }
 
+// ================= Combate: HUD, mira, alcance =================
+let mira = null, filaDados = Promise.resolve(), tirithHud = 'normal', menuTec = false;
+const corDoDom = k => { const [t, id] = partir(k); const f = t === 'pc' ? pcs[id]?.ficha : null; return f && ehAurethian(f) ? TODOS_DONS[f.dom]?.cor : '#9ad0ff'; };
+// quem o usuário controla agora: o NPC selecionado (Mestre) ou o próprio personagem
+function atorAtivo() {
+  const sel = tokenPorK(selecionado);
+  if (souMestre() && sel && sel.tipo !== 'pc') return sel;
+  return tokenPorK('pc:' + eu());
+}
+function armaDoAtor(t) {
+  if (t.tipo === 'pc' && t.ficha) return ataqueArma(t.ficha, !!t.imbuido);
+  const al = Math.max(1, num(t.alcance, 1));
+  return { nome: 'Ataque', mod: num(t.ataque, 3), dano: t.dano || '1d6', alcance: al, longo: al > 1 ? al * 2 : al, tipo: al > 1 ? 'distancia' : 'lamina' };
+}
+function vezDe(k) { const cb = mesa?.combate; return !!(cb?.ativo && cb.ordem?.[cb.turno]?.k === k); }
+function acoesDe(t) {
+  const cb = mesa?.combate || {}; if (!cb.ativo) return null;
+  const chave = `${num(cb.rodada, 1)}:${num(cb.turno)}`;
+  return 3 - (t.acoes?.chave === chave ? num(t.acoes.usadas) : 0);
+}
+function podeAgir(t) {
+  if (!t || !mesa) return false;
+  if (!mesa.combate?.ativo) return true;
+  if (souMestre() && t.tipo !== 'pc') return true;
+  return vezDe(t.k) && acoesDe(t) > 0;
+}
+function hud() {
+  const el = $('hud'); if (!el) return;
+  const t = atorAtivo();
+  if (!t || !mesa) { el.hidden = true; return; }
+  const cb = mesa.combate || {}, arma = armaDoAtor(t), f = t.tipo === 'pc' ? t.ficha : null;
+  const dom = f && ehAurethian(f) ? TODOS_DONS[f.dom] : null, n = f ? nivelDom(f) : 0;
+  const resta = acoesDe(t), minha = vezDe(t.k), pode = podeAgir(t);
+  const tecs = dom ? dom.tec.slice(0, n).map((nome, i) => { const al = alcanceTecnica(f, i + 1); return { nome, nivel: i + 1, custo: CUSTO_DOM[i], dano: danoTecnica(f, i + 1), ...al }; }) : [];
+  let topoHud = '';
+  if (cb.ativo) {
+    const vez = tokenPorK(cb.ordem?.[cb.turno]?.k);
+    topoHud = minha || (souMestre() && t.tipo !== 'pc' && vezDe(t.k))
+      ? `<span class="hud-vez">Sua vez</span>${t.tipo === 'pc' ? `<span class="pips-hud">${[0, 1, 2].map(i => `<i class="${i < resta ? 'ok' : ''}"></i>`).join('')}</span><span class="hud-sub">${resta} ${resta === 1 ? 'ação' : 'ações'} · mover gasta 1 (até ${num(t.desloc, 6)} casas)</span>` : ''}`
+      : `<span class="hud-sub">Rodada ${num(cb.rodada, 1)} · vez de <b>${esc(vez?.nome || '—')}</b></span>`;
+  } else topoHud = `<span class="hud-sub">Fora de combate · ações livres</span>`;
+  el.innerHTML = `<div class="hud-topo"><b class="hud-nome">${esc(t.nome)}</b>${topoHud}</div>
+    <div class="hud-acoes">
+      <button class="hud-b ${mira?.tipo === 'arma' ? 'on' : ''}" data-hud="arma" ${pode ? '' : 'disabled'} title="${esc(arma.nome)} · ${arma.tipo === 'distancia' ? `alcance ${arma.alcance} (até ${arma.longo} com −3)` : `alcance ${arma.alcance}`}"><span class="ic">⚔</span><span>Atacar</span><small>${esc(arma.nome)} · ${sinal(arma.mod)}</small></button>
+      ${dom ? `<div class="hud-grupo"><button class="hud-b ${menuTec || mira?.tipo === 'tec' ? 'on' : ''}" data-hud="tecs" ${pode ? '' : 'disabled'} style="--cor:${dom.cor}"><span class="ic" style="color:${dom.cor}">✦</span><span>Técnicas</span><small>${esc(dom.nome)} · Fôlego ${num(t.folego)}</small></button>
+        ${menuTec ? `<div class="hud-menu">${tecs.map(x => `<button data-tec-hud="${x.nivel}"><b>N${x.nivel} ${esc(x.nome)}</b><small>${x.custo} Fôlego · ${x.raio ? `área ${x.raio * 2 + 1}×${x.raio * 2 + 1}` : 'um alvo'} · alcance ${x.alcance} · ${esc(x.dano)}</small></button>`).join('')}</div>` : ''}</div>` : ''}
+      ${f && temImbuir(f) ? `<button class="hud-b ${t.imbuido ? 'on' : ''}" data-hud="imbuir" style="--cor:${dom.cor}"><span class="ic" style="color:${dom.cor}">🜂</span><span>${t.imbuido ? 'Imbuída' : 'Imbuir'}</span><small>${f.talentos.includes('imb4') ? 'grátis' : '1 Fôlego'}</small></button>` : ''}
+      ${t.tipo === 'pc' ? `<button class="hud-b ${t.guarda ? 'on' : ''}" data-hud="defender" ${pode && !t.guarda ? '' : 'disabled'}><span class="ic">⛨</span><span>Defender</span><small>+2 Defesa até seu turno</small></button>` : ''}
+      <label class="hud-tirith" title="Dado de Tirith"><select id="hudTirith"><option value="normal">Normal</option><option value="vantagem">Vantagem</option><option value="desvantagem">Desvant.</option></select></label>
+      ${cb.ativo && (minha || (souMestre() && vezDe(t.k))) ? `<button class="hud-b fim" data-hud="fim"><span class="ic">⏭</span><span>Fim do turno</span><small>passa a vez</small></button>` : ''}
+      ${souMestre() && cb.ativo && !(vezDe(t.k)) ? `<button class="hud-b fim" data-hud="fim"><span class="ic">⏭</span><span>Próximo</span><small>turno</small></button>` : ''}
+    </div>
+    ${mira ? `<div class="hud-mira">${esc(mira.titulo)} — clique no alvo · <button class="mini" data-hud="cancelar">Cancelar (Esc)</button></div>` : ''}`;
+  el.hidden = false;
+  $('hudTirith').value = tirithHud;
+  $('hudTirith').onchange = e => { tirithHud = e.target.value; };
+  el.querySelectorAll('[data-hud]').forEach(b => b.onclick = () => acaoHud(b.dataset.hud, t));
+  el.querySelectorAll('[data-tec-hud]').forEach(b => b.onclick = () => { menuTec = false; const x = tecs.find(q => q.nivel === num(b.dataset.tecHud)); iniciarMira(t, { tipo: 'tec', ...x }); });
+}
+function acaoHud(a, t) {
+  if (a === 'arma') { menuTec = false; if (mira?.tipo === 'arma') return cancelarMira(); iniciarMira(t, { tipo: 'arma' }); }
+  else if (a === 'tecs') { menuTec = !menuTec; if (mira) cancelarMira(); else hud(); }
+  else if (a === 'imbuir') $('imbuir') ? $('imbuir').click() : alternarImbuir();
+  else if (a === 'defender') enviar({ tipo: 'defender' });
+  else if (a === 'fim') { cancelarMira(); enviar({ tipo: 'combate', acao: 'proximo' }); }
+  else if (a === 'cancelar') cancelarMira();
+}
+function alternarImbuir() {
+  const p = pcs[eu()]; if (!p?.ficha) return;
+  const liga = !p.imbuido, gratis = (p.ficha.talentos || []).includes('imb4'), dados = { imbuido: liga };
+  if (liga && !gratis) { if (num(p.folego) < 1) { avisar('Sem Fôlego para imbuir a arma.', 2500); return; } dados.folego = num(p.folego) - 1; }
+  pcs[eu()] = { ...p, ...dados }; painel(); render(); enviar({ tipo: 'pc', dados });
+  if (liga) cena?.acao('pc:' + eu(), 'magia');
+}
+// alcance da ação a partir do ator
+function cfgMira(t, cfg) {
+  if (cfg.tipo === 'arma') { const a = armaDoAtor(t); return { ...cfg, ...a, tipo: 'arma', tipoArma: a.tipo, raio: 0, distancia: a.tipo === 'distancia', titulo: `${a.nome}: alcance ${a.alcance}${a.longo > a.alcance ? ` (até ${a.longo} com −3)` : ''}` }; }
+  const f = t.ficha, at = f ? atributosFinais(f) : {}, dm = f ? TODOS_DONS[f.dom] : null;
+  const modTec = f && dm ? at[dm.chave] + gradPericia(f, 'canalizacao') + bonusTesteDom(f) : 0;
+  return { ...cfg, modTec, longo: cfg.alcance, distancia: true, titulo: `${cfg.nome}: alcance ${cfg.alcance}${cfg.raio ? ` · área ${cfg.raio * 2 + 1}×${cfg.raio * 2 + 1}` : ''}` };
+}
+function iniciarMira(t, cfg) {
+  if (!podeAgir(t)) { avisar(mesa.combate?.ativo ? 'Não é a sua vez (ou acabaram as ações).' : 'Não dá para agir agora.', 2500); return; }
+  mira = { ...cfgMira(t, cfg), de: t.k, x: num(t.x), y: num(t.y) };
+  // casas ao alcance: forte = alcance normal, fraco = alcance longo; sem linha de visão fica de fora
+  const mapa = new Map(), o = { x: mira.x, y: mira.y };
+  const extra = mira.distancia ? 2 * Math.max(0, nivelEm(mesa, o.x, o.y)) : 0;
+  const lim = mira.longo + extra;
+  for (let y = Math.max(0, o.y - lim); y <= Math.min(mesa.rows - 1, o.y + lim); y++) for (let x = Math.max(0, o.x - lim); x <= Math.min(mesa.cols - 1, o.x + lim); x++) {
+    const d = distanciaCasas(o, { x, y }); if (!d || d > lim) continue;
+    if (mira.distancia && !linhaDeVisao(mesa, o, { x, y }).livre) continue;
+    mapa.set(x + ',' + y, d <= mira.alcance + extra ? .85 : .4);
+  }
+  mira.casas = mapa;
+  cena?.marcar(1, mapa, true);
+  $('cartao').hidden = true;
+  hud();
+}
+function cancelarMira() { mira = null; cena?.marcar(1, null); cena?.marcar(2, null); $('miraDica').hidden = true; hud(); }
+document.addEventListener('keydown', e => { if (e.key === 'Escape' && mira) cancelarMira(); });
+function tokensEm(x, y, raio) {
+  return tokensTodos().filter(t => { const tam = num(t.tamanho, 1); for (let i = 0; i < tam; i++) for (let j = 0; j < tam; j++) if (Math.max(Math.abs(num(t.x) + i - x), Math.abs(num(t.y) + j - y)) <= raio) return true; return false; });
+}
+// calcula bônus e avisos para cada alvo
+function avaliar(ator, cfg, alvo) {
+  const o = { x: num(ator.x), y: num(ator.y) }, d = { x: num(alvo.x), y: num(alvo.y) };
+  const dist = distanciaCasas(o, d), ef = efeitoAltura(mesa, o, d, cfg.distancia), notas = [...ef.notas];
+  let mod = (cfg.tipo === 'tec' ? cfg.modTec : cfg.mod) + ef.mod, cob = 0, ok = true;
+  if (!cfg.distancia) {
+    if (dist > cfg.alcance) { ok = false; notas.push(`Fora do alcance corpo a corpo (${dist} casas)`); }
+    if (!ef.podeCorpo) ok = false;
+  } else {
+    const los = linhaDeVisao(mesa, o, d);
+    if (!los.livre) { ok = false; notas.push('Sem linha de visão'); }
+    const lim = cfg.alcance + ef.alcance;
+    if (dist > cfg.longo + ef.alcance) { ok = false; notas.push(`Longe demais (${dist} casas)`); }
+    else if (dist > lim) { mod -= 3; notas.push('Alcance longo (−3)'); }
+    const c = (mesa.grid[d.y] || '')[d.x];
+    if (los.cobertura || TERRENOS[c]?.cobertura) { cob = 2; notas.push('Alvo com cobertura (+2 Defesa)'); }
+  }
+  if (alvo.guarda) notas.push('Alvo em guarda (+2 Defesa)');
+  return { ok, mod, cob, dist, notas };
+}
+function mirarEm(i, e) {
+  if (!dentro(i.x, i.y)) return;
+  const ator = tokenPorK(mira.de); if (!ator) return cancelarMira();
+  const area = new Map();
+  for (let y = i.y - mira.raio; y <= i.y + mira.raio; y++) for (let x = i.x - mira.raio; x <= i.x + mira.raio; x++) area.set(x + ',' + y, 1);
+  cena?.marcar(2, area, true);
+  const alvos = mira.raio ? tokensEm(i.x, i.y, mira.raio).filter(t => t.k !== ator.k) : (i.k ? [tokenPorK(i.k)] : tokensEm(i.x, i.y, 0)).filter(t => t && t.k !== ator.k);
+  const dica = $('miraDica');
+  const noAlcance = mira.casas.has(i.x + ',' + i.y);
+  let h = `<b>${esc(mira.nome)}</b>`;
+  if (!alvos.length) h += `<div>${noAlcance ? (mira.raio ? 'Nenhum alvo na área' : 'Escolha uma miniatura') : 'Fora do alcance'}</div>`;
+  for (const a of alvos.slice(0, 5)) { const av = avaliar(ator, mira, a); h += `<div class="${av.ok ? '' : 'ruim'}">${esc(a.nome)} · <b>${sinal(av.mod)}</b> · ${av.dist} casas${av.notas.length ? `<br><small>${av.notas.map(esc).join(' · ')}</small>` : ''}</div>`; }
+  dica.innerHTML = h; dica.hidden = false;
+  const r = $('area').getBoundingClientRect();
+  dica.style.left = Math.min(r.width - 260, (e?.clientX ?? 0) - r.left + 16) + 'px'; dica.style.top = Math.max(8, (e?.clientY ?? 0) - r.top - 10) + 'px';
+}
+function dispararMira(i) {
+  const ator = tokenPorK(mira.de); if (!ator) return cancelarMira();
+  const alvos = mira.raio ? tokensEm(i.x, i.y, mira.raio).filter(t => t.k !== ator.k) : (i.k ? [tokenPorK(i.k)] : tokensEm(i.x, i.y, 0)).filter(t => t && t.k !== ator.k);
+  if (mira.raio ? !mira.casas.has(i.x + ',' + i.y) : !alvos.length) { avisar(mira.raio ? 'Fora do alcance.' : 'Clique numa miniatura.', 1800); return; }
+  const cfg = mira; cancelarMira();
+  atacarAlvos(ator, cfg, alvos.map(t => t.k), i);
+}
+// resolve no servidor: rolagem, Defesa de cada alvo e dano
+function atacarAlvos(ator, cfg0, ks, centro) {
+  const cfg = cfg0.mod === undefined && cfg0.tipo === 'arma' ? cfgMira(ator, cfg0) : cfg0;
+  const f = ator.tipo === 'pc' ? ator.ficha : null;
+  if (cfg.tipo === 'tec' && f) {
+    // custo de Fôlego e Tensão
+    const p = pcs[eu()]; let folego = num(p.folego), tensao = num(p.tensao); const falta = Math.max(0, cfg.custo - folego);
+    folego = Math.max(0, folego - cfg.custo); tensao += falta + (cfg.nivel >= 4 ? 1 : 0);
+    pcs[eu()] = { ...p, folego, tensao }; enviar({ tipo: 'pc', dados: { folego, tensao } });
+    if (tensao > num(p.limiar)) avisar('Tensão acima do Limiar: faça o Teste de Colapso!', 5000);
+    else if (falta || cfg.nivel >= 4) avisar(`+${falta + (cfg.nivel >= 4 ? 1 : 0)} Tensão (Zona 2: role um Sintoma).`, 4000);
+  }
+  const alvos = ks.map(tokenPorK).filter(Boolean);
+  if (!alvos.length) {
+    // técnica numa área vazia: só o teste
+    if (cfg.tipo === 'tec') rolarTeste(`${cfg.nome} (N${cfg.nivel})`, cfg.modTec, true);
+    return;
+  }
+  const av = alvos.map(a => avaliar(ator, cfg, a));
+  const validos = alvos.filter((a, i) => av[i].ok || cfg.raio);
+  if (!validos.length) { avisar(av[0].notas.join(' · ') || 'Alvo inválido.', 3000); return; }
+  // em área usa o pior modificador de altura; num alvo só, o dele
+  const mod = Math.min(...validos.map(a => av[alvos.indexOf(a)].mod));
+  const cob = Object.fromEntries(validos.map(a => [a.k, av[alvos.indexOf(a)].cob]));
+  const rotulo = cfg.tipo === 'tec' ? `${cfg.nome} (N${cfg.nivel})` : `${cfg.nome} em ${validos.length > 1 ? validos.length + ' alvos' : validos[0].nome}`;
+  enviar({ tipo: 'ataque', de: ator.k, alvos: validos.map(a => a.k), mod, cob, tirith: tirithHud, dano: cfg.dano, rotulo, dom: cfg.tipo === 'tec', distancia: !!cfg.distancia });
+}
+function anunciarTurno(m) {
+  const b = $('banner'); if (!b) return;
+  const minha = m.k === 'pc:' + eu() || (souMestre() && m.k?.startsWith('npc:'));
+  b.textContent = m.k === 'pc:' + eu() ? 'Sua vez!' : `Vez de ${m.nome}`;
+  b.className = 'banner' + (m.k === 'pc:' + eu() ? ' meu' : ''); b.hidden = false;
+  clearTimeout(anunciarTurno.t); anunciarTurno.t = setTimeout(() => { b.hidden = true; }, m.k === 'pc:' + eu() ? 2200 : 1500);
+  if (minha && m.k.startsWith('npc:') && souMestre()) selecionar(m.k);
+  const t = tokenPorK(m.k); if (t && cena) cena.focar(num(t.x), num(t.y));
+}
+// trilha de iniciativa no canto do mapa
+function trilha() {
+  const el = $('iniciativa'); if (!el) return;
+  const cb = mesa?.combate;
+  if (!cb?.ativo) { el.hidden = true; return; }
+  el.innerHTML = `<div class="ini-topo">Rodada ${num(cb.rodada, 1)}</div>` + (cb.ordem || []).map((o, i) => {
+    const t = tokenPorK(o.k); if (!t) return '';
+    const vis = souMestre() || t.tipo === 'pc', v = num(t.vigor), m = num(t.vigorMax);
+    const caido = m && v <= 0, resta = i === cb.turno ? acoesDe(t) : null;
+    return `<button class="ini ${i === cb.turno ? 'vez' : ''} ${caido ? 'caido' : ''}" data-ini="${esc(o.k)}"><i style="background:${esc(t.cor || '#8c7a63')}"></i><span class="ini-n">${esc(t.nome)}</span><small>${num(o.ini)}</small>
+      ${vis && m ? `<span class="ini-v"><b style="width:${Math.max(0, Math.min(100, v / m * 100))}%"></b></span>` : ''}${resta !== null && t.tipo === 'pc' ? `<span class="ini-a">${'●'.repeat(Math.max(0, resta))}${'○'.repeat(3 - Math.max(0, resta))}</span>` : ''}${t.guarda ? '<span title="Em guarda">⛨</span>' : ''}</button>`;
+  }).join('');
+  el.hidden = false;
+  el.querySelectorAll('[data-ini]').forEach(b => b.onclick = () => { selecionar(b.dataset.ini); const t = tokenPorK(b.dataset.ini); if (t) cena?.focar(num(t.x), num(t.y)); });
+}
+
 // ganchos para testes automáticos (só no servidor local)
-if (['127.0.0.1', 'localhost'].includes(location.hostname)) globalThis.__arkahad = { selecionar, enviar, get cena() { return cena; } };
+if (['127.0.0.1', 'localhost'].includes(location.hostname)) globalThis.__arkahad = { selecionar, enviar, iniciarMira, atorAtivo, tokenPorK, get mira() { return mira; }, get mesa() { return mesa; }, get cena() { return cena; } };
 
 // ================= Início =================
 (async () => {

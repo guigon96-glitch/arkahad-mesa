@@ -84,6 +84,24 @@ export function efeitoAltura(mesa, a, b, distancia = false) {
   if (!distancia && Math.abs(d) >= 2) { podeCorpo = false; notas.push('Desnível de 2+ níveis: fora do alcance corpo a corpo'); }
   return { dif: d, mod, alcance, podeCorpo, notas };
 }
+// Linha de visão entre duas casas: paredes cortam; árvores, arbustos e muros baixos dão cobertura;
+// um morro mais alto que os dois no meio do caminho também bloqueia.
+export function linhaDeVisao(mesa, a, b) {
+  const ax = a.x + .5, ay = a.y + .5, bx = b.x + .5, by = b.y + .5, d = Math.hypot(bx - ax, by - ay);
+  const passos = Math.max(1, Math.ceil(d * 4)), topo = Math.max(nivelEm(mesa, a.x, a.y), nivelEm(mesa, b.x, b.y));
+  let cobertura = false; const vistas = new Set();
+  for (let i = 1; i < passos; i++) {
+    const x = Math.floor(ax + (bx - ax) * i / passos), y = Math.floor(ay + (by - ay) * i / passos), k = x + ',' + y;
+    if ((x === a.x && y === a.y) || (x === b.x && y === b.y) || vistas.has(k)) continue;
+    vistas.add(k);
+    const c = (mesa.grid[y] || '')[x], t = TERRENOS[c] || {};
+    if (t.parede && t.parede !== 'baixo') return { livre: false, cobertura: true };
+    if (nivelEm(mesa, x, y) > topo) return { livre: false, cobertura: true };
+    if (t.cobertura || c === 'T' || c === 'P' || c === 'Q' || c === '^') cobertura = true;
+  }
+  return { livre: true, cobertura };
+}
+export const distanciaCasas = (a, b) => Math.max(Math.abs(a.x - b.x), Math.abs(a.y - b.y));
 // Queda: 1d6 por nível a partir do segundo (empurrões, Terremoto, Empurrão de Escudo na beirada…)
 export function danoQueda(niveis) { return niveis >= 2 ? `${niveis - 1}d6` : null; }
 
