@@ -1,4 +1,4 @@
-import { TERRENOS, LUZES as NOMES_LUZ, LUAS, NIVEIS, num, dijkstra, nivelEm, efeitoAltura, linhaDeVisao, distanciaCasas } from './regras.js';
+import { TERRENOS, LUZES as NOMES_LUZ, LUAS, NIVEIS, num, dijkstra, XP_NIVEL, nivelPorXp, GANHOS_NIVEL, FONTES_XP, nivelEm, efeitoAltura, linhaDeVisao, distanciaCasas } from './regras.js';
 import { criarCena } from './cena3d.js';
 import { CRIATURAS_3D, ARMAS_3D, SECUNDARIAS, SEXOS, ESTILO_DOM } from './modelos.js';
 import { abrirCriador } from './criacao.js';
@@ -648,7 +648,32 @@ function htmlFichaCompleta(p) {
     <div class="bloco"><h3>${esc(voc.nome)}</h3>${habilidadesVocacao(f).map(h => `<p style="margin:0 0 6px${h.ok ? '' : ';opacity:.45'}" title="${h.ok ? 'Liberada' : 'Libera no nível ' + h.nivel}"><b>N${h.nivel}${h.ok ? '' : ' 🔒'}</b> ${esc(h.texto)}</p>`).join('')}<div style="font-size:14px;color:var(--mudo)">Kit: ${esc(voc.kit)} · Armadura: ${esc(d.armadura)} · Proficiência: ${esc(HAB_VOCACAO[f.vocacao]?.armaduras || '')}</div>
       ${f.fardo ? `<p style="margin:8px 0 0"><b>Fardo:</b> ${esc(f.fardo)}</p>` : ''}${f.juramento ? `<p style="margin:4px 0 0"><b>Juramento:</b> ${esc(f.juramento)}</p>` : ''}
       ${(f.facanhas || []).length ? `<p style="margin:4px 0 0"><b>Façanhas:</b> ${f.facanhas.map(esc).join(', ')}</p>` : ''}</div>
+    ${blocoXp(p, f)}
     <button class="pri" id="abrirCriador" style="width:100%">Editar personagem</button>`;
+}
+function blocoXp(p, f) {
+  const xp = num(p.xp), n = num(f.nivel, 1), pode = nivelPorXp(xp), prox = XP_NIVEL[n], base = XP_NIVEL[n - 1] || 0;
+  const pct = prox === undefined ? 100 : Math.max(0, Math.min(100, (xp - base) / (prox - base) * 100));
+  return `<div class="bloco"><h3>Experiência</h3><div style="display:flex;justify-content:space-between"><span>Nível <b>${n}</b></span><span><b>${xp}</b> XP${prox === undefined ? ' · nível máximo' : ` / ${prox}`}</span></div>
+    <span class="ini-v" style="display:block;margin:6px 0"><b style="width:${pct}%"></b></span>
+    ${pode > n ? `<button class="pri" id="subirNivel" style="width:100%">Subir para o nível ${n + 1} — ${esc(GANHOS_NIVEL[n])}</button>` : ''}
+    <details><summary>Tabela de níveis</summary><div class="pers">${XP_NIVEL.map((x, i) => `<div style="${i + 1 === n ? 'color:var(--ouro)' : i + 1 > n ? 'opacity:.6' : ''}"><b>N${i + 1}</b> · ${x} XP · ${esc(GANHOS_NIVEL[i])} · +5 Vigor, +1 Fôlego, +2 perícias</div>`).join('')}</div>
+    <p class="cr-nota" style="margin:6px 0 0">O Mestre dá XP. Ao subir, distribua perícias, Talentos e atributos em “Editar personagem”.</p></details></div>`;
+}
+function dadosDaFicha(f, dc) {
+  const d = derivados(f);
+  return {
+    nome: f.nome, sigla: f.sigla || f.nome.slice(0, 2), cor: f.aparencia.base,
+    vigorMax: d.vigorMax, folegoMax: d.folegoMax, limiar: d.limiar, defesa: d.defesa, desloc: d.desloc, ini: d.ini,
+    robustez: d.robustez, determinacao: d.determinacao, protecao: d.protecao, limiarFer: d.limiarFer,
+    ficha: f, aparencia: f.aparencia, dados: dc,
+  };
+}
+function subirNivel() {
+  const p = pcs[eu()]; if (!p?.ficha) return;
+  const f = { ...p.ficha, nivel: num(p.ficha.nivel, 1) + 1 }, dados = dadosDaFicha(f, p.dados);
+  dados.vigor = num(p.vigor) + dados.vigorMax - num(p.vigorMax); dados.folego = num(p.folego) + dados.folegoMax - num(p.folegoMax);
+  enviar({ tipo: 'pc', dados }); avisar(`Nível ${f.nivel}! ${GANHOS_NIVEL[f.nivel - 1]}`, 4000);
 }
 function abrirCriacao() {
   const p = pcs[eu()];
@@ -656,13 +681,7 @@ function abrirCriacao() {
   abrirCriador({
     ficha: p?.ficha, dadosCor: p?.dados, aoFechar: () => cena?.pausar(false),
     aoSalvar(f, dc) {
-      const d = derivados(f);
-      const dados = {
-        nome: f.nome, sigla: f.sigla || f.nome.slice(0, 2), cor: f.aparencia.base,
-        vigorMax: d.vigorMax, folegoMax: d.folegoMax, limiar: d.limiar, defesa: d.defesa, desloc: d.desloc, ini: d.ini,
-        robustez: d.robustez, determinacao: d.determinacao, protecao: d.protecao, limiarFer: d.limiarFer,
-        ficha: f, aparencia: f.aparencia, dados: dc,
-      };
+      const d = derivados(f), dados = dadosDaFicha(f, dc);
       if (!p) Object.assign(dados, { vigor: d.vigorMax, folego: d.folegoMax });
       enviar({ tipo: 'pc', dados }); avisar('Personagem salvo.', 2000);
     },
@@ -770,6 +789,10 @@ function htmlMestre() {
     <div class="bloco"><h3>Céu deste mapa</h3><label for="m_luz">Luz</label><select id="m_luz">${Object.entries(NOMES_LUZ).map(([k, n]) => `<option value="${k}" ${mesa.luz === k ? 'selected' : ''}>${n}</option>`).join('')}</select>
     <label for="m_lua">Lua dominante</label><select id="m_lua">${Object.entries(LUAS).map(([k, n]) => `<option value="${k}" ${mesa.lua === k ? 'selected' : ''}>${n}</option>`).join('')}</select></div>
     <div class="bloco"><h3>Combate</h3>${cb.ativo ? `<p style="margin:0 0 8px">Rodada ${num(cb.rodada, 1)} · vez de <b>${esc(nomeDe(cb.ordem?.[cb.turno]?.k))}</b></p><div class="linha"><button class="pri" id="proxTurno">Próximo turno</button><button id="fimCombate">Encerrar combate</button></div>` : `<button class="pri" id="iniCombate" style="width:100%">Iniciar combate (rola iniciativa)</button><p style="color:var(--mudo);font-size:13px">Entram os jogadores e os NPCs visíveis deste mapa.</p>`}</div>
+    <div class="bloco"><h3>Experiência</h3>${Object.entries(pcs).filter(([, p]) => p?.nome).map(([id, p]) => `<label style="display:flex;gap:8px;align-items:center;margin:4px 0;font-size:15px;color:var(--ink)"><input type="checkbox" style="width:auto" data-xpalvo="${esc(id)}" checked><span class="cresce">${esc(p.nome)}</span><small>N${num(p.ficha?.nivel, 1)} · ${num(p.xp)} XP${nivelPorXp(p.xp) > num(p.ficha?.nivel, 1) ? ' · pode subir' : ''}</small></label>`).join('') || '<p>Nenhum personagem.</p>'}
+      <label for="xpFonte">Fonte</label><select id="xpFonte"><option value="">Outra…</option>${FONTES_XP.map(([n, v], i) => `<option value="${i}">${esc(n)} (+${v})</option>`).join('')}</select>
+      <div class="linha"><div><label for="xpValor">XP (negativo tira)</label><input id="xpValor" type="number" value="2"></div><div><label for="xpMotivo">Motivo</label><input id="xpMotivo" type="text" maxlength="60" value="Comparecer à sessão"></div></div>
+      <button class="pri" id="darXp" style="width:100%;margin-top:8px">Dar XP aos marcados</button></div>
     <div class="bloco"><h3>NPCs e criaturas deste mapa</h3>${Object.entries(npcs).filter(([, n]) => (n.mapa || mesa.id) === mesa.id).map(([id, n]) => `<div style="display:flex;gap:6px;align-items:center;margin:4px 0"><span class="ponto" style="background:${esc(n.cor)}"></span><span class="cresce">${esc(n.nome)}${n.visivel === false ? ' (oculto)' : ''}</span><button class="mini" data-ed="${esc(id)}">Editar</button></div>`).join('') || '<p>Nenhum. Use “Colocar NPC”.</p>'}</div>
     <div class="bloco"><h3>Este mapa e a sessão</h3><label for="m_nome">Nome do mapa</label><input id="m_nome" type="text" value="${esc(mesa.nome)}">
     <div class="linha"><div><label for="m_cols">Colunas</label><input id="m_cols" type="number" value="${mesa.cols}"></div><div><label for="m_rows">Linhas</label><input id="m_rows" type="number" value="${mesa.rows}"></div></div>
@@ -814,6 +837,13 @@ function editorNpc(id) {
 function ligar() {
   const q = s => document.querySelector(s);
   if (q('#abrirCriador')) q('#abrirCriador').onclick = abrirCriacao;
+  if (q('#subirNivel')) q('#subirNivel').onclick = subirNivel;
+  if (q('#darXp')) q('#darXp').onclick = () => {
+    const alvos = [...document.querySelectorAll('[data-xpalvo]:checked')].map(c => c.dataset.xpalvo), valor = num(q('#xpValor').value);
+    if (!alvos.length || !valor) return avisar('Escolha os jogadores e a quantidade de XP.', 2500);
+    enviar({ tipo: 'xp', alvos, valor, motivo: q('#xpMotivo').value });
+  };
+  if (q('#xpFonte')) q('#xpFonte').onchange = e => { const [n, v] = FONTES_XP[e.target.value] || []; if (n) { q('#xpValor').value = v; q('#xpMotivo').value = n; } };
   document.querySelectorAll('#conteudo [data-mv]').forEach(b => b.onclick = () => ajustar(b.dataset.k, b.dataset.mv, num(b.dataset.d)));
   document.querySelectorAll('#conteudo [data-rolar]').forEach(b => b.onclick = () => rolarTeste(b.dataset.rolar, num(b.dataset.mod)));
   document.querySelectorAll('#conteudo [data-tec]').forEach(b => b.onclick = () => usarTecnica(num(b.dataset.tec), b.dataset.nome));

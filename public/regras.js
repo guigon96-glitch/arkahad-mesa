@@ -203,3 +203,10 @@ export function rolarExpr(expr) {
   }
   return ok ? { dados, total: soma, tags: [], grau: '', desc: s } : null;
 }
+
+// ---------- Progressão (Livro de Regras 16) ----------
+// XP total para cada nível (índice 0 = nível 1).
+export const XP_NIVEL = [0, 10, 25, 45, 70, 100, 135, 175, 220, 270];
+export const nivelPorXp = xp => XP_NIVEL.filter(x => num(xp) >= x).length || 1;
+export const GANHOS_NIVEL = ['Criação · habilidade de Vocação N1', '+1 Talento', 'Habilidade de Vocação N3', '+1 atributo, +1 Talento', 'Habilidade de Vocação N5 · perícias até 4', '+1 Talento', 'Habilidade de Vocação N7', '+1 atributo, +1 Talento', 'Perícias até 5', '+1 Talento · habilidade de Vocação N10'];
+export const FONTES_XP = [['Comparecer à sessão', 2], ['Objetivo da aventura', 3], ['Cumprir o Juramento', 3], ['Interpretar o Fardo', 1], ['Segredo do mundo', 1], ['Encontro Mortal', 2]];

@@ -1,5 +1,5 @@
 import { DurableObject } from 'cloudflare:workers';
-import { TERRENOS, LUZES, LUAS, r, num, custoCel, dijkstra, rolar2d10, rolarAtaque, rolarExpr } from '../public/regras.js';
+import { TERRENOS, LUZES, LUAS, r, num, custoCel, dijkstra, rolar2d10, rolarAtaque, rolarExpr, nivelPorXp } from '../public/regras.js';
 
 const MAX_JOGADORES = 6;
 const SESSAO_DIAS = 30;
@@ -501,6 +501,8 @@ export class Sala extends DurableObject {
         const alvo = mestre && msg.id ? String(msg.id) : att.id;
         if (!mestre && alvo !== att.id) return erro('Você só edita o seu personagem.');
         const dados = limparPc(msg.dados || {});
+        // Jogador só sobe de nível até onde o XP permite (o Mestre ajusta livre).
+        if (!mestre && dados.ficha) dados.ficha.nivel = Math.max(1, Math.min(Math.round(num(dados.ficha.nivel, 1)), Math.max(num(s.pcs[alvo]?.ficha?.nivel, 1), nivelPorXp(s.pcs[alvo]?.xp))));
         if (!s.pcs[alvo]) {
           if (alvo !== att.id) return;
           const mapa = mestre ? mesa.id : this.idMapa(null);
@@ -509,6 +511,20 @@ export class Sala extends DurableObject {
           s.pcs[alvo].vigor ??= s.pcs[alvo].vigorMax;
           s.pcs[alvo].folego ??= s.pcs[alvo].folegoMax;
         } else Object.assign(s.pcs[alvo], dados);
+        await this.gravar('pcs');
+        break;
+      }
+      case 'xp': {
+        if (!mestre) return;
+        const delta = Math.max(-300, Math.min(300, Math.round(num(msg.valor))));
+        const ids = (Array.isArray(msg.alvos) ? msg.alvos : []).map(String).filter(id => s.pcs[id]);
+        if (!delta || !ids.length) return;
+        const motivo = texto(msg.motivo, 60) || 'XP';
+        for (const id of ids) {
+          const p = s.pcs[id]; p.xp = Math.max(0, Math.min(999, num(p.xp) + delta));
+          const pode = nivelPorXp(p.xp), atual = num(p.ficha?.nivel, 1);
+          this.registrar({ nome: p.nome, cor: p.cor, rotulo: 'Experiência', total: delta, grau: `${p.xp} XP`, desc: motivo, tags: pode > atual ? [`Pode subir para o nível ${atual + 1}`] : [] });
+        }
         await this.gravar('pcs');
         break;
       }
