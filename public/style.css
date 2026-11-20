@@ -4,7 +4,7 @@
    PICTURE: o próprio mapa em grade, ocupando a tela, com tokens e dados que caem nele
    COLOUR and TYPE: fundo de madeira escura, ouro de Kael, azul de Lyra, vermelho de Aranor; Cinzel + Alegreya Sans
    LAYOUT: mapa à esquerda, painel de abas à direita; no celular o painel desce */
-:root{color-scheme:dark;--bg:#14100c;--painel:#1e1812;--painel2:#271f17;--borda:#3c3025;--ink:#efe5d3;--mudo:#b3a58f;--ouro:#e2b04a;--azul:#5f92f0;--sangue:#c0392f;--verde:#5d9a4a}
+:root{color-scheme:dark;--bg:#0f0c09;--painel:#1a1510;--painel2:#241c14;--borda:#4a3b28;--ink:#efe5d3;--mudo:#b8a98f;--ouro:#d9b25e;--azul:#5f92f0;--sangue:#c0392f;--verde:#5d9a4a;--ouro-velho:#8f7240;--vidro:rgba(20,15,11,.78);--vidro-forte:rgba(14,11,8,.9);--moldura:inset 0 0 0 1px rgba(217,178,94,.08),0 0 0 1px #0008,0 14px 34px rgba(0,0,0,.55)}
 *{box-sizing:border-box;min-width:0}
 html,body{height:100%}
 body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.45 "Alegreya Sans",system-ui,sans-serif;overflow:hidden}
@@ -219,3 +219,63 @@ input[type=range]{width:100%;accent-color:var(--ouro)}
 .mapa-it.atual{border-color:var(--ouro)}.mapa-it .aqui{color:var(--ouro);font-size:12px}
 .botao-arquivo{display:inline-flex;align-items:center;justify-content:center;padding:8px 12px;border:1px solid var(--borda);border-radius:10px;background:#241b12;cursor:pointer;font-size:15px;color:var(--ink);min-height:44px}
 .botao-arquivo:hover{border-color:var(--ouro)}
+/* ===== tema CRPG: vidro escuro, moldura de ouro envelhecido =====
+   Camada por cima das regras acima; apague este bloco para voltar ao visual antigo. */
+body{background:radial-gradient(ellipse at 50% -20%,#2a1f14 0,transparent 60%),var(--bg)}
+h1,h2,h3{letter-spacing:.02em}
+.topo h1,.saguao h1,.caixa h1,.cr-topo h2{text-shadow:0 1px 0 #000,0 0 18px rgba(217,178,94,.25)}
+/* botões: placa de couro escuro com fio dourado */
+button{background:linear-gradient(#2b2218,#1c1610);border-color:var(--borda);box-shadow:inset 0 1px 0 rgba(255,235,190,.06);transition:border-color .15s,background .15s,color .15s}
+button:hover:not(:disabled){border-color:var(--ouro-velho);background:linear-gradient(#352a1d,#211a12)}
+button:focus-visible{outline:2px solid var(--ouro);outline-offset:2px;box-shadow:0 0 0 4px rgba(217,178,94,.18)}
+button.pri{background:linear-gradient(#e7c477,#b98d3e);color:#1a1208;border-color:#f0d590;box-shadow:inset 0 1px 0 #fff6,0 2px 10px rgba(217,178,94,.25)}
+button.pri:hover:not(:disabled){background:linear-gradient(#f0d088,#c99a48);border-color:#fae2a6}
+input,select,textarea{background:#0c0907;border-color:#3a2e20;box-shadow:inset 0 1px 3px #000a}
+input:focus,select:focus,textarea:focus{border-color:var(--ouro-velho)}
+/* painéis translúcidos sobre o mapa (blur só onde há cena atrás) */
+.topo{background:linear-gradient(rgba(30,23,16,.96),rgba(18,14,10,.96));border-bottom:1px solid var(--ouro-velho);box-shadow:0 1px 0 #000,0 6px 18px rgba(0,0,0,.45);position:relative;z-index:2}
+.chip{background:rgba(10,8,6,.7);border-color:#3e3123}
+.lado{background:linear-gradient(90deg,#120e0a,var(--painel) 30px);border-left:1px solid var(--ouro-velho)}
+.abas{background:#0e0b08;border-bottom:1px solid var(--borda)}
+.abas button{background:none;box-shadow:none;font-family:Cinzel,serif;font-size:14px;letter-spacing:.04em;color:var(--mudo)}
+.abas button:hover:not(:disabled){background:rgba(217,178,94,.05);color:var(--ink)}
+.abas button.ativo{color:var(--ouro);background:linear-gradient(transparent 40%,rgba(217,178,94,.1))}
+.bloco{background:linear-gradient(rgba(36,28,20,.6),rgba(20,16,11,.6));border-color:#3a2e20;border-radius:10px;box-shadow:inset 0 1px 0 rgba(255,235,190,.04)}
+.bloco h3{font-size:15px;padding-bottom:6px;margin-bottom:8px;border-bottom:1px solid;border-image:linear-gradient(90deg,var(--ouro-velho),transparent) 1}
+.cartao,.hud,.hud-menu,.mira-dica,.aviso,.iniciativa .ini,.caixa,.cr-caixa{-webkit-backdrop-filter:blur(8px) saturate(1.1);backdrop-filter:blur(8px) saturate(1.1)}
+.cartao{background:var(--vidro);border-color:var(--ouro-velho);border-radius:10px;box-shadow:var(--moldura)}
+.aviso{background:var(--vidro-forte);border-color:var(--ouro-velho)}
+.hud{background:linear-gradient(rgba(32,25,17,.82),rgba(14,11,8,.9));border-color:var(--ouro-velho);border-radius:12px;box-shadow:var(--moldura)}
+.hud::before{content:"";position:absolute;left:18%;right:18%;top:-1px;height:1px;background:linear-gradient(90deg,transparent,var(--ouro),transparent);pointer-events:none}
+.hud-b{background:linear-gradient(#2a2117,#1a140e);border-color:#4a3a28;border-radius:8px}
+.hud-menu{background:var(--vidro-forte);border-color:var(--ouro-velho);border-radius:10px}
+.mira-dica{background:var(--vidro-forte)}
+.ini{background:rgba(16,12,9,.78);border-radius:8px}
+.zoom button{background:var(--vidro);-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px);border-color:var(--ouro-velho)}
+.dica{background:rgba(0,0,0,.55)}
+/* recursos: Vigor é o principal; Fôlego e Tensão ficam abaixo, mais finos */
+.medidor{grid-template-columns:64px minmax(0,1fr) auto;margin:4px 0;font-size:14px}
+.medidor>span:first-child{color:var(--mudo);font-size:13px}
+.barra{position:relative;height:9px;border-radius:3px;background:#070504;border-color:#2e2418;box-shadow:inset 0 1px 2px #000}
+.barra::after{content:"";position:absolute;inset:0;background:linear-gradient(rgba(255,255,255,.22),transparent 55%),repeating-linear-gradient(90deg,transparent 0 calc(10% - 1px),rgba(0,0,0,.35) calc(10% - 1px) 10%);pointer-events:none}
+.barra i{transition:width .35s ease}
+.medidor:has(i[style*="5d9a4a"]){margin:2px 0 8px;font-size:16px}
+.medidor:has(i[style*="5d9a4a"])>span:first-child{font:700 15px Cinzel,serif;color:var(--ink)}
+.medidor:has(i[style*="5d9a4a"]) .barra{height:16px;border-color:var(--ouro-velho)}
+.medidor:has(i[style*="5d9a4a"]) .barra i{box-shadow:0 0 10px rgba(93,154,74,.5)}
+.medidor:has(i[style*="5f92f0"])>span:first-child{color:#9cc0ff}
+.medidor:has(i[style*="c0392f"])>span:first-child{color:#ff8b7e}
+.medidor:has(i[style*="c0392f"]) .barra i{box-shadow:0 0 8px rgba(192,57,47,.55)}
+/* telas de entrada */
+.caixa{background:var(--vidro);border-color:var(--ouro-velho);border-radius:12px;box-shadow:var(--moldura),0 30px 80px #000a}
+.sala{background:linear-gradient(rgba(36,28,20,.7),rgba(18,14,10,.7));border-color:#3a2e20;border-radius:10px;transition:border-color .15s}
+.sala:hover{border-color:var(--ouro-velho)}
+.modal{background:rgba(0,0,0,.65);-webkit-backdrop-filter:blur(3px);backdrop-filter:blur(3px)}
+.cr-caixa{background:rgba(26,21,16,.94);border-color:var(--ouro-velho);border-radius:12px}
+/* barras de rolagem discretas */
+*{scrollbar-width:thin;scrollbar-color:#4a3b28 transparent}
+/* celular: respeita entalhe e barra de gestos */
+@media(max-width:900px){.topo{padding:calc(8px + env(safe-area-inset-top)) max(12px,env(safe-area-inset-right)) 8px max(12px,env(safe-area-inset-left));gap:8px}.topo h1{font-size:17px}.conteudo{padding-bottom:calc(40px + env(safe-area-inset-bottom))}.zoom{bottom:calc(12px + env(safe-area-inset-bottom))}}
+@media(max-width:800px){.hud{bottom:calc(64px + env(safe-area-inset-bottom));padding:6px}.hud-b{padding:6px 8px}.abas button{font-size:13px}}
+@media (prefers-reduced-transparency:reduce){.cartao,.hud,.hud-menu,.mira-dica,.aviso,.ini,.caixa,.cr-caixa,.zoom button{background:#16110c;-webkit-backdrop-filter:none;backdrop-filter:none}}
+@media (prefers-reduced-motion:reduce){.barra i,button{transition:none}}
