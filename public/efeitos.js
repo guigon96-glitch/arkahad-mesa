@@ -137,7 +137,7 @@ export function criarEfeitos(grupo) {
   // coreografia de uma habilidade: s = { forma, cor, estilo, raio, suprema, apoio }; pos = { p0, chao0, alvos: [{k, p, chao, acertou}], centro }
   // bater(k, atraso) sacode a miniatura atingida; tremer(p, forca, atraso) sacode tudo em volta
   function tocar(s, pos, bater, tremer) {
-    const { p0, chao0, alvos, centro } = pos, cor = new THREE.Color(s.cor || '#9ad0ff'), e = s.estilo, m = s.suprema ? 1.8 : 1;
+    const { p0, chao0, alvos, centro, celulas = [] } = pos, cor = new THREE.Color(s.cor || '#9ad0ff'), e = s.estilo, m = s.suprema ? 1.8 : 1;
     const branco = cor.clone().lerp(new THREE.Color('#ffffff'), .6);
     // concentração: anel e brilho subindo em quem usa
     anel(chao0, cor, .2, .9, 0, 450);
@@ -149,7 +149,22 @@ export function criarEfeitos(grupo) {
     const area = s.raio && centro;
     switch (s.forma) {
       case 'projetil': for (const a of alvos) { const t = orbe(p0, a.acertou ? a.p : a.p.clone().add(V(.7, .3, .4)), cor, e, 250, .12 * m); if (a.acertou) { impacto(a.p, t); bater(a.k, t); } else desvio(a, t); } break;
-      case 'raio': for (const a of alvos) { feixe(p0, a.acertou ? a.p : a.p.clone().add(V(.6, .4, 0)), cor, 250, 480 * m, e === 'raio' || e === 'luz'); if (a.acertou) { impacto(a.p, 320); bater(a.k, 320); } else desvio(a, 320); } break;
+      case 'raio': {
+        // em cadeia, o feixe salta de um alvo para o próximo
+        let de = p0, t = 250;
+        for (const a of alvos) {
+          feixe(de, a.acertou ? a.p : a.p.clone().add(V(.6, .4, 0)), cor, t, 480 * m, e === 'raio' || e === 'luz' || s.cadeia);
+          if (a.acertou) { impacto(a.p, t + 70); bater(a.k, t + 70); } else desvio(a, t + 70);
+          if (s.cadeia) { de = a.p; t += 180; }
+        }
+        break;
+      }
+      case 'salto': salto(chao0, chao0, cor, 0); break;
+      case 'parede': celulas.forEach((p, i) => {
+        const t = 250 + i * 60;
+        coluna(p, cor, .42, 1.3 * m, t, 700); particulas(p, cor, 10, e === 'gotas' ? 'gotas' : e === 'folhas' ? 'folhas' : 'cristal', .3, t + 100, 900);
+        esfera(p.clone().add(V(0, .3, 0)), branco, .1, .5, t + 80, 300, .5);
+      }); if (celulas.length) tremer(celulas[Math.floor(celulas.length / 2)], 1, 300); break;
       case 'golpe': for (const a of alvos) { corte(a.p, cor, Math.atan2(a.p.x - p0.x, a.p.z - p0.z), 300); if (a.acertou) { impacto(a.p, 330, 20); bater(a.k, 330); } else desvio(a, 330); } break;
       case 'explosao': {
         const alvo = area ? centro.clone().add(V(0, .45, 0)) : alvos[0]?.p; if (!alvo) break;
@@ -189,9 +204,15 @@ export function criarEfeitos(grupo) {
       } break;
       case 'escudo': for (const a of acertos) { escudo(a.chao.clone().add(V(0, .5, 0)), cor, .62, 250, 1700); particulas(a.chao, cor, 20, e, .5, 250, 1100); } break;
     }
-    if (s.apoio && !acertos.length) particulas(p0, '#888888', 12, 'fumaca', .2, 200, 800); // falhou: o Dom se apaga
+    if ((s.apoio || s.falhou) && !acertos.length) particulas(p0, '#888888', 12, 'fumaca', .2, 200, 800); // falhou: o Dom se apaga
+  }
+  // teleporte: coluna e clarão na saída e na chegada
+  function salto(de, para, cor, atraso = 0) {
+    const c = new THREE.Color(cor);
+    coluna(de, c, .4, 2.2, atraso, 500); particulas(de.clone().add(V(0, .4, 0)), c, 24, 'orbita', .3, atraso, 700);
+    if (para !== de) { coluna(para, c, .4, 2.2, atraso + 120, 600); esfera(para.clone().add(V(0, .5, 0)), '#ffffff', .1, .8, atraso + 120, 350, .7); particulas(para, c, 24, 'luz', .3, atraso + 150, 800); anel(para, c, .2, 1, atraso + 120, 500); }
   }
   // pulso de condição no começo do turno (queimar, veneno, regenerar)
   function pulso(p, cor) { anel(p, cor, .2, .8, 0, 600); particulas(p, cor, 16, 'luz', .3, 0, 800); }
-  return { atualizar, tocar, pulso };
+  return { atualizar, tocar, pulso, salto };
 }

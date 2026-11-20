@@ -233,7 +233,7 @@ function render() {
     tokens: tokensTodos().map(t => ({
       k: t.k, x: num(t.x), y: num(t.y), tamanho: num(t.tamanho, 1), nome: t.nome, ...visualDe(t),
       vigor: num(t.vigor), vigorMax: num(t.vigorMax), mostrarVida: souMestre() || t.tipo === 'pc', oculto: t.visivel === false,
-      cond: Object.keys(t.cond || {}).filter(c => CONDICOES[c]).map(c => CONDICOES[c].ic).join(''),
+      cond: Object.keys(t.cond || {}).filter(c => CONDICOES[c]).map(c => CONDICOES[c].ic).join('') + (num(t.escudo) > 0 ? ` ◇${num(t.escudo)}` : ''), tp: num(t.tp),
       corNome: t.tipo === 'pc' ? '#ffe9b8' : t.tipo === 'monstro' ? '#ff9a8a' : '#e6dccb',
     })),
     selecionado, alcance,
@@ -593,7 +593,7 @@ async function animarGolpe(m) {
 async function animarHabilidade(m) {
   const h = HABILIDADE[m.hab]; if (!cena || !h) return;
   cena.acao(m.k, h.anim === 'golpe' ? 'ataque' : 'magia');
-  cena.efeito({ forma: h.anim, de: m.k, alvos: m.alvos || [], acertos: m.acertos || [], centro: m.centro, raio: h.raio, cor: h.cor, estilo: ESTILO_DOM[h.dom] || 'luz', suprema: h.n === 4, nome: h.nome, apoio: h.t !== 'atq' });
+  cena.efeito({ forma: h.anim, de: m.k, alvos: m.alvos || [], acertos: m.acertos || [], centro: m.centro, raio: h.raio, cor: h.cor, estilo: ESTILO_DOM[h.dom] || 'luz', suprema: h.n === 4, nome: h.nome, apoio: h.t !== 'atq', cadeia: !!h.cadeia, falhou: !!m.falhou });
   await new Promise(r => setTimeout(r, h.n === 4 ? 1700 : 1100));
 }
 async function animarDados(m) {
@@ -673,11 +673,12 @@ function blocoHabilidades(p, f) {
   const arvs = [f.dom, f.estrato === 'dualista' && f.dom2].filter(d => d && ARVORES['hab_' + d]);
   const conds = Object.entries(p.cond || {}).filter(([c]) => CONDICOES[c]);
   return `<div class="bloco habs"><h3>Habilidades do Dom</h3>
+    ${num(p.escudo) > 0 ? `<div class="conds"><span style="--cor:#6aa8ff" title="Absorve dano antes do Vigor">◇ Escudo <small>${num(p.escudo)}</small></span></div>` : ''}
     ${conds.length ? `<div class="conds">${conds.map(([c, n]) => `<span style="--cor:${CONDICOES[c].cor}" title="${esc(CONDICOES[c].desc)}">${CONDICOES[c].ic} ${esc(CONDICOES[c].nome)} <small>${n}</small></span>`).join('')}</div>` : ''}
     ${arvs.map(d => {
       const arv = ARVORES['hab_' + d], nos = arv.nos, tem = id => (f.talentos || []).includes(id);
       const no = n => { const h = HABILIDADE[n.id], ok = tem(n.id);
-        return `<div class="hab-no ${ok ? 'tem' : ''} ${h.n === 4 ? 'suprema' : ''}" style="--cor:${arv.cor}"><b>${h.t === 'atq' ? '✸' : h.t === 'si' ? '◈' : '✚'} ${esc(h.nome)}</b><small>${esc(n.desc)}</small>
+        return `<div class="hab-no ${ok ? 'tem' : ''} ${h.n === 4 ? 'suprema' : ''}" style="--cor:${arv.cor}"><b>${ICONE_HAB[h.t]} ${esc(h.nome)}</b><small>${esc(n.desc)}</small>
           ${ok ? `<button class="mini" data-hab="${n.id}">Usar</button>` : `<em>${n.nivelMin ? `🔒 nível ${n.nivelMin} · ` : '🔒 '}G${n.grau}</em>`}</div>`; };
       return `<div class="hab-arvore" style="--cor:${arv.cor}"><h4>${esc(TODOS_DONS[d].nome)} <small>${pontosNaArvore(f, 'hab_' + d)}/4</small></h4>
         <div class="hab-g">${no(nos[0])}</div><div class="hab-g dois">${no(nos[1])}${no(nos[2])}</div><div class="hab-g">${no(nos[3])}</div></div>`;
@@ -1041,7 +1042,7 @@ function opcoesBarra(t) {
   const ops = [{ id: 'arma', ic: '⚔', nome: 'Atacar', sub: armaDoAtor(t).nome }];
   if (t.k === 'pc:' + eu()) { const r = restoMov(t); ops.push({ id: 'mover', ic: '👣', nome: 'Mover', sub: r ? `${r} casas restantes neste turno` : `1 ação · até ${num(t.desloc, 6)} casas no turno`, on: movendo }); }
   if (dom) for (let i = 1; i <= n; i++) ops.push({ id: 'tec:' + i, ic: '✦', cor: dom.cor, nome: dom.tec[i - 1], sub: `${dom.nome} N${i} · ${CUSTO_DOM[i - 1]} Fôlego` });
-  if (f) for (const h of habilidadesDe(f)) ops.push({ id: 'hab:' + h.id, ic: h.t === 'atq' ? '✸' : h.t === 'si' ? '◈' : '✚', cor: h.cor, nome: h.nome, sub: `${TALENTO[h.id].desc}` });
+  if (f) for (const h of habilidadesDe(f)) ops.push({ id: 'hab:' + h.id, ic: ICONE_HAB[h.t], cor: h.cor, nome: h.nome, sub: `${TALENTO[h.id].desc}` });
   if (f && temImbuir(f)) ops.push({ id: 'imbuir', ic: '🜂', cor: dom?.cor, nome: t.imbuido ? 'Imbuída' : 'Imbuir', sub: f.talentos.includes('imb4') ? 'grátis' : '1 Fôlego', on: !!t.imbuido });
   if (t.tipo === 'pc') ops.push({ id: 'defender', ic: '⛨', nome: 'Defender', sub: '+2 Defesa até seu turno', on: !!t.guarda });
   if (t.k === 'pc:' + eu()) for (const it of (Array.isArray(t.itens) ? t.itens : [])) ops.push({ id: 'item:' + it.n, ic: '🧪', nome: it.n, sub: `Item · ${num(it.q, 1)} no Inventário` });
@@ -1111,7 +1112,7 @@ function cfgMira(t, cfg) {
   if (cfg.tipo === 'arma') { const a = armaDoAtor(t); return { ...cfg, ...a, tipo: 'arma', tipoArma: a.tipo, raio: 0, distancia: a.tipo === 'distancia', titulo: `${a.nome}: alcance ${a.alcance}${a.longo > a.alcance ? ` (até ${a.longo} com −3)` : ''}` }; }
   const f = t.ficha, at = f ? atributosFinais(f) : {}, dm = f ? TODOS_DONS[f.dom] : null;
   const modTec = f && dm ? at[dm.chave] + gradPericia(f, 'canalizacao') + bonusTesteDom(f) : 0;
-  return { ...cfg, modTec, longo: cfg.alcance, distancia: true, titulo: `${cfg.nome}: alcance ${cfg.alcance}${cfg.raio ? ` · área ${cfg.raio * 2 + 1}×${cfg.raio * 2 + 1}` : ''}` };
+  return { ...cfg, modTec, longo: cfg.alcance, distancia: !cfg.atravessa, titulo: `${cfg.nome}: alcance ${cfg.alcance}${cfg.raio ? ` · área ${cfg.raio * 2 + 1}×${cfg.raio * 2 + 1}` : ''}` };
 }
 function iniciarMira(t, cfg) {
   if (!podeAgir(t)) { avisar(mesa.combate?.ativo ? 'Não é a sua vez (ou acabaram as ações).' : 'Não dá para agir agora.', 2500); return; }
@@ -1156,17 +1157,20 @@ function avaliar(ator, cfg, alvo) {
   if (alvo.guarda) notas.push('Alvo em guarda (+2 Defesa)');
   return { ok, mod, cob, dist, notas };
 }
-// apoio mira aliados (e pode incluir quem usa); ataque mira os outros
+const ICONE_HAB = { atq: '✸', si: '◈', apoio: '✚', mov: '➹', campo: '▦' };
+// apoio mira aliados (e pode incluir quem usa); ataque mira os outros; campo pega todos na área; teleporte, ninguém
 function alvosMira(ator, i) {
+  if (mira.mov) return [];
   const l = mira.raio ? tokensEm(i.x, i.y, mira.raio) : (i.k ? [tokenPorK(i.k)] : tokensEm(i.x, i.y, 0));
-  return l.filter(t => t && (mira.apoio ? t.tipo === 'pc' || t.tipo === 'aliado' : t.k !== ator.k));
+  return l.filter(t => t && (mira.campo || (mira.apoio ? t.tipo === 'pc' || t.tipo === 'aliado' : t.k !== ator.k)));
 }
 // habilidade do Dom: em si sai na hora; as outras abrem a mira
 function usarHabilidade(t, id) {
   const h = HABILIDADE[id], f = t.ficha; if (!h || !f) return false;
   menuTec = false;
   if (mira?.hab === id) { cancelarMira(); return false; }
-  const cfg = { tipo: 'hab', hab: id, nome: h.nome, alcance: Math.max(1, h.alc), raio: h.raio, custo: h.custo, tensao: h.tensao, apoio: h.t !== 'atq' };
+  if (t.cond?.silenciado) { avisar(`${t.nome} está silenciado e não pode usar o Dom.`, 2500); return false; }
+  const cfg = { tipo: 'hab', hab: id, nome: h.nome, alcance: Math.max(1, h.alc), raio: h.raio, custo: h.custo, tensao: h.tensao, apoio: h.t === 'apoio' || h.t === 'si', mov: h.t === 'mov', campo: h.t === 'campo', atravessa: !!h.atravessa };
   if (h.t === 'si') {
     if (!podeAgir(t)) { avisar('Não é a sua vez (ou acabaram as ações).', 2500); return false; }
     atacarAlvos(t, cfgMira(t, cfg), [t.k], { x: num(t.x), y: num(t.y) });
@@ -1186,7 +1190,7 @@ function mirarEm(i, e) {
   const dica = $('miraDica');
   const noAlcance = mira.casas.has(i.x + ',' + i.y);
   let h = `<b>${esc(mira.nome)}</b>`;
-  if (!alvos.length) h += `<div>${noAlcance ? (mira.raio ? 'Nenhum alvo na área' : 'Escolha uma miniatura') : 'Fora do alcance'}</div>`;
+  if (!alvos.length) h += `<div>${noAlcance ? (mira.mov ? 'Clique na casa de destino' : mira.raio ? (mira.campo ? 'Área livre' : 'Nenhum alvo na área') : 'Escolha uma miniatura') : 'Fora do alcance'}</div>`;
   for (const a of alvos.slice(0, 5)) { const av = avaliar(ator, mira, a); h += `<div class="${av.ok ? '' : 'ruim'}">${esc(a.nome)} · <b>${sinal(av.mod)}</b> · ${av.dist} casas${av.notas.length ? `<br><small>${av.notas.map(esc).join(' · ')}</small>` : ''}</div>`; }
   dica.innerHTML = h; dica.hidden = false;
   const r = $('area').getBoundingClientRect();
@@ -1195,7 +1199,9 @@ function mirarEm(i, e) {
 function dispararMira(i) {
   const ator = tokenPorK(mira.de); if (!ator) return cancelarMira();
   const alvos = alvosMira(ator, i);
-  if (mira.raio ? !mira.casas.has(i.x + ',' + i.y) : !alvos.length) { avisar(mira.raio ? 'Fora do alcance.' : 'Clique numa miniatura.', 1800); return; }
+  const porCasa = mira.raio || mira.mov || mira.campo;
+  if (porCasa ? !mira.casas.has(i.x + ',' + i.y) : !alvos.length) { avisar(porCasa ? 'Fora do alcance.' : 'Clique numa miniatura.', 1800); return; }
+  if (mira.mov && (tokensEm(i.x, i.y, 0).length || !Number.isFinite(TERRENOS[(mesa.grid[i.y] || '')[i.x]]?.custo))) { avisar('Essa casa está ocupada ou bloqueada.', 1800); return; }
   const cfg = mira; cancelarMira();
   atacarAlvos(ator, cfg, alvos.map(t => t.k), { x: i.x, y: i.y });
 }
@@ -1228,11 +1234,12 @@ function atacarAlvos(ator, cfg0, ks, centro) {
   enviar({ tipo: 'ataque', de: ator.k, alvos: validos.map(a => a.k), mod, cob, tirith: tirithHud, dano: cfg.dano, rotulo, dom: cfg.tipo === 'tec' || (cfg.tipo === 'arma' && !!ator.imbuido && !!f && temImbuir(f)), distancia: !!cfg.distancia });
 }
 function usarHabNoServidor(ator, cfg, alvos, centro) {
-  if (!alvos.length) { avisar(cfg.apoio ? 'Nenhum aliado ali.' : 'Nenhum alvo ali.', 2000); return; }
+  const livre = cfg.mov || cfg.campo; // teleporte e campo não miram miniaturas
+  if (!alvos.length && !livre) { avisar(cfg.apoio ? 'Nenhum aliado ali.' : 'Nenhum alvo ali.', 2000); return; }
   const self = alvos.length === 1 && alvos[0].k === ator.k;
-  const av = alvos.map(a => self ? { ok: true, mod: cfg.modTec, cob: 0, notas: [] } : avaliar(ator, cfg, a));
+  const av = alvos.map(a => self || livre ? { ok: true, mod: cfg.modTec, cob: 0, notas: [] } : avaliar(ator, cfg, a));
   const validos = alvos.filter((a, i) => av[i].ok || cfg.raio || (cfg.apoio && a.k === ator.k));
-  if (!validos.length) { avisar(av[0].notas.join(' · ') || 'Alvo inválido.', 3000); return; }
+  if (!validos.length && !livre) { avisar(av[0].notas.join(' · ') || 'Alvo inválido.', 3000); return; }
   // Fôlego e Tensão (como nas técnicas): o que faltar de Fôlego vira Tensão
   const p = pcs[eu()];
   if (p && ator.k === 'pc:' + eu()) {
@@ -1242,7 +1249,7 @@ function usarHabNoServidor(ator, cfg, alvos, centro) {
     if (tensao > num(p.limiar)) avisar('Tensão acima do Limiar: faça o Teste de Colapso!', 5000);
     else if (falta + cfg.tensao) avisar(`+${falta + cfg.tensao} Tensão.`, 3000);
   }
-  const mod = Math.min(...validos.map(a => av[alvos.indexOf(a)].mod));
+  const mod = validos.length ? Math.min(...validos.map(a => av[alvos.indexOf(a)].mod)) : cfg.modTec;
   const cob = Object.fromEntries(validos.map(a => [a.k, av[alvos.indexOf(a)].cob]));
   enviar({ tipo: 'ataque', de: ator.k, alvos: validos.map(a => a.k), mod, cob, tirith: tirithHud, hab: cfg.hab, centro, rotulo: cfg.nome, dom: true, distancia: true });
 }

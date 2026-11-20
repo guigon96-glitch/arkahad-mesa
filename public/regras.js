@@ -228,7 +228,22 @@ export const CONDICOES = {
   regenerando: { nome: 'Regenerando', ic: '✚', cor: '#5fd05a', cura: '1d6', bom: true, desc: 'Cura 1d6 no começo do turno.' },
   fortalecido: { nome: 'Fortalecido', ic: '✦', cor: '#ffb347', atq: 2, bom: true, desc: '+2 nos ataques.' },
   veloz: { nome: 'Veloz', ic: '➶', cor: '#d8f3ff', desl: 3, bom: true, desc: '+3 de Deslocamento.' },
+  sangrando: { nome: 'Sangrando', ic: '🩸', cor: '#c0302a', dot: '1d4', desc: '1d4 de dano no começo do turno; não regenera.' },
+  confuso: { nome: 'Confuso', ic: '🌀', cor: '#d080ff', atq: -2, def: -2, desc: '−2 nos ataques e na Defesa.' },
+  adormecido: { nome: 'Adormecido', ic: '💤', cor: '#9080ff', imovel: true, acoes: 3, def: -3, desc: 'Perde o turno e tem −3 Defesa; acorda ao sofrer dano.' },
+  pesado: { nome: 'Pesado', ic: '⚓', cor: '#8a7aff', meio: true, atq: -1, desc: 'Metade do Deslocamento; −1 nos ataques.' },
+  vulneravel: { nome: 'Vulnerável', ic: '💔', cor: '#ff4060', desc: 'Sofre +1d6 de dano por golpe.' },
+  desarmado: { nome: 'Desarmado', ic: '✋', cor: '#b8c0c8', atq: -3, desc: '−3 nos ataques.' },
+  silenciado: { nome: 'Silenciado', ic: '🔇', cor: '#f0c0ff', mudo: true, desc: 'Não usa habilidades do Dom.' },
+  acelerado: { nome: 'Acelerado', ic: '⏩', cor: '#ffd27a', acoes: -1, bom: true, desc: '+1 ação no turno.' },
+  oculto: { nome: 'Oculto', ic: '👤', cor: '#7a5fd0', def: 4, bom: true, desc: '+4 Defesa; some ao atacar.' },
+  refletindo: { nome: 'Refletindo', ic: '🪞', cor: '#e0e8f0', bom: true, desc: 'Quem acerta você sofre metade do dano.' },
+  espinhos: { nome: 'Espinhos', ic: '🌵', cor: '#7ff0e0', bom: true, desc: 'Quem acerta você corpo a corpo sofre 1d6.' },
+  imagens: { nome: 'Imagens', ic: '👥', cor: '#c9a0ff', bom: true, desc: '40% de chance de um golpe acertar uma cópia (e desfazê-la).' },
+  premonicao: { nome: 'Premonição', ic: '👁', cor: '#f8e8a0', bom: true, desc: 'O próximo golpe contra você erra.' },
 };
+// condições ruins sorteadas pelo Caos (Entropia)
+export const CONDS_CAOS = ['queimando', 'envenenado', 'sangrando', 'atordoado', 'cego', 'lento', 'confuso', 'amedrontado', 'pesado', 'vulneravel'];
 // soma de um campo numérico (def, atq, acoes, desl) nas condições ativas
 export function modCond(o, campo) { let s = 0; for (const c of Object.keys(o?.cond || {})) s += num(CONDICOES[c]?.[campo]); return s; }
 export function temCond(o, flag) { return Object.keys(o?.cond || {}).some(c => CONDICOES[c]?.[flag]); }

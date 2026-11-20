@@ -452,7 +452,7 @@ export function criarCena(el, cb = {}) {
         const nome = rotulo(t.nome || '?', t.corNome || '#ffe9b8', 'rgba(10,8,6,.75)', .27 * Math.sqrt(tam));
         nome.position.y = mini.userData.altura + .2; g.add(nome);
         g.traverse(o => { o.userData.k = t.k; });
-        tk = { g, chave, mini, pers: mini.userData.personagem || null, alturaMini: mini.userData.altura, fr: null, barra: null, anim: null, x: t.x, y: t.y, vigor: t.vigor };
+        tk = { g, chave, mini, pers: mini.userData.personagem || null, alturaMini: mini.userData.altura, fr: null, barra: null, anim: null, x: t.x, y: t.y, vigor: t.vigor, tp: t.tp };
         if (tk.pers && t.mostrarVida && t.vigorMax && t.vigor <= 0) tk.pers.tocar('caido');
         tokens.set(t.k, tk); grupoTokens.add(g);
         tk.imb = null;
@@ -481,6 +481,14 @@ export function criarCena(el, cb = {}) {
         if (tk.barra) { tk.barra.position.y = tk.alturaMini + .06; tk.g.add(tk.barra); }
         tk.fr = fr;
       }
+      // teleporte (habilidade): some num clarão e reaparece, sem andar
+      if ((tk.x !== t.x || tk.y !== t.y) && t.tp !== tk.tp) {
+        const de = tk.g.position.clone(), para = new THREE.Vector3(t.x + tam / 2, alturaEm(t.x, t.y), t.y + tam / 2);
+        efx.salto(de, para, t.cristal || '#c9a0ff');
+        tk.anim = null; tk.g.position.copy(para); tk.x = t.x; tk.y = t.y;
+        tk.mini.rotation.y = Math.atan2(para.x - de.x, para.z - de.z);
+      }
+      tk.tp = t.tp;
       // movimento
       if (tk.x !== t.x || tk.y !== t.y) {
         const de = tk.g.position.clone(), para = new THREE.Vector3(t.x + tam / 2, alturaEm(t.x, t.y), t.y + tam / 2);
@@ -709,7 +717,11 @@ export function criarCena(el, cb = {}) {
       const mira = centro || alvos[0]?.chao;
       if (mira && s.forma !== 'aura') a.mini.rotation.y = Math.atan2(mira.x - a.g.position.x, mira.z - a.g.position.z) || a.mini.rotation.y;
       const bater = (k, t) => setTimeout(() => { const b = tokens.get(k); if (!b) return; let dx = b.g.position.x - a.g.position.x, dz = b.g.position.z - a.g.position.z; const n = Math.hypot(dx, dz) || 1; b.tremor = { amp: s.suprema ? .2 : .13, dx: dx / n, dz: dz / n, t0: performance.now(), f: 22 }; }, t);
-      efx.tocar(s, { p0: meio(a), chao0: a.g.position.clone(), alvos, centro }, bater, (p, f, t) => setTimeout(() => tremer(p, f), t));
+      // casas de uma parede/campo (para as colunas subirem uma a uma)
+      const celulas = [];
+      if (centro && s.forma === 'parede') for (let y = s.centro.y - (s.raio || 0); y <= s.centro.y + (s.raio || 0); y++) for (let x = s.centro.x - (s.raio || 0); x <= s.centro.x + (s.raio || 0); x++)
+        if (x >= 0 && y >= 0 && x < mesa.cols && y < mesa.rows) celulas.push(new THREE.Vector3(x + .5, alturaEm(x, y), y + .5));
+      efx.tocar(s, { p0: meio(a), chao0: a.g.position.clone(), alvos, centro, celulas }, bater, (p, f, t) => setTimeout(() => tremer(p, f), t));
     },
     pulso(k, cor) { const tk = tokens.get(k); if (tk) efx.pulso(tk.g.position.clone(), cor); },
     projetar(v) { const p = v.clone().project(camera), r = dom.getBoundingClientRect(); return { x: (p.x + 1) / 2 * r.width, y: (1 - p.y) / 2 * r.height }; },

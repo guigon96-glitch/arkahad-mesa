@@ -1,5 +1,5 @@
 import { DurableObject } from 'cloudflare:workers';
-import { TERRENOS, LUZES, LUAS, r, num, custoCel, dijkstra, rolar2d10, rolarAtaque, rolarExpr, nivelPorXp, CONDICOES, modCond, temCond, deslocCom } from '../public/regras.js';
+import { TERRENOS, LUZES, LUAS, r, num, custoCel, dijkstra, rolar2d10, rolarAtaque, rolarExpr, nivelPorXp, CONDICOES, CONDS_CAOS, modCond, temCond, deslocCom, distanciaCasas } from '../public/regras.js';
 import { HABILIDADE, danoHabilidade } from '../public/conteudo.js';
 
 const MAX_JOGADORES = 6;
@@ -617,7 +617,7 @@ export class Sala extends DurableObject {
           await this.gravar('pcs', 'npcs');
         } else if (msg.acao === 'encerrar') {
           mesa.combate = { ...COMBATE_VAZIO };
-          for (const o of [...Object.values(s.pcs), ...Object.values(s.npcs)]) if (o.cond && this.idMapa(o) === mesa.id) delete o.cond;
+          for (const o of [...Object.values(s.pcs), ...Object.values(s.npcs)]) if (this.idMapa(o) === mesa.id) { delete o.cond; delete o.escudo; }
           await this.gravar('pcs', 'npcs');
         }
         await this.gravar('mapas', 'log');
@@ -670,17 +670,19 @@ export class Sala extends DurableObject {
           autor.acoes = { chave, usadas: Math.min(3, usadas + 1) };
           }
         }
-        const alvos = [...new Set((Array.isArray(msg.alvos) ? msg.alvos : []).map(String))].slice(0, 16).map(k => [k, this.objetoDe(k)]).filter(([, o]) => o);
+        let alvos = [...new Set((Array.isArray(msg.alvos) ? msg.alvos : []).map(String))].slice(0, 16).map(k => [k, this.objetoDe(k)]).filter(([, o]) => o);
         // habilidade do Dom: dados, condições e efeitos vêm da tabela, não do cliente
         const hab = msg.hab ? HABILIDADE[String(msg.hab)] : null;
         if (msg.hab && (!hab || !de.startsWith('pc:') || !(autor.ficha?.talentos || []).includes(hab.id))) return erro('Habilidade não aprendida.');
+        if (hab && temCond(autor, 'mudo')) return erro(`${autor.nome} está silenciado e não pode usar o Dom.`);
+        if (!hab || hab.t === 'atq') this.tirarCond(autor, 'oculto'); // atacar revela quem está oculto
         if (hab && hab.t !== 'atq') {
-          const ok = hab.t === 'si' ? [[de, autor]] : alvos;
-          if (!ok.length) return erro('Escolha um aliado.');
-          await this.habilidadeApoio(autor, de, hab, ok, msg);
+          const falta = await this.habilidadeEspecial(autor, de, hab, alvos, msg);
+          if (falta) return erro(falta);
           break;
         }
         if (!alvos.length) return erro('Escolha um alvo.');
+        if (hab?.cadeia) alvos = this.cadeia(alvos, hab.cadeia, de);
         const cob = msg.cob && typeof msg.cob === 'object' ? msg.cob : {};
         const res = rolarAtaque(num(msg.mod) + modCond(autor, 'atq'), msg.tirith, !!msg.dom || !!hab);
         const coroa = res.kael === 20, olho = res.kael === 1;
@@ -688,11 +690,14 @@ export class Sala extends DurableObject {
         let critico = false;
         for (const [k, o] of alvos) {
           const def = num(o.defesa, 10) + Math.max(0, Math.min(5, Math.round(num(cob[k])))) + (o.guarda ? 2 : 0) + modCond(o, 'def');
-          const ok = coroa || (!olho && res.total >= def);
+          let ok = coroa || (!olho && res.total >= def), nota = '';
+          // premonição: o golpe erra; imagens: 40% de acertar uma cópia
+          if (ok && o.cond?.premonicao) { ok = false; this.tirarCond(o, 'premonicao'); nota = ' (previu o golpe)'; }
+          else if (ok && o.cond?.imagens && Math.random() < .4) { ok = false; this.tirarCond(o, 'imagens'); nota = ' (era uma cópia)'; }
           const crit = ok && (coroa || res.kael === res.lyra);
           if (ok) acertos.push([k, o, crit]);
           if (crit) critico = true;
-          tags.push(`${o.nome}: ${ok ? (crit ? 'crítico!' : 'acertou') : 'errou'}`);
+          tags.push(`${o.nome}: ${ok ? (crit ? 'crítico!' : 'acertou') : 'errou'}${nota}`);
         }
         const pele = (de.startsWith('pc:') ? autor.dados : null) || {};
         // dados em sequência (acerto → dano → punição); o golpe e o dano aparecem só no fim ('golpe')
@@ -703,6 +708,8 @@ export class Sala extends DurableObject {
         mandar({ ...base, t: Date.now(), dados: res.dados.filter(d => d !== dadoLyra && d !== dadoAranor), total: res.total, tags, grau: acertos.length ? (alvos.length > 1 ? `${acertos.length} de ${alvos.length} atingidos` : 'Acertou') : 'Errou', desc: res.desc.split(' · ')[0], rotulo: rot });
         if (hab) {
           for (const [, o] of acertos) this.aplicarCond(o, hab);
+          const extras = this.efeitosAtaque(autor, de, hab, acertos, msg, alvos);
+          if (extras.length) this.enviarTodos({ tipo: 'aviso', texto: `${hab.nome}: ${extras.join(' · ')}` });
           this.enviarTodos({ tipo: 'habilidade', k: de, hab: hab.id, alvos: alvos.map(([k]) => k), acertos: acertos.map(([k]) => k), centro: this.centroDe(msg, alvos) });
           if (acertos.length && Object.keys(hab.cond).length) this.enviarTodos({ tipo: 'aviso', texto: `${hab.nome}: ${acertos.map(([, o]) => o.nome).join(', ')} — ${Object.keys(hab.cond).map(c => CONDICOES[c].ic + ' ' + CONDICOES[c].nome).join(', ')}.` });
         }
@@ -712,22 +719,32 @@ export class Sala extends DurableObject {
           const exprDano = hab ? danoHabilidade(autor.ficha, hab) : msg.dano;
           const d = (exprDano && rolarExpr(exprDano)) || { dados: [], total: 0, desc: '' };
           // crítico: Lyra conta como 20 e o alvo usa só metade da Proteção
-          const somaDano = res.lyra + d.total, somaCrit = 20 + d.total, tagsD = critico ? ['Crítico: Lyra 20, ½ Proteção'] : [], abatidos = [];
+          const somaDano = res.lyra + d.total, somaCrit = 20 + d.total, tagsD = critico ? ['Crítico: Lyra 20, ½ Proteção'] : [], abatidos = [], volta = [];
+          let causado = 0;
           for (const [, o, crit] of acertos) {
             const prot = hab?.perfura ? 0 : crit ? Math.floor(num(o.protecao) / 2) : num(o.protecao);
-            const sofre = Math.max(0, (crit ? somaCrit : somaDano) - prot);
+            let sofre = Math.max(0, (crit ? somaCrit : somaDano) - prot), extra = '';
+            if (o.cond?.vulneravel) { const v = rolarExpr('1d6').total; sofre += v; extra += ` +${v} vulnerável`; }
+            const abs = this.absorver(o, sofre); sofre -= abs; if (abs) extra += ` (escudo −${abs})`;
             const antes = num(o.vigor);
             o.vigor = Math.max(-99, antes - sofre);
+            if (sofre > 0) this.tirarCond(o, 'adormecido');
+            causado += sofre;
             if (antes > 0 && o.vigor <= 0 && o.tipo !== 'aliado' && Object.values(s.npcs).includes(o) && (de.startsWith('pc:') || autor.tipo === 'aliado')) abatidos.push(o);
-            tagsD.push(`${o.nome} −${sofre}${prot ? ` (Proteção ${prot})` : ''}`);
+            tagsD.push(`${o.nome} −${sofre}${prot ? ` (Proteção ${prot})` : ''}${extra}`);
+            // reflexo e espinhos ferem quem golpeou
+            if (o.cond?.refletindo && sofre > 1) { const r = Math.floor(sofre / 2); autor.vigor = num(autor.vigor) - r; volta.push(`${autor.nome} −${r} (reflexo)`); }
+            if (o.cond?.espinhos && !msg.distancia) { const r = rolarExpr('1d6').total; autor.vigor = num(autor.vigor) - r; volta.push(`${autor.nome} −${r} (espinhos)`); }
           }
+          if (hab?.dreno && causado) { const c = this.curar(autor, Math.floor(causado * hab.dreno)); if (c) volta.push(`${autor.nome} +${c} (dreno)`); }
+          tagsD.push(...volta);
           mandar({ ...base, t: Date.now() + 1, dados: [dadoLyra, ...d.dados], total: critico ? somaCrit : somaDano, tags: tagsD, grau: '', desc: `Lyra ${res.lyra}${d.desc ? ' + ' + d.desc : ''}`, rotulo: 'Dano · ' + texto(msg.rotulo, 50) });
           // shortcut: tabela de punição ainda não existe; ligar aqui quando o dono montar
           if (dadoAranor) mandar({ ...base, t: Date.now() + 2, dados: [dadoAranor], total: res.aranor, tags: [`Aranor ${res.aranor}: punição do Dom`], grau: '', desc: `Aranor ${res.aranor}`, rotulo: 'Punição · ' + texto(msg.rotulo, 46) });
           if (!hab) this.enviarTodos({ tipo: 'golpe', k: de, dom: !!msg.dom, alvos: acertos.map(([k]) => k), distancia: !!msg.distancia });
           for (const o of abatidos) this.xpAbate(o, de);
         }
-        await this.gravar('pcs', 'npcs', 'log');
+        await this.gravar('pcs', 'npcs', 'log', ...(hab ? ['mapas'] : []));
         break;
       }
       case 'rolar': {
@@ -852,38 +869,135 @@ export class Sala extends DurableObject {
     if (c) return { x: Math.round(num(c.x)), y: Math.round(num(c.y)) };
     const o = alvos[0]?.[1]; return o ? { x: num(o.x), y: num(o.y) } : null;
   }
-  // põe as condições da habilidade (fica a maior duração) e aplica limpa/dissipa
+  // põe as condições da habilidade (fica a maior duração) e aplica limpa/dissipa/caos
   aplicarCond(o, hab) {
     if (hab.limpa && o.cond) for (const c of Object.keys(o.cond)) if (!CONDICOES[c]?.bom) delete o.cond[c];
     if (hab.dissipa && o.cond) for (const c of Object.keys(o.cond)) if (CONDICOES[c]?.bom) delete o.cond[c];
-    for (const [c, n] of Object.entries(hab.cond)) { o.cond ||= {}; o.cond[c] = Math.max(num(o.cond[c]), n); }
+    const conds = { ...hab.cond };
+    if (hab.caos) conds[CONDS_CAOS[Math.floor(Math.random() * CONDS_CAOS.length)]] = 2;
+    for (const [c, n] of Object.entries(conds)) { o.cond ||= {}; o.cond[c] = Math.max(num(o.cond[c]), n); }
     if (o.cond && !Object.keys(o.cond).length) delete o.cond;
+    if (hab.escudo) o.escudo = Math.max(num(o.escudo), hab.escudo);
   }
-  // habilidade em aliados ou em si: não rola contra Defesa; Kael 1 (Olho de Aranor) falha
-  async habilidadeApoio(autor, de, hab, alvos, msg) {
+  tirarCond(o, c) { if (o?.cond?.[c]) { delete o.cond[c]; if (!Object.keys(o.cond).length) delete o.cond; } }
+  // escudo absorve dano antes do Vigor; devolve quanto absorveu
+  absorver(o, dano) { const e = Math.min(num(o.escudo), dano); if (e > 0) { o.escudo = num(o.escudo) - e; if (o.escudo <= 0) delete o.escudo; } return Math.max(0, e); }
+  curar(o, v) { const antes = num(o.vigor), max = num(o.vigorMax, antes); o.vigor = Math.min(Math.max(max, antes), antes + Math.max(0, v)); return o.vigor - antes; }
+  livre(mesa, x, y, ocup) { return x >= 0 && y >= 0 && x < mesa.cols && y < mesa.rows && Number.isFinite(TERRENOS[(mesa.grid[y] || '')[x]]?.custo) && !ocup.has(x + ',' + y); }
+  // empurra (n > 0) para longe da origem ou puxa (n < 0) para ela; bater em algo = 1d6
+  empurrar(o, k, origem, n, mesa) {
+    if (num(o.tamanho, 1) > 1) return '';
+    let dx = Math.sign(num(o.x) - origem.x), dy = Math.sign(num(o.y) - origem.y);
+    if (n < 0) { dx = -dx; dy = -dy; }
+    if (!dx && !dy) return '';
+    const ocup = this.ocupadas(k, mesa.id); let p = 0;
+    for (; p < Math.abs(n); p++) {
+      const nx = num(o.x) + dx, ny = num(o.y) + dy;
+      if (n < 0 && nx === origem.x && ny === origem.y && distanciaCasas(o, origem) <= 1) break;
+      if (!this.livre(mesa, nx, ny, ocup)) {
+        if (n > 0) { const v = rolarExpr('1d6').total; o.vigor = num(o.vigor) - v; return `${o.nome} bate e sofre ${v}`; }
+        break;
+      }
+      o.x = nx; o.y = ny;
+    }
+    return p ? `${o.nome} ${n > 0 ? 'empurrado' : 'puxado'} ${p}` : '';
+  }
+  // o golpe salta do primeiro alvo para inimigos do mesmo lado a até 3 casas
+  cadeia(alvos, n, de) {
+    const [k0, o0] = alvos[0], mapa = this.idMapa(o0), lista = [...alvos], vistos = new Set(alvos.map(([k]) => k).concat(de));
+    const lado = (k, o) => k.startsWith('pc:') || o.tipo === 'aliado' ? 'a' : 'b', meuLado = lado(k0, o0);
+    const todos = [...Object.entries(this.s.npcs).map(([id, o]) => ['npc:' + id, o]), ...Object.entries(this.s.pcs).map(([id, o]) => ['pc:' + id, o])];
+    let ult = o0;
+    for (let i = 0; i < n; i++) {
+      const prox = todos.filter(([k, o]) => !vistos.has(k) && this.idMapa(o) === mapa && lado(k, o) === meuLado && num(o.vigor, 1) > 0 && distanciaCasas(o, ult) <= 3)
+        .sort((a, b) => distanciaCasas(a[1], ult) - distanciaCasas(b[1], ult))[0];
+      if (!prox) break;
+      vistos.add(prox[0]); lista.push(prox); ult = prox[1];
+    }
+    return lista;
+  }
+  // depois de acertar: empurrões, troca, arremesso, roubo de Fôlego e mudanças no terreno
+  efeitosAtaque(autor, de, hab, acertos, msg, alvos) {
+    const mesa = this.s.mapas[this.idMapa(autor)], linhas = [], centro = this.centroDe(msg, alvos);
+    const origem = hab.raio && centro ? centro : { x: num(autor.x), y: num(autor.y) };
+    for (const [k, o] of acertos) {
+      if (hab.empurra) { const t = this.empurrar(o, k, origem, hab.empurra, mesa); if (t) linhas.push(t); }
+      if (hab.troca && num(o.tamanho, 1) === 1) { [autor.x, o.x] = [o.x, autor.x]; [autor.y, o.y] = [o.y, autor.y]; autor.tp = num(autor.tp) + 1; o.tp = num(o.tp) + 1; linhas.push(`${autor.nome} troca de lugar com ${o.nome}`); }
+      if (hab.joga && num(o.tamanho, 1) === 1) {
+        const ocup = this.ocupadas(k, mesa.id), op = [];
+        for (let y = num(o.y) - hab.joga; y <= num(o.y) + hab.joga; y++) for (let x = num(o.x) - hab.joga; x <= num(o.x) + hab.joga; x++) if ((x !== o.x || y !== o.y) && this.livre(mesa, x, y, ocup) && !mesa.portais?.[x + ',' + y]) op.push([x, y]);
+        const c = op[Math.floor(Math.random() * op.length)]; if (c) { [o.x, o.y] = c; o.tp = num(o.tp) + 1; linhas.push(`${o.nome} é arremessado`); }
+      }
+      if (hab.rouba && o.folego !== undefined) { const v = Math.min(num(o.folego), hab.rouba); o.folego = num(o.folego) - v; autor.folego = Math.min(num(autor.folegoMax, 99), num(autor.folego) + v); if (v) linhas.push(`${autor.nome} rouba ${v} de Fôlego`); }
+    }
+    if ((hab.altura || hab.derruba || hab.terreno) && centro) { const t = this.moldar(mesa, centro, hab); if (t) linhas.push(t); }
+    return linhas;
+  }
+  // terreno: cria (só em casas transitáveis; bloqueio só em casa vazia), derruba ou muda a altura
+  moldar(mesa, c, hab) {
+    const ocup = this.ocupadas(null, mesa.id), novo = TERRENOS[hab.terreno];
+    if (hab.altura && !Array.isArray(mesa.alt)) mesa.alt = [];
+    let n = 0;
+    for (let y = c.y - hab.raio; y <= c.y + hab.raio; y++) for (let x = c.x - hab.raio; x <= c.x + hab.raio; x++) {
+      if (x < 0 || y < 0 || x >= mesa.cols || y >= mesa.rows || mesa.portais?.[x + ',' + y]) continue;
+      const linha = mesa.grid[y] || '', ch = linha[x], t = TERRENOS[ch];
+      const por = v => { mesa.grid[y] = linha.slice(0, x) + v + linha.slice(x + 1); n++; };
+      if (novo && Number.isFinite(t?.custo) && ch !== hab.terreno && (Number.isFinite(novo.custo) || !ocup.has(x + ',' + y))) por(hab.terreno);
+      if (hab.derruba && t && (t.parede || !Number.isFinite(t.custo)) && !'TPQ'.includes(ch)) por('.');
+      if (hab.altura) {
+        const a = (mesa.alt[y] || '').padEnd(mesa.cols, '1'), v = Math.max(0, Math.min(4, num(a[x], 1) + hab.altura));
+        mesa.alt[y] = a.slice(0, x) + v + a.slice(x + 1); n++;
+      }
+    }
+    return n ? (hab.altura ? `o chão ${hab.altura > 0 ? 'se ergue' : 'afunda'}` : hab.derruba ? 'muros vêm abaixo' : `surge ${TERRENOS[hab.terreno].n.toLowerCase()}`) : '';
+  }
+  // habilidade sem rolar contra Defesa (si, apoio, teleporte, campo); Kael 1 (Olho de Aranor) falha. Devolve erro ou nada.
+  async habilidadeEspecial(autor, de, hab, alvos, msg) {
+    const mesa = this.s.mapas[this.idMapa(autor)], centro = this.centroDe(msg, alvos);
+    if (hab.t === 'si') alvos = [[de, autor]];
+    if (hab.t === 'apoio' && !alvos.length) return 'Escolha um aliado.';
+    if (hab.t === 'mov') {
+      if (!centro || distanciaCasas(autor, centro) > hab.alc) return 'Longe demais.';
+      if (temCond(autor, 'imovel')) return `${autor.nome} não pode se mover.`;
+      if (!this.livre(mesa, centro.x, centro.y, this.ocupadas(de, mesa.id))) return 'Essa casa está ocupada ou bloqueada.';
+      alvos = [[de, autor]];
+    }
+    if (hab.t === 'campo') {
+      if (!centro || distanciaCasas(autor, centro) > hab.alc) return 'Longe demais.';
+      const todos = [...Object.entries(this.s.pcs).map(([id, o]) => ['pc:' + id, o]), ...Object.entries(this.s.npcs).map(([id, o]) => ['npc:' + id, o])];
+      alvos = todos.filter(([, o]) => this.idMapa(o) === mesa.id && o.visivel !== false && distanciaCasas(o, centro) <= hab.raio);
+    }
     const res = rolarAtaque(num(msg.mod), msg.tirith, true), falha = res.kael === 1;
     const pele = autor.dados || {}, tags = [];
     const base = { tipo: 'dado', nome: autor.nome, cor: autor.cor || '#e2b04a', kael: pele.kael || '#d9a23a', lyra: pele.lyra || '#3f78e0', material: pele.material || 'cristal' };
     const cura = !falha && hab.dados ? rolarExpr(danoHabilidade(autor.ficha, hab)) : null;
-    if (!falha) for (const [, o] of alvos) {
-      if (cura) { const antes = num(o.vigor), max = num(o.vigorMax, antes); o.vigor = Math.min(Math.max(max, antes), antes + cura.total); tags.push(`${o.nome} +${o.vigor - antes} Vigor`); }
-      this.aplicarCond(o, hab);
+    if (!falha) {
+      if (hab.t === 'mov') { autor.x = centro.x; autor.y = centro.y; autor.tp = num(autor.tp) + 1; tags.push(`${autor.nome} reaparece em outra casa`); }
+      for (const [, o] of alvos) {
+        if (hab.revive && num(o.vigor) <= 0) { o.vigor = hab.revive; tags.push(`${o.nome} se levanta`); }
+        if (cura) tags.push(`${o.nome} +${this.curar(o, cura.total)} Vigor`);
+        if (hab.folego && o.folegoMax !== undefined) { const antes = num(o.folego); o.folego = Math.min(num(o.folegoMax), antes + hab.folego); tags.push(`${o.nome} +${o.folego - antes} Fôlego`); }
+        this.aplicarCond(o, hab);
+        if (hab.escudo) tags.push(`${o.nome}: escudo ${o.escudo}`);
+      }
+      if (hab.t === 'campo') { const t = this.moldar(mesa, centro, hab); if (t) tags.push(t); }
     }
-    if (!falha && Object.keys(hab.cond).length) tags.push(Object.keys(hab.cond).map(c => CONDICOES[c].ic + ' ' + CONDICOES[c].nome).join(', ') + ' em ' + alvos.map(([, o]) => o.nome).join(', '));
+    if (!falha && alvos.length && Object.keys(hab.cond).length) tags.push(Object.keys(hab.cond).map(c => CONDICOES[c].ic + ' ' + CONDICOES[c].nome).join(', ') + ' em ' + alvos.map(([, o]) => o.nome).join(', '));
     const ev = { ...base, t: Date.now(), dados: [...res.dados, ...(cura?.dados || [])], total: cura ? cura.total : res.kael, tags: falha ? ['Olho de Aranor: a habilidade falha'] : tags, grau: falha ? 'Falhou' : 'Sucesso', desc: res.desc + (cura ? ` · cura ${cura.desc}` : ''), rotulo: hab.nome };
     this.enviarTodos(ev); this.registrar({ ...ev, dados: undefined, tipo: undefined });
-    this.enviarTodos({ tipo: 'habilidade', k: de, hab: hab.id, alvos: alvos.map(([k]) => k), acertos: falha ? [] : alvos.map(([k]) => k), centro: this.centroDe(msg, alvos) });
-    await this.gravar('pcs', 'npcs', 'log');
+    this.enviarTodos({ tipo: 'habilidade', k: de, hab: hab.id, alvos: alvos.map(([k]) => k), acertos: falha ? [] : alvos.map(([k]) => k), centro, falhou: falha });
+    await this.gravar('pcs', 'npcs', 'log', 'mapas');
   }
   // começo do turno: dano/cura das condições, ação perdida e −1 na duração
   tickCondicoes(o, k, chave) {
-    const linhas = [];
+    const linhas = [], sangra = !!o.cond.sangrando, perde = Math.max(-1, Math.min(3, modCond(o, 'acoes')));
+    // ações: atordoado/adormecido tiram, acelerado dá uma a mais (usadas negativo)
+    if (perde && k.startsWith('pc:')) o.acoes = { chave, usadas: perde };
+    if (perde > 0) linhas.push(perde >= 3 ? '💤 perde o turno' : `perde ${perde} ação`); else if (perde < 0) linhas.push('⏩ +1 ação');
     for (const [c, n] of Object.entries(o.cond)) {
       const def = CONDICOES[c]; if (!def) { delete o.cond[c]; continue; }
-      if (def.dot) { const v = rolarExpr(def.dot).total; o.vigor = Math.max(-99, num(o.vigor) - v); linhas.push(`${def.ic} −${v} (${def.nome})`); }
-      if (def.cura) { const v = rolarExpr(def.cura).total, antes = num(o.vigor), max = num(o.vigorMax, antes); o.vigor = Math.min(Math.max(max, antes), antes + v); linhas.push(`${def.ic} +${o.vigor - antes} (${def.nome})`); }
-      if (def.acoes && k.startsWith('pc:')) { o.acoes = { chave, usadas: Math.min(3, def.acoes) }; linhas.push(`${def.ic} perde 1 ação`); }
-      else if (def.acoes) linhas.push(`${def.ic} ${def.nome}: perde 1 ação`);
+      if (def.dot) { let v = rolarExpr(def.dot).total; v -= this.absorver(o, v); o.vigor = Math.max(-99, num(o.vigor) - v); linhas.push(`${def.ic} −${v} (${def.nome})`); }
+      if (def.cura) linhas.push(sangra ? `${def.ic} sangrando: não regenera` : `${def.ic} +${this.curar(o, rolarExpr(def.cura).total)} (${def.nome})`);
       if (n <= 1) delete o.cond[c]; else o.cond[c] = n - 1;
     }
     if (!Object.keys(o.cond).length) delete o.cond;
