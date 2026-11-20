@@ -9,7 +9,8 @@ import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { GTAOPass } from 'three/addons/postprocessing/GTAOPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
-import { construirSolo, carregarTexturasSolo, pontosDaMargem, NIVEL_H as NIVEL_SOLO } from './terreno.js';
+import { construirSolo, carregarTexturasSolo, NIVEL_H as NIVEL_SOLO } from './terreno.js';
+import { criarMesaDeJogo } from './mesajogo.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { criarMiniatura, criarDado, rotulo } from './miniatura.js';
 import { criarEfeitos } from './efeitos.js';
@@ -205,6 +206,7 @@ export function criarCena(el, cb = {}) {
     // 1) relevo contínuo com texturas misturadas
     solo = construirSolo(mesa, texSolo || texReserva());
     grupoTerreno.add(solo.malha); alvosClique.push(solo.malha);
+    grupoTerreno.add(criarMesaDeJogo(mesa));
     if (!texSolo) carregarTexturasSolo().then(t => { texSolo = t; if (solo) { solo.uniforms.uCor.value = t.cor; solo.uniforms.uNrm.value = t.nrm; } }).catch(() => {});
     // 3) água: superfície única, com ondas, espuma na margem e cor pela profundidade
     if (porTipo['~']) {
@@ -299,13 +301,6 @@ export function criarCena(el, cb = {}) {
         const p = pecaNatureza('rock_' + (1 + Math.floor(acaso(x, y, 90 + k) * 5)), k ? .3 + acaso(x, y, 92) * .2 : .55 + acaso(x, y, 93) * .35, k ? .5 : 1); if (!p) continue;
         const rx = x + .5 + (k ? (acaso(x, y, 94) - .5) * .6 : 0), rz = y + .5 + (k ? (acaso(x, y, 95) - .5) * .6 : 0);
         p.position.set(rx, chaoEm(rx, rz) - .06, rz); p.rotation.y = acaso(x, y, 96) * 6.3; grupoTerreno.add(p);
-      }
-      // paisagem em volta do tabuleiro: bosques, arbustos e pedras
-      for (const [px, pz, f, r] of pontosDaMargem(mesa, .09)) {
-        const nome = r < .1 ? 'rock_' + (1 + Math.floor(r * 50)) : f > .55 ? (r < .6 ? 'pinetree_' + [1, 2, 3, 5][Math.floor(r * 40) % 4] : 'normaltree_' + (1 + Math.floor(r * 50) % 5)) : r < .45 ? 'bush_large' : 'normaltree_' + (1 + Math.floor(r * 70) % 5);
-        const alto = nome.startsWith('rock') ? .5 : nome.startsWith('bush') ? .6 : 2.2 + r * .9;
-        const p = pecaNatureza(nome, alto, nome.startsWith('rock') ? .9 : 1.6); if (!p) continue;
-        p.position.set(px, chaoEm(px, pz) - .05, pz); p.rotation.y = r * 40; grupoTerreno.add(p);
       }
     } else {
       // reserva enquanto os modelos carregam

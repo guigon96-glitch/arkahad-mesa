@@ -554,3 +554,13 @@ details summary{color:var(--mudo)}
 @keyframes habPulsa{50%{box-shadow:0 0 18px color-mix(in srgb,var(--cor) 60%,transparent)}}
 .ini-c{font-size:11px;margin-left:2px}
 @media (max-width:520px){.hab-g.dois{grid-template-columns:1fr}}
+
+/* avisos e resultados de dados: pilha no canto superior direito, fora da arena */
+.notas{position:absolute;top:14px;right:16px;z-index:4;display:flex;flex-direction:column;align-items:flex-end;gap:8px;width:min(300px,calc(100% - 32px));pointer-events:none}
+.notas .aviso{position:static;transform:none;--tx:0;max-width:100%;text-align:right;border-radius:12px}
+.notas .placa{position:static;transform:none;white-space:normal;max-width:100%;animation:entraD .35s var(--mola,ease) both}
+@keyframes entraD{from{opacity:0;transform:translateX(24px)}to{opacity:1;transform:none}}
+@media (min-width:901px){
+  .notas{top:var(--topo-h);right:calc(var(--lado) + 24px)}
+  .area:has(#cartao:not([hidden])) .notas{right:calc(var(--lado) + 384px)}
+}

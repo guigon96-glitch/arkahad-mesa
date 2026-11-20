@@ -27,6 +27,8 @@ const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': 
 const souMestre = () => !!voce?.mestre;
 const eu = () => voce?.id;
 const sinal = n => (n >= 0 ? '+' : '') + n;
+// o cabeçalho quebra em duas linhas em telas médias: avisos, cartão e iniciativa ficam logo abaixo dele
+new ResizeObserver(([e]) => document.documentElement.style.setProperty('--topo-h', Math.round(e.target.getBoundingClientRect().bottom + 10) + 'px')).observe(document.querySelector('.topo'));
 function avisar(t, ms) { const a = $('aviso'); a.textContent = t || ''; a.hidden = !t; clearTimeout(avisar.t); if (ms) avisar.t = setTimeout(() => a.hidden = true, ms); }
 function lerLS(k) { try { return JSON.parse(localStorage.getItem(k)); } catch { return null; } }
 function gravarLS(k, v) { try { v == null ? localStorage.removeItem(k) : localStorage.setItem(k, JSON.stringify(v)); } catch {} }
@@ -648,13 +650,14 @@ async function animarDados(m) {
     cena.acao(m.k, acao);
     if ((m.tags || []).some(t => /Triunfo|Coroa/.test(t))) setTimeout(() => cena.acao(m.k, 'vitoria'), 1700);
   }
-  const pos = await cena.rolar(m);
-  const cam = $('camadaDados'), W = cam.clientWidth, H = cam.clientHeight;
-  const p = cena.projetar(pos);
+  await cena.rolar(m);
+  // resultado vai para a pilha do canto superior direito (não cobre a arena)
+  const cam = $('notas');
   const pl = document.createElement('div'); pl.className = 'placa';
-  pl.style.cssText = `left:${Math.max(130, Math.min(W - 130, p.x))}px;top:${Math.max(16, Math.min(H - 170, p.y - 190))}px;border-color:${esc(m.cor)}`;
+  pl.style.borderColor = m.cor;
   pl.innerHTML = `<span>${esc(m.nome)}${m.rotulo ? ' · ' + esc(m.rotulo) : ''}${m.oculta ? ' · oculta' : ''}</span><b>${num(m.total)}</b>${m.grau ? `<div>${esc(m.grau)}</div>` : ''}${(m.tags || []).map(t => `<span class="tag ${/Ruína|Aranor|Eco/.test(t) ? 'ruim' : ''}">${esc(t)}</span>`).join('')}`;
-  cam.appendChild(pl);
+  $('aviso').after(pl);
+  while (cam.querySelectorAll('.placa').length > 4) cam.lastElementChild.remove();
   setTimeout(() => pl.classList.add('some'), 5200);
   setTimeout(() => pl.remove(), 6000);
 }

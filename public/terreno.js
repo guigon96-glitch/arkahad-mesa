@@ -1,10 +1,11 @@
 // Solo contínuo do tabuleiro: um único relevo suave (sem blocos), com texturas que se misturam,
-// penhascos de rocha nos desníveis, margem natural ao redor e grade desenhada no próprio chão.
+// penhascos de rocha nos desníveis, borda da maquete descendo até a mesa e grade desenhada no próprio chão.
 import * as THREE from 'three';
 import { nivelEm } from './regras.js';
 
 export const NIVEL_H = .6;          // altura de um nível de terreno
-export const MARGEM = 7;            // casas de paisagem ao redor do tabuleiro
+export const MARGEM = 1;            // borda da maquete: o resto é a mesa de jogo (mesajogo.js)
+export const MESA_Y = -.35;         // altura do tampo da mesa
 // camadas de textura (ordem do array de texturas)
 const CAMADAS = ['grama', 'terra', 'areia', 'rocha', 'calcada', 'tabuas', 'vidro', 'floresta'];
 const ASPEREZA = [.95, .95, .9, .85, .8, .7, .18, .95];
@@ -89,12 +90,8 @@ export function construirSolo(mesa, tex, opcoes = {}) {
       const camada = CAMADA_DE[ch] ?? 1;
       pesos[k * 8 + camada] = 1; rug[k] = RUGOSO[camada];
     } else {
-      // paisagem em volta: colinas suaves que sobem longe do tabuleiro
-      const dx = Math.max(0, -x, x - C), dz = Math.max(0, -z, z - R), d = Math.hypot(dx, dz);
-      alt[k] = Math.max(0, d - 1.5) * .18 * (.5 + fbm(x * .15, z * .15, 9)) + (fbm(x * .3, z * .3, 3) - .5) * .25 * Math.min(1, d / 2);
-      const mato = fbm(x * .25, z * .25, 21);
-      pesos[k * 8 + (mato > .55 ? 7 : 0)] = 1; pesos[k * 8 + 1] = mato < .35 ? .6 : 0;
-      rug[k] = 1.3;
+      // lateral da maquete: desce até abaixo do tampo da mesa
+      alt[k] = MESA_Y - .1; pesos[k * 8 + 1] = 1; rug[k] = .5;
     }
   }
   desfocar(alt, W, H, 1, 1, S >= 5 ? 1 : 1);
@@ -235,14 +232,3 @@ export function construirSolo(mesa, tex, opcoes = {}) {
   return { malha, alturaPonto, marcarAlcance, marcar, uniforms: u, margem: M };
 }
 
-// pontos para espalhar árvores na paisagem em volta do tabuleiro
-export function pontosDaMargem(mesa, densidade = .1) {
-  const C = mesa.cols, R = mesa.rows, M = MARGEM, lista = [];
-  for (let z = -M; z < R + M; z++) for (let x = -M; x < C + M; x++) {
-    if (x >= -1 && z >= -1 && x <= C && z <= R) continue;
-    const d = Math.max(-x - 1, x - C, -z - 1, z - R);
-    const f = fbm(x * .2, z * .2, 31);
-    if (acaso(x, z, 40) < densidade * (f > .5 ? 2.4 : .6) * Math.min(1, d / 2)) lista.push([x + acaso(x, z, 41), z + acaso(x, z, 42), f, acaso(x, z, 43)]);
-  }
-  return lista;
-}
