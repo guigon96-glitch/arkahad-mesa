@@ -655,8 +655,8 @@ export class Sala extends DurableObject {
           mandar({ ...base, t: Date.now() + 1, dados: [dadoLyra, ...d.dados], total: critico ? somaCrit : somaDano, tags: tagsD, grau: '', desc: `Lyra ${res.lyra}${d.desc ? ' + ' + d.desc : ''}`, rotulo: 'Dano · ' + texto(msg.rotulo, 50) });
           // shortcut: tabela de punição ainda não existe; ligar aqui quando o dono montar
           if (dadoAranor) mandar({ ...base, t: Date.now() + 2, dados: [dadoAranor], total: res.aranor, tags: [`Aranor ${res.aranor}: punição do Dom`], grau: '', desc: `Aranor ${res.aranor}`, rotulo: 'Punição · ' + texto(msg.rotulo, 46) });
+          this.enviarTodos({ tipo: 'golpe', k: de, dom: !!msg.dom, alvos: acertos.map(([k]) => k), distancia: !!msg.distancia });
         }
-        this.enviarTodos({ tipo: 'golpe', k: de, dom: !!msg.dom, alvos: alvos.map(([k]) => k), acertos: acertos.map(([k]) => k), distancia: !!msg.distancia });
         await this.gravar('pcs', 'npcs', 'log');
         break;
       }
