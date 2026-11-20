@@ -735,6 +735,7 @@ export class Sala extends DurableObject {
             const abs = this.absorver(o, sofre); sofre -= abs; if (abs) extra += ` (escudo −${abs})`;
             const antes = num(o.vigor);
             o.vigor = Math.max(-99, antes - sofre);
+            if (this.eterno(o)) extra += ' (Eterno: volta com 10)';
             if (sofre > 0) this.tirarCond(o, 'adormecido');
             causado += sofre;
             if (antes > 0 && o.vigor <= 0 && o.tipo !== 'aliado' && Object.values(s.npcs).includes(o) && (de.startsWith('pc:') || autor.tipo === 'aliado')) abatidos.push(o);
@@ -886,6 +887,8 @@ export class Sala extends DurableObject {
     if (o.cond && !Object.keys(o.cond).length) delete o.cond;
     if (hab.escudo) o.escudo = Math.max(num(o.escudo), hab.escudo);
   }
+  // condição Eterno: ao cair a 0, volta com 10 e a condição acaba
+  eterno(o) { if (num(o.vigor) > 0 || !o.cond?.eterno) return false; o.vigor = 10; this.tirarCond(o, 'eterno'); return true; }
   tirarCond(o, c) { if (o?.cond?.[c]) { delete o.cond[c]; if (!Object.keys(o.cond).length) delete o.cond; } }
   // escudo absorve dano antes do Vigor; devolve quanto absorveu
   absorver(o, dano) { const e = Math.min(num(o.escudo), dano); if (e > 0) { o.escudo = num(o.escudo) - e; if (o.escudo <= 0) delete o.escudo; } return Math.max(0, e); }
@@ -1002,12 +1005,13 @@ export class Sala extends DurableObject {
     if (perde && k.startsWith('pc:')) o.acoes = { chave, usadas: perde };
     if (perde > 0) linhas.push(perde >= 3 ? '💤 perde o turno' : `perde ${perde} ação`); else if (perde < 0) linhas.push('⏩ +1 ação');
     for (const [c, n] of Object.entries(o.cond)) {
+      if (!o.cond?.[c]) continue; // Eterno pode ter saído no meio do laço
       const def = CONDICOES[c]; if (!def) { delete o.cond[c]; continue; }
-      if (def.dot) { let v = rolarExpr(def.dot).total; v -= this.absorver(o, v); o.vigor = Math.max(-99, num(o.vigor) - v); linhas.push(`${def.ic} −${v} (${def.nome})`); }
+      if (def.dot) { let v = rolarExpr(def.dot).total; v -= this.absorver(o, v); o.vigor = Math.max(-99, num(o.vigor) - v); linhas.push(`${def.ic} −${v} (${def.nome})`); if (this.eterno(o)) linhas.push('♾ volta com 10'); }
       if (def.cura) linhas.push(sangra ? `${def.ic} sangrando: não regenera` : `${def.ic} +${this.curar(o, rolarExpr(def.cura).total)} (${def.nome})`);
       if (n <= 1) delete o.cond[c]; else o.cond[c] = n - 1;
     }
-    if (!Object.keys(o.cond).length) delete o.cond;
+    if (o.cond && !Object.keys(o.cond).length) delete o.cond;
     if (linhas.length) this.enviarTodos({ tipo: 'aviso', texto: `${o.nome}: ${linhas.join(' · ')}` });
     this.enviarTodos({ tipo: 'condicao', k, dano: linhas.some(l => l.includes('−')), cura: linhas.some(l => l.includes('+')) });
   }

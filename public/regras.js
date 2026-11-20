@@ -240,6 +240,7 @@ export const CONDICOES = {
   refletindo: { nome: 'Refletindo', ic: '🪞', cor: '#e0e8f0', bom: true, desc: 'Quem acerta você sofre metade do dano.' },
   espinhos: { nome: 'Espinhos', ic: '🌵', cor: '#7ff0e0', bom: true, desc: 'Quem acerta você corpo a corpo sofre 1d6.' },
   imagens: { nome: 'Imagens', ic: '👥', cor: '#c9a0ff', bom: true, desc: '40% de chance de um golpe acertar uma cópia (e desfazê-la).' },
+  eterno: { nome: 'Eterno', ic: '♾', cor: '#ff8080', bom: true, desc: 'Ao cair a 0 de Vigor, volta com 10 e a condição acaba.' },
   premonicao: { nome: 'Premonição', ic: '👁', cor: '#f8e8a0', bom: true, desc: 'O próximo golpe contra você erra.' },
 };
 // condições ruins sorteadas pelo Caos (Entropia)
