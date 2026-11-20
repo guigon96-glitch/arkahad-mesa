@@ -40,16 +40,16 @@
     </header>
     <div class="duas">
       <div>
-        <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px"><h2 style="font-size:20px">Salas abertas</h2><span class="cresce"></span><button id="atualizar" class="mini">Atualizar</button></div>
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px"><h2 style="font-size:20px">Sessões abertas</h2><span class="cresce"></span><button id="atualizar" class="mini">Atualizar</button></div>
         <div class="grade-salas" id="salas"></div>
       </div>
       <form class="bloco" id="formSala">
-        <h3>Criar uma sala (você será o Mestre)</h3>
-        <label for="salaNome">Nome da mesa</label>
+        <h3>Criar uma sessão (você será o Mestre)</h3>
+        <label for="salaNome">Nome da sessão</label>
         <input id="salaNome" maxlength="60" placeholder="Ex.: Caravana de Saryth">
         <label for="salaSenha">Senha para os jogadores</label>
         <input id="salaSenha" type="password" minlength="4" autocomplete="new-password">
-        <button class="pri" style="width:100%;margin-top:12px">Criar sala</button>
+        <button class="pri" style="width:100%;margin-top:12px">Criar sessão</button>
         <div class="erro" id="erroSala"></div>
       </form>
     </div>
@@ -96,11 +96,11 @@
 <!-- ===== Senha da sala ===== -->
 <div class="modal" id="modalSenha" hidden>
   <form class="caixa" id="formSenha">
-    <h2 style="font-size:22px;color:var(--ouro)" id="senhaTitulo">Senha da sala</h2>
+    <h2 style="font-size:22px;color:var(--ouro)" id="senhaTitulo">Senha da sessão</h2>
     <p class="sub">Peça a senha ao Mestre.</p>
     <input id="senhaSala" type="password" autocomplete="off">
     <div class="erro" id="erroSenha"></div>
-    <div style="display:flex;gap:10px"><button type="button" id="cancelaSenha">Voltar</button><button class="pri cresce">Entrar na mesa</button></div>
+    <div style="display:flex;gap:10px"><button type="button" id="cancelaSenha">Voltar</button><button class="pri cresce">Entrar na sessão</button></div>
   </form>
 </div>
 

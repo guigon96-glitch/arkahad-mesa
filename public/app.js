@@ -16,8 +16,8 @@ const CORES_TERRENO = { '.': '#7d6146', '_': '#8f877b', ',': '#d3ad6a', '"': '#4
 // ================= ESTADO =================
 let config = {}, sessao = null, ws = null, codigoAtual = null, reconectar = true, tentativaWs = 0;
 let voce = null, sala = null, mesa = null, pcs = {}, npcs = {}, log = [], online = [];
-let selecionado = null, aba = 'ficha', modoMestre = 'mover', pincel = '.', tamPincel = 1, pincelAlt = '2', pintandoAlt = null, tocadas = null;
-let pintando = null, arrasto = null, alcance = null, npcParaEditar = null, cena = null, quadroPendente = false;
+let selecionado = null, aba = 'ficha', modoMestre = 'mover', pincel = '.', tamPincel = 1, pincelAlt = '2', mapas = [];
+let arrasto = null, alcance = null, npcParaEditar = null, cena = null, quadroPendente = false;
 const memo = { mod: 0, dif: '', expr: '1d8+3' };
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -91,7 +91,7 @@ async function listarSalas() {
       <div class="meta">${num(s.online)} online · ${num(s.jogadores)}/${config.maxJogadores || 6} jogadores</div>
       <div style="display:flex;gap:8px;margin-top:6px"><button class="pri cresce" data-entrar="${esc(s.codigo)}">${s.mestreId === sessao.usuario.id ? 'Abrir (Mestre)' : 'Entrar'}</button>
       ${s.mestreId === sessao.usuario.id ? `<button data-apagar="${esc(s.codigo)}">Apagar</button>` : ''}</div></div>`).join('')
-      : '<p class="sub">Nenhuma sala aberta. Crie a primeira ao lado.</p>';
+      : '<p class="sub">Nenhuma sessão aberta. Crie a primeira ao lado.</p>';
     document.querySelectorAll('[data-entrar]').forEach(b => b.onclick = () => location.hash = 'sala-' + b.dataset.entrar);
     document.querySelectorAll('[data-apagar]').forEach(b => b.onclick = async () => {
       if (!b.dataset.ok) { b.dataset.ok = 1; b.textContent = 'Confirmar'; return; }
@@ -116,7 +116,7 @@ function entrarNaSala(codigo) {
   codigoAtual = codigo; reconectar = true; tentativaWs = 0;
   mesa = null; pcs = {}; npcs = {}; log = []; online = []; voce = null; selecionado = null;
   mostrar('telaMesa'); $('chipCodigo').textContent = 'Código ' + codigo; render(); painel();
-  avisar('Conectando à mesa…');
+  avisar('Conectando à sessão…');
   conectar();
 }
 function conectar() {
@@ -129,7 +129,7 @@ function conectar() {
     if ([4000, 4003, 4004, 4005].includes(ev.code)) { reconectar = false; }
     if (reconectar && codigoAtual) {
       tentativaWs++;
-      if (tentativaWs > 1 && !mesa) { avisar('Não consegui abrir a sala. Ela ainda existe?'); }
+      if (tentativaWs > 1 && !mesa) { avisar('Não consegui abrir a sessão. Ela ainda existe?'); }
       else avisar('Conexão perdida. Reconectando…');
       setTimeout(() => { if (codigoAtual && reconectar) conectar(); }, Math.min(8000, 1000 * tentativaWs));
     }
@@ -139,7 +139,7 @@ function sairDaSala() {
   reconectar = false; codigoAtual = null; $('modalSenha').hidden = true;
   if (ws) { const w = ws; ws = null; try { w.close(); } catch {} }
 }
-function enviar(msg) { if (ws?.readyState === 1) ws.send(JSON.stringify(msg)); else avisar('Sem conexão com a mesa.', 2500); }
+function enviar(msg) { if (ws?.readyState === 1) ws.send(JSON.stringify(msg)); else avisar('Sem conexão com a sessão.', 2500); }
 $('voltar').onclick = () => { location.hash = ''; };
 
 function receber(m) {
@@ -147,14 +147,14 @@ function receber(m) {
     case 'estado': {
       tentativaWs = 0; $('modalSenha').hidden = true;
       const primeira = !voce;
-      voce = m.voce; sala = m.sala; mesa = m.mesa; pcs = m.pcs || {}; npcs = m.npcs || {}; log = m.log || []; online = m.online || [];
+      voce = m.voce; sala = m.sala; mapas = m.mapas || []; const trocouMapa = mesa?.id !== m.mesa?.id; mesa = m.mesa; if (trocouMapa) { desfazer.length = 0; refazer.length = 0; if (mira) cancelarMira(); } pcs = m.pcs || {}; npcs = m.npcs || {}; log = m.log || []; online = m.online || [];
       if (primeira) avisar('');
       $('abaMestre').hidden = !souMestre();
       if (!souMestre() && aba === 'mestre') aba = 'ficha';
       const t = tokenPorK(selecionado);
       if (selecionado && !t) { selecionado = null; alcance = null; $('cartao').hidden = true; }
       else if (t) calcAlcance(t);
-      if (!pintando && !pintandoAlt) render();
+      if (!edicao) render();
       if (aba !== 'dados' || primeira) painel();
       atualizarOnline();
       if (t && !$('cartao').hidden && !$('formNpc')) cartao(t);
@@ -163,7 +163,7 @@ function receber(m) {
     }
     case 'senha':
       avisar('');
-      $('senhaTitulo').textContent = 'Senha de “' + (m.sala || 'sala') + '”';
+      $('senhaTitulo').textContent = 'Senha de “' + (m.sala || 'sessão') + '”';
       $('erroSenha').textContent = m.erro || '';
       $('modalSenha').hidden = false; $('senhaSala').value = ''; $('senhaSala').focus();
       break;
@@ -177,7 +177,7 @@ function receber(m) {
     case 'npcCriado': npcParaEditar = m.id; break;
     case 'removida':
       reconectar = false; sairDaSala(); location.hash = '';
-      setTimeout(() => alertaSaguao(m.texto || 'A sala foi removida pelo Mestre.'), 300);
+      setTimeout(() => alertaSaguao(m.texto || 'A sessão foi removida pelo Mestre.'), 300);
       break;
   }
 }
@@ -196,8 +196,9 @@ function garantirCena() {
 }
 function tokensTodos() {
   const l = [];
-  for (const [id, p] of Object.entries(pcs)) if (p && p.nome) l.push({ k: 'pc:' + id, id, tipo: 'pc', ...p });
-  for (const [id, n] of Object.entries(npcs)) if (n) l.push({ k: 'npc:' + id, id, ...n, tipo: n.tipo || 'npc' });
+  const aqui = o => !mesa || !o.mapa || o.mapa === mesa.id;
+  for (const [id, p] of Object.entries(pcs)) if (p && p.nome && aqui(p)) l.push({ k: 'pc:' + id, id, tipo: 'pc', ...p });
+  for (const [id, n] of Object.entries(npcs)) if (n && aqui(n)) l.push({ k: 'npc:' + id, id, ...n, tipo: n.tipo || 'npc' });
   return l;
 }
 function visualDe(t) {
@@ -229,7 +230,7 @@ function render() {
 function agendarRender() { if (!quadroPendente) { quadroPendente = true; requestAnimationFrame(render); } }
 function topo() {
   if (!mesa) return;
-  $('nomeMesa').textContent = mesa.nome || sala?.nome || 'Mesa';
+  $('nomeMesa').textContent = (sala?.nome || 'Sessão') + (mesa.nome ? ' · ' + mesa.nome : '');
   $('chipCeu').innerHTML = `<span class="ponto" style="background:${COR_LUZ[mesa.luz] || COR_LUZ.dia}"></span>${esc(NOMES_LUZ[mesa.luz] || NOMES_LUZ.dia)} · ${esc(LUAS[mesa.lua] || LUAS.nenhuma)}`;
   const cb = mesa.combate || {};
   $('ordem').innerHTML = cb.ativo ? `<span class="chip">Rodada ${num(cb.rodada, 1)}</span>` + (cb.ordem || []).map((o, i) => `<span class="chip ${i === cb.turno ? 'vez' : ''}">${num(o.ini)} · ${esc(nomeDe(o.k))}</span>`).join('') : '';
@@ -273,16 +274,19 @@ function moverToken(t, x, y) {
 function dentro(x, y) { return mesa && x >= 0 && y >= 0 && x < mesa.cols && y < mesa.rows; }
 function aoPressionar(i, e) {
   if (!mesa || mira) return;
-  if (souMestre() && modoMestre === 'pintar') { pintando = mesa.grid.slice(); pintar(i.x, i.y); return; }
-  if (souMestre() && modoMestre === 'altura') { pintandoAlt = altDe(mesa).slice(); tocadas = new Set(); pintarAlt(i.x, i.y); return; }
+  if (souMestre() && (modoMestre === 'pintar' || modoMestre === 'altura')) { iniciarEdicao(i); return; }
   if (souMestre() && modoMestre === 'npc' && !i.k) { if (dentro(i.x, i.y)) enviar({ tipo: 'npc', dados: { x: i.x, y: i.y } }); return; }
+  if (souMestre() && modoMestre === 'portal') { if (dentro(i.x, i.y)) editorPortal(i.x, i.y); return; }
   if (i.k) arrasto = { k: i.k, x: i.x, y: i.y };
 }
-function aoMover(i, e) { if (pintando) pintar(i.x, i.y); if (pintandoAlt) pintarAlt(i.x, i.y); if (mira) mirarEm(i, e); }
+function aoMover(i, e) {
+  if (mira) { mirarEm(i, e); return; }
+  if (souMestre() && (modoMestre === 'pintar' || modoMestre === 'altura')) moverEdicao(i);
+}
 function aoSoltar(i) {
   if (mira) { dispararMira(i); return; }
-  if (pintando) { const g = pintando; pintando = null; enviar({ tipo: 'mesa', dados: { grid: g } }); return; }
-  if (pintandoAlt) { const a = pintandoAlt; pintandoAlt = null; tocadas = null; enviar({ tipo: 'mesa', dados: { alt: a } }); return; }
+  if (edicao) { terminarEdicao(); return; }
+  if (souMestre() && ['pintar', 'altura', 'portal'].includes(modoMestre)) return;
   if (arrasto) {
     const a = arrasto; arrasto = null; const t = tokenPorK(a.k);
     if (!t || (a.x === i.x && a.y === i.y) || i.k === a.k) { selecionar(a.k); return; }
@@ -290,30 +294,169 @@ function aoSoltar(i) {
   }
   const t = tokenPorK(selecionado);
   if (i.k && i.k !== selecionado) { selecionar(i.k); return; }
-  if (t && possoMover(t) && dentro(i.x, i.y)) moverToken(t, i.x, i.y);
-  else { selecionado = null; alcance = null; $('cartao').hidden = true; render(); }
+  const pt = mesa.portais?.[i.x + ',' + i.y];
+  if (t && possoMover(t) && dentro(i.x, i.y)) { moverToken(t, i.x, i.y); return; }
+  if (pt && !i.k) { cartaoPortal(i.x, i.y, pt); return; }
+  selecionado = null; alcance = null; $('cartao').hidden = true; render();
 }
-function pintar(x, y) {
-  for (let i = 0; i < tamPincel; i++) for (let j = 0; j < tamPincel; j++) {
-    const px = x + i, py = y + j;
-    if (!dentro(px, py)) continue;
-    const l = pintando[py]; pintando[py] = l.slice(0, px) + pincel + l.slice(px + 1);
-  }
-  mesa = { ...mesa, grid: pintando.slice() }; agendarRender();
-}
+
+// ================= Editor de terreno =================
+// ferramentas: pincel, retângulo, linha, balde (preencher) e conta-gotas; vale para terreno e altura
+let ferramenta = 'pincel', formaPincel = 'quadrado', edicao = null;
+const desfazer = [], refazer = [];
+const camadaAtual = () => modoMestre === 'altura' ? 'alt' : 'grid';
+function camadaDe(m, c) { return c === 'alt' ? altDe(m) : m.grid.slice(); }
 function altDe(m) { return Array.from({ length: m.rows }, (_, y) => String(m.alt?.[y] || '').padEnd(m.cols, '1').slice(0, m.cols)); }
-function pintarAlt(x, y) {
-  for (let i = 0; i < tamPincel; i++) for (let j = 0; j < tamPincel; j++) {
-    const px = x + i, py = y + j, ch = px + ',' + py;
-    if (!dentro(px, py) || tocadas.has(ch)) continue; tocadas.add(ch);
-    const l = pintandoAlt[py], atual = l[px];
-    let novo = pincelAlt;
-    if (pincelAlt === '+') novo = String(Math.min(4, Number(atual) + 1));
-    if (pincelAlt === '-') novo = String(Math.max(0, Number(atual) - 1));
-    pintandoAlt[py] = l.slice(0, px) + novo + l.slice(px + 1);
+function celulasPincel(x, y) {
+  const r = tamPincel, o = Math.floor((r - 1) / 2), l = [];
+  for (let j = 0; j < r; j++) for (let i = 0; i < r; i++) {
+    const dx = i - o, dy = j - o;
+    if (formaPincel === 'circulo' && r > 2 && Math.hypot(dx - (r % 2 ? 0 : .5), dy - (r % 2 ? 0 : .5)) > r / 2) continue;
+    l.push([x + dx, y + dy]);
   }
-  mesa = { ...mesa, alt: pintandoAlt.slice() }; agendarRender();
+  return l;
 }
+function celulasLinha(a, b) {
+  const l = [], n = Math.max(Math.abs(b.x - a.x), Math.abs(b.y - a.y));
+  for (let k = 0; k <= n; k++) { const t = n ? k / n : 0; const x = Math.round(a.x + (b.x - a.x) * t), y = Math.round(a.y + (b.y - a.y) * t); for (const c of celulasPincel(x, y)) l.push(c); }
+  return l;
+}
+function celulasRetangulo(a, b) {
+  const l = [], x0 = Math.min(a.x, b.x), x1 = Math.max(a.x, b.x), y0 = Math.min(a.y, b.y), y1 = Math.max(a.y, b.y);
+  for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) l.push([x, y]);
+  return l;
+}
+function valorNovo(camada, atual) {
+  if (camada === 'grid') return pincel;
+  if (pincelAlt === '+') return String(Math.min(4, Number(atual) + 1));
+  if (pincelAlt === '-') return String(Math.max(0, Number(atual) - 1));
+  return pincelAlt;
+}
+function aplicar(arr, camada, cels, tocadas) {
+  for (const [x, y] of cels) {
+    const k = x + ',' + y;
+    if (!dentro(x, y) || (tocadas && tocadas.has(k))) continue; tocadas?.add(k);
+    const l = arr[y]; arr[y] = l.slice(0, x) + valorNovo(camada, l[x]) + l.slice(x + 1);
+  }
+}
+function preencher(arr, camada, x, y) {
+  const alvo = arr[y][x], fila = [[x, y]], vistos = new Set();
+  const cels = [];
+  while (fila.length) {
+    const [cx, cy] = fila.pop(), k = cx + ',' + cy;
+    if (!dentro(cx, cy) || vistos.has(k) || arr[cy][cx] !== alvo) continue;
+    vistos.add(k); cels.push([cx, cy]);
+    fila.push([cx + 1, cy], [cx - 1, cy], [cx, cy + 1], [cx, cy - 1]);
+  }
+  aplicar(arr, camada, cels, new Set());
+}
+function mostrarPrevia(cels) { cena?.marcar(2, cels ? new Map(cels.map(([x, y]) => [x + ',' + y, .7])) : null, true); }
+function iniciarEdicao(i) {
+  if (!dentro(i.x, i.y)) return;
+  const camada = camadaAtual();
+  if (ferramenta === 'conta') {
+    if (camada === 'grid') pincel = mesa.grid[i.y][i.x]; else pincelAlt = altDe(mesa)[i.y][i.x];
+    ferramenta = 'pincel'; painel(); return;
+  }
+  const antes = camadaDe(mesa, camada), arr = antes.slice();
+  edicao = { camada, antes, arr, ini: { x: i.x, y: i.y }, tocadas: new Set() };
+  if (ferramenta === 'balde') { preencher(arr, camada, i.x, i.y); terminarEdicao(); return; }
+  if (ferramenta === 'pincel') aplicar(arr, camada, celulasPincel(i.x, i.y), edicao.tocadas);
+  else aplicar(arr, camada, [[i.x, i.y]], null);
+  mostrarEdicao();
+}
+function moverEdicao(i) {
+  if (!edicao) {
+    // prévia do pincel sob o cursor
+    if (!dentro(i.x, i.y)) return mostrarPrevia(null);
+    mostrarPrevia(ferramenta === 'pincel' ? celulasPincel(i.x, i.y) : [[i.x, i.y]]);
+    return;
+  }
+  const { camada, antes } = edicao;
+  if (ferramenta === 'pincel') aplicar(edicao.arr, camada, celulasPincel(i.x, i.y), edicao.tocadas);
+  else {
+    edicao.arr = antes.slice();
+    const cels = ferramenta === 'retangulo' ? celulasRetangulo(edicao.ini, i) : celulasLinha(edicao.ini, i);
+    aplicar(edicao.arr, camada, cels, null); mostrarPrevia(cels);
+  }
+  mostrarEdicao();
+}
+function mostrarEdicao() { mesa = { ...mesa, [edicao.camada]: edicao.arr.slice() }; agendarRender(); }
+function terminarEdicao() {
+  const { camada, antes, arr } = edicao; edicao = null;
+  mostrarPrevia(null);
+  if (antes.join('') === arr.join('')) return;
+  desfazer.push({ camada, antes, depois: arr }); if (desfazer.length > 40) desfazer.shift(); refazer.length = 0;
+  mesa = { ...mesa, [camada]: arr }; render();
+  enviar({ tipo: 'mesa', dados: { [camada]: arr } });
+  painel();
+}
+function voltarEdicao(pilha, outra, campo) {
+  const e = pilha.pop(); if (!e) return;
+  outra.push(e);
+  const arr = campo === 'antes' ? e.antes : e.depois;
+  mesa = { ...mesa, [e.camada]: arr }; render();
+  enviar({ tipo: 'mesa', dados: { [e.camada]: arr } }); painel();
+}
+document.addEventListener('keydown', e => {
+  if (!souMestre() || e.target.closest?.('input,textarea,select')) return;
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z' && !e.shiftKey) { e.preventDefault(); voltarEdicao(desfazer, refazer, 'antes'); }
+  if ((e.ctrlKey || e.metaKey) && (e.key.toLowerCase() === 'y' || (e.key.toLowerCase() === 'z' && e.shiftKey))) { e.preventDefault(); voltarEdicao(refazer, desfazer, 'depois'); }
+});
+
+// ================= Portais =================
+function editorPortal(x, y) {
+  const pt = mesa.portais?.[x + ',' + y], c = $('cartao');
+  const outros = mapas.filter(m => m.id !== mesa.id);
+  c.innerHTML = `<button class="fecha" id="fechaCartao" aria-label="Fechar">×</button><h2 style="font-size:18px">${pt ? 'Portal' : 'Novo portal'} em ${x + 1},${y + 1}</h2>
+    ${outros.length ? `<form id="formPortal">
+      <label for="p_para">Leva para o mapa</label><select id="p_para">${outros.map(m => `<option value="${esc(m.id)}" ${pt?.para === m.id ? 'selected' : ''}>${esc(m.nome)} (${m.cols}×${m.rows})</option>`).join('')}</select>
+      <div class="linha"><div><label for="p_x">Chegada: coluna</label><input id="p_x" type="number" min="1" value="${(pt?.x ?? x) + 1}"></div><div><label for="p_y">linha</label><input id="p_y" type="number" min="1" value="${(pt?.y ?? y) + 1}"></div><div><label for="p_cor">Cor</label><input id="p_cor" type="color" value="${esc(pt?.cor || '#7ad0ff')}"></div></div>
+      <label for="p_nome">Nome que aparece</label><input id="p_nome" maxlength="40" value="${esc(pt?.nome || '')}" placeholder="Ex.: Caverna de Velshar">
+      <label class="cr-check"><input type="checkbox" id="p_volta" ${pt ? '' : 'checked'}> Criar o portal de volta no ponto de chegada</label>
+      <button class="pri" style="width:100%;margin-top:10px">${pt ? 'Salvar portal' : 'Criar portal'}</button>
+      ${pt ? '<button type="button" id="p_remover" style="width:100%;margin-top:8px">Remover portal</button>' : ''}
+    </form><p class="cr-nota">Quem parar em cima do portal vai para o outro mapa. O Mestre vê todos os mapas; cada jogador vê o mapa onde está.</p>`
+    : '<p>Crie outro mapa primeiro (aba Mestre → Mapas da sessão) para ter para onde o portal levar.</p>'}`;
+  c.hidden = false;
+  $('fechaCartao').onclick = () => { c.hidden = true; };
+  if ($('formPortal')) $('formPortal').onsubmit = e => {
+    e.preventDefault();
+    enviar({ tipo: 'portal', x, y, para: $('p_para').value, px: num($('p_x').value, 1) - 1, py: num($('p_y').value, 1) - 1, nome: $('p_nome').value, cor: $('p_cor').value, volta: $('p_volta').checked });
+    c.hidden = true;
+  };
+  if ($('p_remover')) $('p_remover').onclick = () => { enviar({ tipo: 'portal', x, y, remover: true }); c.hidden = true; };
+}
+function cartaoPortal(x, y, pt) {
+  const c = $('cartao'), p = tokenPorK('pc:' + eu());
+  c.innerHTML = `<button class="fecha" id="fechaCartao" aria-label="Fechar">×</button><h2 style="font-size:20px;padding-right:40px">Portal</h2>
+    <p style="margin:4px 0 10px">Leva para <b>${esc(pt.nome || 'outro mapa')}</b>.</p>
+    ${p && possoMover(p) ? '<button class="pri" id="entrarPortal" style="width:100%">Ir até o portal e atravessar</button>' : '<p class="cr-nota">Mova seu personagem até ele para atravessar.</p>'}`;
+  c.hidden = false;
+  $('fechaCartao').onclick = () => { c.hidden = true; };
+  if ($('entrarPortal')) $('entrarPortal').onclick = () => { c.hidden = true; moverToken(p, x, y); };
+}
+
+// ================= Baixar e carregar mapas =================
+function baixarMapa() {
+  const npcsAqui = Object.values(npcs).filter(n => (n.mapa || mesa.id) === mesa.id).map(({ mapa, x, y, ...n }) => ({ ...n, x, y }));
+  const dados = { formato: 'arkahad-mapa', versao: 1, mapa: { nome: mesa.nome, cols: mesa.cols, rows: mesa.rows, grid: mesa.grid, alt: altDe(mesa), luz: mesa.luz, lua: mesa.lua }, npcs: npcsAqui };
+  const url = URL.createObjectURL(new Blob([JSON.stringify(dados, null, 1)], { type: 'application/json' }));
+  const a = document.createElement('a'); a.href = url; a.download = (mesa.nome || 'mapa').replace(/[^\p{L}\p{N}]+/gu, '-').toLowerCase() + '.arkahad.json';
+  document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 2000);
+}
+function carregarArquivoMapa(arquivo) {
+  if (!arquivo) return;
+  if (arquivo.size > 400000) { avisar('Arquivo grande demais para um mapa.', 3000); return; }
+  arquivo.text().then(t => {
+    let d; try { d = JSON.parse(t); } catch { avisar('Esse arquivo não é um mapa válido.', 3000); return; }
+    const m = d.mapa || d;
+    if (!Array.isArray(m.grid)) { avisar('Esse arquivo não é um mapa da Mesa de Arkahad.', 3000); return; }
+    enviar({ tipo: 'mapa', acao: 'importar', dados: { mapa: m, npcs: Array.isArray(d.npcs) ? d.npcs : [] } });
+    avisar(`Mapa “${m.nome || 'sem nome'}” carregado como um mapa novo da sessão.`, 3000);
+  });
+}
+
 function mostrarPing(x, y, cor) { cena?.ping(x, y, cor); }
 $('zMais').onclick = () => cena?.zoom(.8);
 $('zMenos').onclick = () => cena?.zoom(1.25);
@@ -365,7 +508,7 @@ function cartao(t) {
   if (falas.length) h += `<div class="fala" id="fala">“${esc(falas[0])}”</div>${falas.length > 1 ? '<button id="outraFala" class="mini">Ouvir outra fala</button>' : ''}`;
   if (souMestre() && t.notas) h += `<p style="color:var(--mudo);font-size:14px"><b>Notas do Mestre:</b> ${esc(t.notas)}</p>`;
   if (edita) h += `<div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap"><button id="editarNpc" class="pri">Editar</button><button id="visNpc">${t.visivel === false ? 'Revelar' : 'Ocultar'}</button><button id="apagarNpc">Remover</button></div>`;
-  if (souMestre() && t.tipo === 'pc' && t.id !== eu()) h += `<div style="margin-top:10px"><button id="expulsar">Remover jogador da mesa</button></div>`;
+  if (souMestre() && t.tipo === 'pc' && t.id !== eu()) h += `<div style="margin-top:10px"><button id="expulsar">Remover jogador da sessão</button></div>`;
   if (possoMover(t)) h += `<p style="color:var(--mudo);font-size:13px;margin-top:10px">Clique numa casa do mapa (ou arraste a miniatura) para mover. Botão direito gira a câmera.</p>`;
   c.innerHTML = h; c.hidden = false;
   $('fechaCartao').onclick = () => { c.hidden = true; selecionado = null; alcance = null; render(); };
@@ -503,7 +646,7 @@ function htmlFicha() {
   if (souMestre() && !p) h += `<div class="bloco"><h3>Você é o Mestre</h3><p style="margin:0">Use a aba Mestre para o mapa, NPCs e combate. Se quiser, crie também um personagem.</p></div>`;
   if (p?.ficha) return h + htmlFichaCompleta(p);
   if (p) return h + `<div class="bloco"><h3>${esc(p.nome)}</h3>${medidor('Vigor', 'vigor', 'vigorMax', '#5d9a4a', { ...p, k: 'pc:' + eu() }, true)}<p>Este personagem foi criado no modo simples.</p></div><button class="pri" id="abrirCriador" style="width:100%">Criar ficha completa</button>`;
-  return h + `<div class="bloco"><h3>Sem personagem nesta mesa</h3><p style="margin:0 0 10px">Monte sua miniatura: raça, vocação, Dom, atributos, perícias e aparência — tudo equilibrado pelas regras de Arkahad.</p><button class="pri" id="abrirCriador" style="width:100%">Criar personagem</button></div>`;
+  return h + `<div class="bloco"><h3>Sem personagem nesta sessão</h3><p style="margin:0 0 10px">Monte sua miniatura: raça, vocação, Dom, atributos, perícias e aparência — tudo equilibrado pelas regras de Arkahad.</p><button class="pri" id="abrirCriador" style="width:100%">Criar personagem</button></div>`;
 }
 function htmlDados() {
   return `<div class="bloco"><h3>Teste de Conjunção (2d10)</h3>
@@ -521,22 +664,37 @@ function htmlDados() {
 function htmlRegistro() {
   return `<ul class="registro">${log.length ? log.map(x => `<li><span class="ponto" style="display:inline-block;background:${esc(x.cor)}"></span> <b>${esc(x.nome)}</b>${x.rotulo ? ' · ' + esc(x.rotulo) : ''}${x.oculta ? ' · oculta' : ''} — <b style="color:var(--ouro);font-size:18px">${num(x.total)}</b>${x.grau ? ' · ' + esc(x.grau) : ''}<div style="color:var(--mudo);font-size:13px">${esc(x.desc)} · ${new Date(x.t).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</div>${(x.tags || []).map(t => `<span class="tag ${/Ruína|Aranor|Eco/.test(t) ? 'ruim' : ''}">${esc(t)}</span>`).join('')}</li>`).join('') : '<li>Nenhuma rolagem ainda.</li>'}</ul>`;
 }
+const GRUPOS_TERRENO = [
+  ['Chão', ['"', '.', ',', '_', '=', 'v']], ['Água', ['~']], ['Vegetação', ['T', 'P', 'Q', 'k']],
+  ['Paredes', ['#', 'm', 'h', '+']], ['Objetos', ['^', '*', 'b', 'c', 's', 'n', 'a', 'o', 'w']],
+];
 function htmlMestre() {
   if (!souMestre() || !mesa) return '';
-  const cb = mesa.combate || {};
-  return `<div class="bloco"><h3>Ferramenta</h3><div class="linha">${[['mover', 'Mover'], ['pintar', 'Pintar terreno'], ['altura', 'Altura'], ['npc', 'Colocar NPC']].map(([k, n]) => `<button data-modo="${k}" class="${modoMestre === k ? 'ativo' : ''}">${n}</button>`).join('')}</div>
-    ${modoMestre === 'pintar' ? `<div class="paleta" style="margin-top:10px">${Object.entries(TERRENOS).map(([k, t]) => `<button data-pincel="${esc(k)}" class="${pincel === k ? 'ativo' : ''}"><i class="amostra" style="background:${CORES_TERRENO[k]}"></i>${esc(t.n)}</button>`).join('')}</div><label for="m_tam">Tamanho do pincel</label><select id="m_tam">${[1, 2, 3].map(n => `<option ${tamPincel === n ? 'selected' : ''}>${n}</option>`).join('')}</select>` : ''}
-    ${modoMestre === 'altura' ? `<div class="paleta" style="margin-top:10px">${[...Object.entries(NIVEIS), ['+', 'Subir 1 nível'], ['-', 'Descer 1 nível']].map(([k, n]) => `<button data-alt="${k}" class="${pincelAlt === k ? 'ativo' : ''}"><i class="amostra" style="background:${{ '0': '#2a3a4a', '1': '#7d6146', '2': '#9a7a52', '3': '#b8956a', '4': '#d8c09a', '+': '#5d9a4a', '-': '#c0392f' }[k]}"></i>${esc(n)}</button>`).join('')}</div><label for="m_tam">Tamanho do pincel</label><select id="m_tam">${[1, 2, 3].map(n => `<option ${tamPincel === n ? 'selected' : ''}>${n}</option>`).join('')}</select>
-      <p class="cr-nota" style="margin:8px 0 0">Arraste no mapa para elevar ou afundar. Subir 1 nível custa +1 casa de movimento; desníveis de 2+ só escalando (você move). Quem ataca de cima ganha +2; de baixo, −2.</p>` : ''}
+  const cb = mesa.combate || {}, editando = modoMestre === 'pintar' || modoMestre === 'altura';
+  const ferr = [['pincel', '🖌', 'Pincel'], ['retangulo', '▭', 'Retângulo'], ['linha', '╱', 'Linha'], ['balde', '🪣', 'Preencher'], ['conta', '💧', 'Conta-gotas']];
+  const blocoFerr = editando ? `<div class="ferramentas">${ferr.map(([k, ic, n]) => `<button data-ferr="${k}" class="${ferramenta === k ? 'ativo' : ''}" title="${n}"><span>${ic}</span><small>${n}</small></button>`).join('')}</div>
+      <div class="linha" style="margin-top:8px;align-items:end"><div><label for="m_tam">Tamanho</label><select id="m_tam">${[1, 2, 3, 4, 5, 7].map(n => `<option ${tamPincel === n ? 'selected' : ''}>${n}</option>`).join('')}</select></div>
+      <div><label for="m_forma">Forma</label><select id="m_forma"><option value="quadrado" ${formaPincel === 'quadrado' ? 'selected' : ''}>Quadrado</option><option value="circulo" ${formaPincel === 'circulo' ? 'selected' : ''}>Círculo</option></select></div>
+      <div class="desfaz"><button id="m_desfazer" ${desfazer.length ? '' : 'disabled'} title="Desfazer (Ctrl+Z)">↶</button><button id="m_refazer" ${refazer.length ? '' : 'disabled'} title="Refazer (Ctrl+Y)">↷</button></div></div>` : '';
+  return `<div class="bloco"><h3>Ferramenta</h3><div class="linha">${[['mover', 'Mover'], ['pintar', 'Terreno'], ['altura', 'Altura'], ['portal', 'Portal'], ['npc', 'Colocar NPC']].map(([k, n]) => `<button data-modo="${k}" class="${modoMestre === k ? 'ativo' : ''}">${n}</button>`).join('')}</div>
+    ${blocoFerr}
+    ${modoMestre === 'pintar' ? GRUPOS_TERRENO.map(([g, l]) => `<div class="grupo-pal">${g}</div><div class="paleta">${l.map(k => `<button data-pincel="${esc(k)}" class="${pincel === k ? 'ativo' : ''}"><i class="amostra" style="background:${CORES_TERRENO[k]}"></i>${esc(TERRENOS[k].n)}</button>`).join('')}</div>`).join('') + `<button id="m_tudo" style="width:100%;margin-top:8px">Preencher o mapa todo com “${esc(TERRENOS[pincel]?.n || '')}”</button>` : ''}
+    ${modoMestre === 'altura' ? `<div class="paleta" style="margin-top:10px">${[...Object.entries(NIVEIS), ['+', 'Subir 1 nível'], ['-', 'Descer 1 nível']].map(([k, n]) => `<button data-alt="${k}" class="${pincelAlt === k ? 'ativo' : ''}"><i class="amostra" style="background:${{ '0': '#2a3a4a', '1': '#7d6146', '2': '#9a7a52', '3': '#b8956a', '4': '#d8c09a', '+': '#5d9a4a', '-': '#c0392f' }[k]}"></i>${esc(n)}</button>`).join('')}</div>
+      <p class="cr-nota" style="margin:8px 0 0">Subir 1 nível custa +1 casa de movimento; desníveis de 2+ só escalando (você move). Quem ataca de cima ganha +2; de baixo, −2.</p>` : ''}
+    ${modoMestre === 'portal' ? '<p style="margin:8px 0 0;color:var(--mudo)">Clique numa casa para criar ou editar um portal para outro mapa da sessão.</p>' : ''}
     ${modoMestre === 'npc' ? '<p style="margin:8px 0 0;color:var(--mudo)">Clique numa casa vazia para criar um NPC.</p>' : ''}</div>
-    <div class="bloco"><h3>Céu da cena</h3><label for="m_luz">Luz</label><select id="m_luz">${Object.entries(NOMES_LUZ).map(([k, n]) => `<option value="${k}" ${mesa.luz === k ? 'selected' : ''}>${n}</option>`).join('')}</select>
+    <div class="bloco"><h3>Mapas da sessão</h3>
+      <div class="mapas">${mapas.map(m => `<div class="mapa-it ${m.id === mesa.id ? 'atual' : ''}"><span class="cresce">${esc(m.nome)}${m.id === sala?.mapaInicial ? ' <small title="Onde os personagens novos aparecem">★ inicial</small>' : ''}<small>${m.cols}×${m.rows} · ${Object.values(pcs).filter(p => p.mapa === m.id).length} jogador(es)</small></span>${m.id === mesa.id ? '<b class="aqui">aqui</b>' : `<button class="mini" data-ir="${esc(m.id)}">Ver</button>`}</div>`).join('')}</div>
+      <div class="linha" style="margin-top:8px"><button id="m_novo">+ Novo mapa</button><button id="m_baixar" title="Salva este mapa num arquivo">⬇ Baixar mapa</button><label class="botao-arquivo" title="Carrega um mapa salvo como mapa novo">⬆ Carregar mapa<input type="file" id="m_arquivo" accept=".json,application/json" hidden></label></div>
+      <div class="linha" style="margin-top:8px"><button id="m_trazer">Trazer jogadores para cá</button><button id="m_inicial" ${mesa.id === sala?.mapaInicial ? 'disabled' : ''}>Tornar inicial</button>${mapas.length > 1 ? '<button id="m_apagarMapa">Apagar este mapa</button>' : ''}</div></div>
+    <div class="bloco"><h3>Céu deste mapa</h3><label for="m_luz">Luz</label><select id="m_luz">${Object.entries(NOMES_LUZ).map(([k, n]) => `<option value="${k}" ${mesa.luz === k ? 'selected' : ''}>${n}</option>`).join('')}</select>
     <label for="m_lua">Lua dominante</label><select id="m_lua">${Object.entries(LUAS).map(([k, n]) => `<option value="${k}" ${mesa.lua === k ? 'selected' : ''}>${n}</option>`).join('')}</select></div>
-    <div class="bloco"><h3>Combate</h3>${cb.ativo ? `<p style="margin:0 0 8px">Rodada ${num(cb.rodada, 1)} · vez de <b>${esc(nomeDe(cb.ordem?.[cb.turno]?.k))}</b></p><div class="linha"><button class="pri" id="proxTurno">Próximo turno</button><button id="fimCombate">Encerrar combate</button></div>` : `<button class="pri" id="iniCombate" style="width:100%">Iniciar combate (rola iniciativa)</button><p style="color:var(--mudo);font-size:13px">Entram todos os jogadores e os NPCs visíveis.</p>`}</div>
-    <div class="bloco"><h3>NPCs e criaturas</h3>${Object.entries(npcs).map(([id, n]) => `<div style="display:flex;gap:6px;align-items:center;margin:4px 0"><span class="ponto" style="background:${esc(n.cor)}"></span><span class="cresce">${esc(n.nome)}${n.visivel === false ? ' (oculto)' : ''}</span><button class="mini" data-ed="${esc(id)}">Editar</button></div>`).join('') || '<p>Nenhum. Use “Colocar NPC”.</p>'}</div>
-    <div class="bloco"><h3>Mapa e sala</h3><label for="m_nome">Nome da mesa</label><input id="m_nome" type="text" value="${esc(mesa.nome)}">
+    <div class="bloco"><h3>Combate</h3>${cb.ativo ? `<p style="margin:0 0 8px">Rodada ${num(cb.rodada, 1)} · vez de <b>${esc(nomeDe(cb.ordem?.[cb.turno]?.k))}</b></p><div class="linha"><button class="pri" id="proxTurno">Próximo turno</button><button id="fimCombate">Encerrar combate</button></div>` : `<button class="pri" id="iniCombate" style="width:100%">Iniciar combate (rola iniciativa)</button><p style="color:var(--mudo);font-size:13px">Entram os jogadores e os NPCs visíveis deste mapa.</p>`}</div>
+    <div class="bloco"><h3>NPCs e criaturas deste mapa</h3>${Object.entries(npcs).filter(([, n]) => (n.mapa || mesa.id) === mesa.id).map(([id, n]) => `<div style="display:flex;gap:6px;align-items:center;margin:4px 0"><span class="ponto" style="background:${esc(n.cor)}"></span><span class="cresce">${esc(n.nome)}${n.visivel === false ? ' (oculto)' : ''}</span><button class="mini" data-ed="${esc(id)}">Editar</button></div>`).join('') || '<p>Nenhum. Use “Colocar NPC”.</p>'}</div>
+    <div class="bloco"><h3>Este mapa e a sessão</h3><label for="m_nome">Nome do mapa</label><input id="m_nome" type="text" value="${esc(mesa.nome)}">
     <div class="linha"><div><label for="m_cols">Colunas</label><input id="m_cols" type="number" value="${mesa.cols}"></div><div><label for="m_rows">Linhas</label><input id="m_rows" type="number" value="${mesa.rows}"></div></div>
     <button id="salvarMapa" style="margin-top:10px;width:100%">Salvar nome e tamanho</button>
-    <label for="m_senha">Nova senha da sala</label><div style="display:flex;gap:8px"><input id="m_senha" type="password" autocomplete="new-password"><button id="trocarSenha">Trocar</button></div></div>`;
+    <label for="m_senha">Nova senha da sessão</label><div style="display:flex;gap:8px"><input id="m_senha" type="password" autocomplete="new-password"><button id="trocarSenha">Trocar</button></div></div>`;
 }
 const RACAS_NPC = { sarthani: 'Sarthani', zarathim: 'Zarathim', veloryn: 'Veloryn', draveth: 'Draveth', sypheris: 'Sypheris', dvarith: 'Dvarith', criatura: 'Criatura' };
 function editorNpc(id) {
@@ -599,7 +757,19 @@ function ligar() {
   };
   if (q('#rolarExpr')) q('#rolarExpr').onclick = () => { memo.expr = $('d_expr').value; enviar({ tipo: 'rolar', modo: 'expr', expr: $('d_expr').value, rotulo: 'Dano ' + $('d_expr').value, oculta: !!q('#d_oculta')?.checked }); };
   document.querySelectorAll('[data-rapido]').forEach(b => b.onclick = () => enviar({ tipo: 'rolar', modo: 'expr', expr: b.dataset.rapido, rotulo: b.dataset.rapido, oculta: !!q('#d_oculta')?.checked }));
-  document.querySelectorAll('[data-modo]').forEach(b => b.onclick = () => { modoMestre = b.dataset.modo; painel(); });
+  document.querySelectorAll('[data-modo]').forEach(b => b.onclick = () => { modoMestre = b.dataset.modo; mostrarPrevia(null); painel(); });
+  document.querySelectorAll('[data-ferr]').forEach(b => b.onclick = () => { ferramenta = b.dataset.ferr; painel(); });
+  document.querySelectorAll('[data-ir]').forEach(b => b.onclick = () => enviar({ tipo: 'mapa', acao: 'ir', id: b.dataset.ir }));
+  if (q('#m_forma')) q('#m_forma').onchange = e => { formaPincel = e.target.value; };
+  if (q('#m_desfazer')) q('#m_desfazer').onclick = () => voltarEdicao(desfazer, refazer, 'antes');
+  if (q('#m_refazer')) q('#m_refazer').onclick = () => voltarEdicao(refazer, desfazer, 'depois');
+  if (q('#m_tudo')) q('#m_tudo').onclick = () => { const antes = mesa.grid.slice(), arr = antes.map(l => pincel.repeat(l.length)); desfazer.push({ camada: 'grid', antes, depois: arr }); refazer.length = 0; mesa = { ...mesa, grid: arr }; render(); enviar({ tipo: 'mesa', dados: { grid: arr } }); painel(); };
+  if (q('#m_novo')) q('#m_novo').onclick = () => { const nome = prompt('Nome do novo mapa:', 'Novo mapa'); if (nome) enviar({ tipo: 'mapa', acao: 'criar', nome, cols: mesa.cols, rows: mesa.rows }); };
+  if (q('#m_baixar')) q('#m_baixar').onclick = baixarMapa;
+  if (q('#m_arquivo')) q('#m_arquivo').onchange = e => { carregarArquivoMapa(e.target.files[0]); e.target.value = ''; };
+  if (q('#m_trazer')) confirmar(q('#m_trazer'), () => enviar({ tipo: 'mapa', acao: 'trazer' }));
+  if (q('#m_inicial')) q('#m_inicial').onclick = () => enviar({ tipo: 'mapa', acao: 'inicial' });
+  if (q('#m_apagarMapa')) confirmar(q('#m_apagarMapa'), () => enviar({ tipo: 'mapa', acao: 'apagar', id: mesa.id }));
   document.querySelectorAll('[data-pincel]').forEach(b => b.onclick = () => { pincel = b.dataset.pincel; painel(); });
   document.querySelectorAll('[data-alt]').forEach(b => b.onclick = () => { pincelAlt = b.dataset.alt; painel(); });
   document.querySelectorAll('[data-ed]').forEach(b => b.onclick = () => editorNpc(b.dataset.ed));

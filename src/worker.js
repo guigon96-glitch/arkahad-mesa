@@ -245,6 +245,23 @@ function limparNpc(d) {
   return o;
 }
 
+function novoMapa(id, nome) {
+  return { id, nome, cols: 24, rows: 16, grid: Array.from({ length: 16 }, () => '"'.repeat(24)), alt: Array.from({ length: 16 }, () => '1'.repeat(24)), luz: 'dia', lua: 'nenhuma', portais: {}, combate: { ...COMBATE_VAZIO } };
+}
+// mapa vindo de fora (novo ou arquivo enviado pelo Mestre): tudo validado
+function mapaValidado(id, d) {
+  const cols = Math.max(6, Math.min(60, Math.round(num(d.cols, 24)))), rows = Math.max(6, Math.min(60, Math.round(num(d.rows, 16))));
+  const g = Array.isArray(d.grid) ? d.grid : [], a = Array.isArray(d.alt) ? d.alt : [];
+  const m = novoMapa(id, texto(d.nome, 60) || 'Novo mapa');
+  Object.assign(m, {
+    cols, rows,
+    grid: Array.from({ length: rows }, (_, y) => [...String(g[y] || '').padEnd(cols, '"').slice(0, cols)].map(c => TERRENOS[c] ? c : '.').join('')),
+    alt: Array.from({ length: rows }, (_, y) => [...String(a[y] || '').padEnd(cols, '1').slice(0, cols)].map(c => /[0-4]/.test(c) ? c : '1').join('')),
+    luz: LUZES[d.luz] ? d.luz : 'dia', lua: LUAS[d.lua] ? d.lua : 'nenhuma',
+  });
+  return m;
+}
+
 export class Sala extends DurableObject {
   constructor(ctx, env) {
     super(ctx, env);
@@ -253,14 +270,20 @@ export class Sala extends DurableObject {
 
   async carregar() {
     if (this.s) return this.s;
-    const m = await this.ctx.storage.get(['meta', 'mesa', 'pcs', 'npcs', 'log']);
+    const m = await this.ctx.storage.get(['meta', 'mesa', 'mapas', 'pcs', 'npcs', 'log']);
     this.s = {
       meta: m.get('meta') || null,
-      mesa: m.get('mesa') || null,
+      mapas: m.get('mapas') || null,
       pcs: m.get('pcs') || {},
       npcs: m.get('npcs') || {},
       log: m.get('log') || [],
     };
+    // sessões antigas tinham um mapa só ("mesa"): vira o primeiro mapa da sessão
+    if (!this.s.mapas && m.get('mesa')) {
+      this.s.mapas = { m1: { ...m.get('mesa'), id: 'm1' } };
+      if (this.s.meta) { this.s.meta.mapaInicial = 'm1'; this.s.meta.vendo = 'm1'; }
+    }
+    this.s.mapas ||= {};
     return this.s;
   }
   async gravar(...chaves) {
@@ -273,12 +296,9 @@ export class Sala extends DurableObject {
     const s = await this.carregar();
     if (s.meta) return false;
     s.meta = { ...info, membros: {}, criada: Date.now() };
-    s.mesa = {
-      nome: info.nome, cols: 24, rows: 16,
-      grid: Array.from({ length: 16 }, () => '"'.repeat(24)),
-      luz: 'dia', lua: 'nenhuma', combate: { ...COMBATE_VAZIO },
-    };
-    await this.gravar('meta', 'mesa', 'pcs', 'npcs', 'log');
+    s.mapas = { m1: novoMapa('m1', 'Primeiro mapa') };
+    s.meta.mapaInicial = 'm1'; s.meta.vendo = 'm1';
+    await this.gravar('meta', 'mapas', 'pcs', 'npcs', 'log');
     return true;
   }
 
@@ -329,18 +349,28 @@ export class Sala extends DurableObject {
     try { await this.env.SAGUAO.getByName('saguao').atualizar(s.meta.codigo, { online: ids.size, jogadores, nome: s.meta.nome }); } catch {}
   }
 
-  estadoPara(att, online) {
+  // ---------- mapas da sessão ----------
+  idMapa(o) { const s = this.s; return o?.mapa && s.mapas[o.mapa] ? o.mapa : (s.mapas[s.meta.mapaInicial] ? s.meta.mapaInicial : Object.keys(s.mapas)[0]); }
+  mapaDe(att) {
     const s = this.s;
-    const npcs = {};
+    const id = att.mestre ? (s.mapas[s.meta.vendo] ? s.meta.vendo : this.idMapa(null)) : this.idMapa(s.pcs[att.id]);
+    return s.mapas[id];
+  }
+  estadoPara(att, online) {
+    const s = this.s, mesa = this.mapaDe(att);
+    const npcs = {}, pcs = {};
     for (const [id, n] of Object.entries(s.npcs)) {
-      if (!att.mestre && n.visivel === false) continue;
-      npcs[id] = att.mestre ? n : { ...n, notas: undefined };
+      const mapa = this.idMapa(n);
+      if (!att.mestre && (n.visivel === false || mapa !== mesa.id)) continue;
+      npcs[id] = att.mestre ? { ...n, mapa } : { ...n, mapa, notas: undefined };
     }
+    for (const [id, p] of Object.entries(s.pcs)) pcs[id] = { ...p, mapa: this.idMapa(p) };
     return {
       tipo: 'estado',
       voce: { id: att.id, nome: att.nome, mestre: att.mestre },
-      sala: { codigo: s.meta.codigo, nome: s.meta.nome, mestreNome: s.meta.mestreNome, max: MAX_JOGADORES },
-      mesa: s.mesa, pcs: s.pcs, npcs,
+      sala: { codigo: s.meta.codigo, nome: s.meta.nome, mestreNome: s.meta.mestreNome, max: MAX_JOGADORES, mapaInicial: s.meta.mapaInicial },
+      mapas: Object.values(s.mapas).map(m => ({ id: m.id, nome: m.nome, cols: m.cols, rows: m.rows })),
+      mesa, pcs, npcs,
       log: s.log.filter(l => att.mestre || !l.oculta).slice(0, 40),
       online,
     };
@@ -386,7 +416,7 @@ export class Sala extends DurableObject {
         ws.send(JSON.stringify({ tipo: 'senha', sala: s.meta.nome, erro: 'Senha incorreta.' }));
         return;
       }
-      if (Object.keys(s.meta.membros).length >= MAX_JOGADORES) { erro(`A mesa está cheia (${MAX_JOGADORES} jogadores).`); ws.close(4004, 'cheia'); return; }
+      if (Object.keys(s.meta.membros).length >= MAX_JOGADORES) { erro(`A sessão está cheia (${MAX_JOGADORES} jogadores).`); ws.close(4004, 'cheia'); return; }
       s.meta.membros[att.id] = att.nome;
       await this.gravar('meta');
       att.ok = true; ws.serializeAttachment(att);
@@ -395,12 +425,12 @@ export class Sala extends DurableObject {
     }
 
     const mestre = att.mestre;
-    const mesa = s.mesa;
+    const mesa = this.mapaDe(att);
     switch (msg.tipo) {
       case 'mesa': {
         if (!mestre) return erro('Só o Mestre altera o mapa.');
         const d = msg.dados || {};
-        if ('nome' in d) { mesa.nome = texto(d.nome, 60); s.meta.nome = mesa.nome; await this.gravar('meta'); }
+        if ('nome' in d) mesa.nome = texto(d.nome, 60) || 'Mapa';
         if ('luz' in d && LUZES[d.luz]) mesa.luz = d.luz;
         if ('lua' in d && LUAS[d.lua]) mesa.lua = d.lua;
         if ('cols' in d || 'rows' in d || 'grid' in d || 'alt' in d) {
@@ -412,8 +442,56 @@ export class Sala extends DurableObject {
           const a = Array.isArray(d.alt) ? d.alt : (mesa.alt || []);
           mesa.alt = Array.from({ length: rows }, (_, y) => [...String(a[y] || '').padEnd(cols, '1').slice(0, cols)].map(c => /[0-4]/.test(c) ? c : '1').join(''));
           mesa.cols = cols; mesa.rows = rows;
+          for (const k of Object.keys(mesa.portais || {})) { const [x, y] = k.split(',').map(Number); if (x >= cols || y >= rows) delete mesa.portais[k]; }
         }
-        await this.gravar('mesa');
+        await this.gravar('mapas');
+        break;
+      }
+      case 'mapa': {
+        if (!mestre) return;
+        const a = msg.acao;
+        if (a === 'criar' || a === 'importar') {
+          if (Object.keys(s.mapas).length >= 30) return erro('Limite de 30 mapas por sessão.');
+          const id = 'm' + hex(crypto.getRandomValues(new Uint8Array(4)));
+          const d = a === 'importar' ? (msg.dados?.mapa || msg.dados || {}) : msg;
+          const novo = mapaValidado(id, d);
+          s.mapas[id] = novo; s.meta.vendo = id;
+          if (a === 'importar' && Array.isArray(msg.dados?.npcs)) for (const n of msg.dados.npcs.slice(0, 60)) {
+            const nid = 'n' + hex(crypto.getRandomValues(new Uint8Array(5)));
+            s.npcs[nid] = { nome: 'NPC', sigla: 'NP', tipo: 'npc', cor: '#8c7a63', vigor: 10, vigorMax: 10, defesa: 12, ini: 1, desloc: 6, tamanho: 1, visivel: true, descricao: '', falas: [], notas: '', ...limparNpc(n), mapa: id };
+          }
+          await this.gravar('mapas', 'meta', 'npcs');
+        } else if (a === 'ir' && s.mapas[msg.id]) { s.meta.vendo = msg.id; await this.gravar('meta'); }
+        else if (a === 'inicial') { s.meta.mapaInicial = mesa.id; await this.gravar('meta'); }
+        else if (a === 'trazer') {
+          for (const p of Object.values(s.pcs)) { if (this.idMapa(p) === mesa.id) continue; p.mapa = mesa.id; [p.x, p.y] = this.casaLivre(mesa.id); }
+          await this.gravar('pcs');
+        } else if (a === 'apagar') {
+          const id = String(msg.id || mesa.id);
+          if (Object.keys(s.mapas).length <= 1) return erro('A sessão precisa de pelo menos um mapa.');
+          delete s.mapas[id];
+          if (s.meta.mapaInicial === id) s.meta.mapaInicial = Object.keys(s.mapas)[0];
+          if (s.meta.vendo === id) s.meta.vendo = s.meta.mapaInicial;
+          for (const p of Object.values(s.pcs)) if (p.mapa === id) { p.mapa = s.meta.mapaInicial; [p.x, p.y] = this.casaLivre(p.mapa); }
+          for (const [nid, n] of Object.entries(s.npcs)) if (n.mapa === id) delete s.npcs[nid];
+          for (const m of Object.values(s.mapas)) for (const [k, pt] of Object.entries(m.portais || {})) if (pt.para === id) delete m.portais[k];
+          await this.gravar('mapas', 'meta', 'pcs', 'npcs');
+        } else return;
+        break;
+      }
+      case 'portal': {
+        if (!mestre) return;
+        const x = Math.round(num(msg.x)), y = Math.round(num(msg.y)), k = x + ',' + y;
+        if (x < 0 || y < 0 || x >= mesa.cols || y >= mesa.rows) return;
+        mesa.portais ||= {};
+        if (msg.remover) delete mesa.portais[k];
+        else {
+          const dest = s.mapas[msg.para]; if (!dest) return erro('Escolha o mapa de destino.');
+          const px = Math.max(0, Math.min(dest.cols - 1, Math.round(num(msg.px, x)))), py = Math.max(0, Math.min(dest.rows - 1, Math.round(num(msg.py, y))));
+          mesa.portais[k] = { para: dest.id, x: px, y: py, nome: texto(msg.nome, 40) || dest.nome, cor: cor(msg.cor || '#7ad0ff') };
+          if (msg.volta && dest.id !== mesa.id) { dest.portais ||= {}; dest.portais[px + ',' + py] = { para: mesa.id, x, y, nome: mesa.nome, cor: cor(msg.cor || '#7ad0ff') }; }
+        }
+        await this.gravar('mapas');
         break;
       }
       case 'pc': {
@@ -422,8 +500,9 @@ export class Sala extends DurableObject {
         const dados = limparPc(msg.dados || {});
         if (!s.pcs[alvo]) {
           if (alvo !== att.id) return;
-          const [x, y] = this.casaLivre();
-          s.pcs[alvo] = { nome: att.nome, cor: '#e2b04a', vigorMax: 21, folegoMax: 18, limiar: 6, defesa: 12, desloc: 6, ini: 0, ...dados, x, y, tensao: 0 };
+          const mapa = mestre ? mesa.id : this.idMapa(null);
+          const [x, y] = this.casaLivre(mapa);
+          s.pcs[alvo] = { nome: att.nome, cor: '#e2b04a', vigorMax: 21, folegoMax: 18, limiar: 6, defesa: 12, desloc: 6, ini: 0, ...dados, x, y, mapa, tensao: 0 };
           s.pcs[alvo].vigor ??= s.pcs[alvo].vigorMax;
           s.pcs[alvo].folego ??= s.pcs[alvo].folegoMax;
         } else Object.assign(s.pcs[alvo], dados);
@@ -434,7 +513,7 @@ export class Sala extends DurableObject {
         if (!mestre) return;
         const id = msg.id ? texto(msg.id, 40) : 'n' + hex(crypto.getRandomValues(new Uint8Array(5)));
         const dados = limparNpc(msg.dados || {});
-        s.npcs[id] = { nome: 'Novo NPC', sigla: 'NP', tipo: 'npc', cor: '#8c7a63', vigor: 10, vigorMax: 10, defesa: 12, ini: 1, desloc: 6, tamanho: 1, visivel: true, descricao: '', falas: [], notas: '', x: 0, y: 0, ...(s.npcs[id] || {}), ...dados };
+        s.npcs[id] = { nome: 'Novo NPC', sigla: 'NP', tipo: 'npc', cor: '#8c7a63', vigor: 10, vigorMax: 10, defesa: 12, ini: 1, desloc: 6, tamanho: 1, visivel: true, descricao: '', falas: [], notas: '', x: 0, y: 0, mapa: mesa.id, ...(s.npcs[id] || {}), ...dados };
         await this.gravar('npcs');
         if (!msg.id) ws.send(JSON.stringify({ tipo: 'npcCriado', id }));
         break;
@@ -449,6 +528,7 @@ export class Sala extends DurableObject {
         const kk = String(msg.k || ''), i2 = kk.indexOf(':'); const tipo = kk.slice(0, i2), id = kk.slice(i2 + 1);
         const obj = tipo === 'pc' ? s.pcs[id] : tipo === 'npc' ? s.npcs[id] : null;
         if (!obj) return;
+        const mesa = s.mapas[this.idMapa(obj)];
         const x = Math.round(num(msg.x)), y = Math.round(num(msg.y)), tam = num(obj.tamanho, 1);
         if (x < 0 || y < 0 || x + tam > mesa.cols || y + tam > mesa.rows) return;
         if (!mestre) {
@@ -462,15 +542,22 @@ export class Sala extends DurableObject {
             if (usadas >= 3) return erro('Você já usou as 3 ações.');
             obj.acoes = { chave, usadas: usadas + 1 };
           }
-          const d = dijkstra(mesa, this.ocupadas('pc:' + id), num(obj.x), num(obj.y), lim);
+          const d = dijkstra(mesa, this.ocupadas('pc:' + id, mesa.id), num(obj.x), num(obj.y), lim);
           if (!d.has(x + ',' + y)) return erro(cb.ativo ? 'Fora do seu Deslocamento.' : 'Sem caminho até lá.');
         }
         obj.x = x; obj.y = y;
+        // portal: quem para em cima atravessa para o outro mapa
+        const pt = mesa.portais?.[x + ',' + y], dest = pt && s.mapas[pt.para];
+        if (dest && tipo === 'pc') {
+          obj.mapa = dest.id;
+          [obj.x, obj.y] = this.casaLivre(dest.id, pt.x, pt.y);
+          this.enviarTodos({ tipo: 'aviso', texto: `${obj.nome} atravessou o portal para ${dest.nome}.` });
+        }
         await this.gravar(tipo === 'pc' ? 'pcs' : 'npcs');
         break;
       }
       case 'acoes': {
-        const pc = s.pcs[att.id], cb = mesa.combate;
+        const pc = s.pcs[att.id], cb = s.mapas[this.idMapa(pc)]?.combate;
         if (!pc || !cb?.ativo) return;
         pc.acoes = { chave: `${cb.rodada}:${cb.turno}`, usadas: Math.max(0, Math.min(3, Math.round(num(msg.usadas)))) };
         await this.gravar('pcs');
@@ -482,8 +569,8 @@ export class Sala extends DurableObject {
         if (!mestre && !(msg.acao === 'proximo' && cb.ativo && cb.ordem[cb.turno]?.k === 'pc:' + att.id)) return;
         if (msg.acao === 'iniciar') {
           const lista = [
-            ...Object.entries(s.pcs).map(([id, p]) => ({ k: 'pc:' + id, b: num(p.ini), nome: p.nome })),
-            ...Object.entries(s.npcs).filter(([, n]) => n.visivel !== false).map(([id, n]) => ({ k: 'npc:' + id, b: num(n.ini), nome: n.nome })),
+            ...Object.entries(s.pcs).filter(([, p]) => this.idMapa(p) === mesa.id).map(([id, p]) => ({ k: 'pc:' + id, b: num(p.ini), nome: p.nome })),
+            ...Object.entries(s.npcs).filter(([, n]) => n.visivel !== false && this.idMapa(n) === mesa.id).map(([id, n]) => ({ k: 'npc:' + id, b: num(n.ini), nome: n.nome })),
           ].map(o => ({ ...o, ini: r(10) + r(10) + o.b }));
           lista.sort((a, b) => b.ini - a.ini || b.b - a.b);
           mesa.combate = { ativo: true, ordem: lista.map(({ k, ini }) => ({ k, ini })), turno: 0, rodada: 1 };
@@ -500,11 +587,11 @@ export class Sala extends DurableObject {
         } else if (msg.acao === 'encerrar') {
           mesa.combate = { ...COMBATE_VAZIO };
         }
-        await this.gravar('mesa', 'log');
+        await this.gravar('mapas', 'log');
         break;
       }
       case 'defender': {
-        const pc = s.pcs[att.id], cb = mesa.combate;
+        const pc = s.pcs[att.id], cb = s.mapas[this.idMapa(pc)]?.combate;
         if (!pc) return;
         if (cb?.ativo) {
           if (cb.ordem[cb.turno]?.k !== 'pc:' + att.id) return erro('Aguarde o seu turno.');
@@ -523,7 +610,7 @@ export class Sala extends DurableObject {
         const autor = this.objetoDe(de);
         if (!autor) return;
         if (!mestre && de !== 'pc:' + att.id) return erro('Você só ataca com o seu personagem.');
-        const cb = mesa.combate;
+        const cb = s.mapas[this.idMapa(autor)]?.combate;
         if (cb?.ativo && de.startsWith('pc:')) {
           if (cb.ordem[cb.turno]?.k !== de) { if (!mestre) return erro('Aguarde o seu turno.'); }
           else {
@@ -609,7 +696,7 @@ export class Sala extends DurableObject {
         const alvo = String(msg.id);
         delete s.meta.membros[alvo]; delete s.pcs[alvo];
         await this.gravar('meta', 'pcs');
-        for (const x of this.conectados()) if (x.att.id === alvo) { try { x.ws.send(JSON.stringify({ tipo: 'removida', texto: 'O Mestre removeu você da mesa.' })); x.ws.close(4005, 'expulso'); } catch {} }
+        for (const x of this.conectados()) if (x.att.id === alvo) { try { x.ws.send(JSON.stringify({ tipo: 'removida', texto: 'O Mestre removeu você da sessão.' })); x.ws.close(4005, 'expulso'); } catch {} }
         break;
       }
       default: return;
@@ -626,20 +713,21 @@ export class Sala extends DurableObject {
     this.s.log = [{ ...entrada, t: Date.now() }, ...this.s.log].slice(0, 60);
   }
 
-  ocupadas(exceto) {
+  ocupadas(exceto, mapa) {
     const occ = new Set();
     const tudo = [...Object.entries(this.s.pcs).map(([id, p]) => ['pc:' + id, p]), ...Object.entries(this.s.npcs).map(([id, n]) => ['npc:' + id, n])];
     for (const [k, t] of tudo) {
-      if (k === exceto) continue;
+      if (k === exceto || (mapa && this.idMapa(t) !== mapa)) continue;
       const tam = num(t.tamanho, 1);
       for (let i = 0; i < tam; i++) for (let j = 0; j < tam; j++) occ.add((num(t.x) + i) + ',' + (num(t.y) + j));
     }
     return occ;
   }
 
-  casaLivre() {
-    const mesa = this.s.mesa, occ = this.ocupadas();
-    const cx = Math.floor(mesa.cols / 2), cy = Math.floor(mesa.rows / 2);
+  casaLivre(mapa, px, py) {
+    mapa ||= this.idMapa(null);
+    const mesa = this.s.mapas[mapa], occ = this.ocupadas(null, mapa);
+    const cx = px ?? Math.floor(mesa.cols / 2), cy = py ?? Math.floor(mesa.rows / 2);
     for (let raio = 0; raio < 60; raio++) for (let dx = -raio; dx <= raio; dx++) for (let dy = -raio; dy <= raio; dy++) {
       const x = cx + dx, y = cy + dy;
       if (Number.isFinite(custoCel(mesa, x, y)) && !occ.has(x + ',' + y)) return [x, y];

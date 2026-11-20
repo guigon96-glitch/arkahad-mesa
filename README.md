@@ -58,6 +58,7 @@ Abra <http://localhost:8787>.
 | Cenário 3D, céus (HDRI), luzes, água, paredes e pós-processamento | `public/cena3d.js` |
 | Relevo contínuo do chão e mistura de texturas | `public/terreno.js` (texturas em `public/texturas/`) |
 | Criador de personagem | `public/criacao.js` |
+| Editor de terreno (pincel, retângulo, linha, preencher, conta-gotas, desfazer), mapas da sessão, portais, baixar/carregar mapa | `public/app.js` (seções Editor, Portais, Baixar e carregar) e `src/worker.js` (`case 'mapa'`, `case 'portal'`) |
 | Barra de combate, mira, alcance, linha de visão e iniciativa | `public/app.js` (seção Combate) e `public/regras.js` |
 | Resolução de ataques no servidor (Defesa, cobertura, dano) | `src/worker.js` (`case 'ataque'`) |
 | Visual do mapa, luzes, cores dos dados | `public/app.js` (topo do arquivo) |

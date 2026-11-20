@@ -133,7 +133,7 @@ export function criarCena(el, cb = {}) {
   const kael = criarDir('#ffd28a'), lyra = criarDir('#7aa4ff');
   const luzLua = new THREE.DirectionalLight('#ffffff', 0); cena.add(luzLua, luzLua.target);
 
-  let mesa = null, chaveTerreno = '', agua = null, chamas = [], selecaoAnel = null;
+  let mesa = null, chaveTerreno = '', agua = null, chamas = [], selecaoAnel = null, portaisAnim = [];
   const tokens = new Map(), dados = [], pings = [], projeteis = [], faiscas = [];
   // dados batendo na mesa fazem as miniaturas perto balançarem
   function tremer(pos, forca) {
@@ -347,6 +347,31 @@ export function criarCena(el, cb = {}) {
       const add = (w, h, d, px, py, pz) => { const o = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), madeira); o.position.set(px, y0 + py, pz); o.castShadow = o.receiveShadow = true; grupoTerreno.add(o); };
       if (lateral) { add(.12, 1.3, .36, x + .06, .65, y + .5); add(.12, 1.3, .36, x + .94, .65, y + .5); add(1, .14, .38, x + .5, 1.36, y + .5); }
       else { add(.36, 1.3, .12, x + .5, .65, y + .06); add(.36, 1.3, .12, x + .5, .65, y + .94); add(.38, .14, 1, x + .5, 1.36, y + .5); }
+    }
+    // portais para outros mapas: anel de pedra com um redemoinho de luz
+    portaisAnim = [];
+    for (const [k, pt] of Object.entries(mesa.portais || {})) {
+      const [x, y] = k.split(',').map(Number); if (x >= mesa.cols || y >= mesa.rows) continue;
+      const cor = new THREE.Color(pt.cor || '#7ad0ff'), g = new THREE.Group();
+      g.position.set(x + .5, chaoDe(x, y), y + .5);
+      g.rotation.y = Math.atan2(mesa.cols / 2 - (x + .5), mesa.rows / 2 - (y + .5));
+      const pedra = new THREE.MeshStandardMaterial({ map: tex.muro, color: '#a59c8e', roughness: .85 });
+      const anel = new THREE.Mesh(new THREE.TorusGeometry(.48, .085, 10, 36), pedra); anel.position.y = .62; anel.castShadow = true; g.add(anel);
+      for (const sx of [-1, 1]) { const b = new THREE.Mesh(new THREE.BoxGeometry(.2, .22, .26), pedra); b.position.set(sx * .42, .1, 0); b.castShadow = true; g.add(b); }
+      // runas brilhando no anel
+      for (let i = 0; i < 9; i++) { const a = i / 9 * Math.PI * 2; const r = new THREE.Mesh(new THREE.BoxGeometry(.05, .05, .2), new THREE.MeshBasicMaterial({ color: cor })); r.position.set(Math.cos(a) * .48, .62 + Math.sin(a) * .48, 0); r.rotation.z = a; g.add(r); }
+      const c = document.createElement('canvas'); c.width = c.height = 128; const cx = c.getContext('2d');
+      const grad = cx.createRadialGradient(64, 64, 4, 64, 64, 64); grad.addColorStop(0, '#ffffff'); grad.addColorStop(.35, '#' + cor.getHexString() + 'cc'); grad.addColorStop(1, '#00000000');
+      cx.fillStyle = grad; cx.fillRect(0, 0, 128, 128); cx.strokeStyle = '#ffffff88'; cx.lineWidth = 3;
+      for (let b = 0; b < 4; b++) { cx.beginPath(); for (let t = 0; t < 60; t++) { const r = t, a = t * .14 + b * Math.PI / 2; const px = 64 + Math.cos(a) * r, py = 64 + Math.sin(a) * r; t ? cx.lineTo(px, py) : cx.moveTo(px, py); } cx.stroke(); }
+      const tx = new THREE.CanvasTexture(c); tx.colorSpace = THREE.SRGBColorSpace;
+      const vortice = new THREE.Mesh(new THREE.CircleGeometry(.42, 40), new THREE.MeshBasicMaterial({ map: tx, transparent: true, depthWrite: false, side: THREE.DoubleSide, blending: THREE.AdditiveBlending }));
+      vortice.position.y = .62; g.add(vortice);
+      const chaoLuz = new THREE.Mesh(new THREE.CircleGeometry(.5, 32), new THREE.MeshBasicMaterial({ map: tx, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, opacity: .6 }));
+      chaoLuz.rotation.x = -Math.PI / 2; chaoLuz.position.y = .03; g.add(chaoLuz);
+      const luz = new THREE.PointLight(cor, 2.2, 4, 1.8); luz.position.y = .7; g.add(luz);
+      const nome = rotulo('⟶ ' + (pt.nome || 'Portal'), '#' + cor.getHexString(), 'rgba(10,8,6,.75)', .24); nome.position.y = 1.35; g.add(nome);
+      grupoTerreno.add(g); portaisAnim.push({ vortice, chaoLuz, luz, s: x * 3 + y });
     }
     // 7) fogueiras
     let luzes = 0;
@@ -577,6 +602,7 @@ export function criarCena(el, cb = {}) {
     medirDesempenho(agora);
     controles.update();
     TEMPO.value = t;
+    for (const p of portaisAnim) { p.vortice.rotation.z = -t * 1.6; p.chaoLuz.rotation.z = t * .8; p.luz.intensity = 2 + Math.sin(t * 3 + p.s) * .5; }
     for (const [a, b, s] of chamas) {
       if (a.isPointLight) a.intensity = 1.9 + Math.sin(t * 9 + s) * .3 + Math.sin(t * 23 + s) * .2;
       else { const f = 1 + Math.sin(t * 12 + s) * .08 + Math.sin(t * 27 + s) * .05; a.scale.set(1, f, 1); b.scale.set(1, 2 - f, 1); a.rotation.y = t * 2; }
@@ -635,7 +661,7 @@ export function criarCena(el, cb = {}) {
       ultimo = estado;
       const { mesa: m, tokens: lista, selecionado, alcance } = estado;
       if (!m) return;
-      const novaChave = m.cols + 'x' + m.rows + ':' + m.grid.join('') + ':' + (m.alt || []).join('');
+      const novaChave = m.id + ':' + m.cols + 'x' + m.rows + ':' + m.grid.join('') + ':' + (m.alt || []).join('') + JSON.stringify(m.portais || {});
       const tamanhoMudou = !mesa || mesa.cols !== m.cols || mesa.rows !== m.rows;
       mesa = m;
       if (novaChave !== chaveTerreno) { chaveTerreno = novaChave; construirTerreno(); }
