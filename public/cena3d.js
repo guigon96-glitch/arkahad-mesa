@@ -508,7 +508,7 @@ export function criarCena(el, cb = {}) {
     const lista = (ev.dados || []).slice(0, 20);
     const resultado = [];
     lista.forEach((d, i) => {
-      const cor = d.c === 'lyra' || d.papel === 'lyra' ? ev.lyra : d.c === 'tirith' ? '#e9edf2' : ev.kael;
+      const cor = d.c === 'lyra' || d.papel === 'lyra' ? ev.lyra : d.c === 'tirith' ? '#e9edf2' : d.c === 'aranor' ? '#d23a3a' : ev.kael;
       const m = criarDado(d.f, cor, ev.material); m.scale.setScalar(.3);
       const ang = Math.random() * Math.PI * 2;
       m.position.set(centro.x + Math.cos(ang) * 3, 3.2 + i * .25, centro.z + Math.sin(ang) * 3);

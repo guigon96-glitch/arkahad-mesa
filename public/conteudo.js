@@ -133,9 +133,9 @@ export const VOCACOES = {
   sombra: { nome: 'Sombra', papel: 'Espião, assassino, ladrão', vigor: 2, pericias: ['combate_leve', 'furtividade', 'ladinagem', 'enganacao', 'acrobacia'], armadura: 'couro', arma: 'adaga', kit: '2 adagas, espada curta, couro, ferramentas de ladrão', hab: 'Golpe Furtivo: +2d6 de dano contra alvo Flanqueado ou Desprevenido.' },
   alquimista: { nome: 'Alquimista', papel: 'Preparos, venenos, bombas', vigor: 0, pericias: ['alquimia', 'natureza', 'medicina', 'oficio', 'pontaria'], armadura: 'acolchoada', arma: 'besta', kit: 'Besta leve, adaga, acolchoada, kit alquímico', hab: 'Bolsa de Preparos: INT + 2 doses de receitas comuns por descanso longo.' },
   erudito: { nome: 'Erudito', papel: 'Conhecimento, runas, contra-Dom', vigor: 0, pericias: ['conhecimento', 'runas', 'tatica', 'intuicao', 'intriga'], armadura: 'acolchoada', arma: 'adaga', kit: 'Adaga, acolchoada, livros, lente', hab: 'Códice Vivo: identifica um Dom visto (DIF 15); aliados ganham +2 contra aquele alvo.' },
-  orador: { nome: 'Orador', papel: 'Líder, diplomata, manipulador', vigor: 2, pericias: ['persuasao', 'enganacao', 'etiqueta', 'intriga', 'comercio'], armadura: 'nenhuma', arma: 'espada', kit: 'Sabre, roupas finas, anel de sinete, +5 K', hab: 'Palavra de Comando: um aliado se move 3 quadrados ou ganha +2 no próximo teste.' },
-  curandeiro: { nome: 'Curandeiro', papel: 'Suporte físico, recuperação', vigor: 2, pericias: ['medicina', 'natureza', 'alquimia', 'intuicao', 'persuasao'], armadura: 'couro', arma: 'martelo', kit: 'Martelo leve, escudo de madeira, couro, 2 kits médicos, ervas de Nimriel', hab: 'Mãos Firmes: estabiliza ou cura 1d6 + INT de Vigor.' },
-  canalizador: { nome: 'Canalizador', papel: 'Especialista no próprio Dom', vigor: 2, pericias: ['canalizacao', 'atletismo', 'conhecimento', 'atencao', 'intimidacao'], armadura: 'couro', arma: 'espada', kit: 'Arma à escolha, couro, cristal de foco', hab: 'Fluxo Disciplinado: +3 Fôlego; a primeira técnica de cada turno custa 1 Fôlego a menos.', soAurethian: true, extra: { folego: 3 } },
+  orador: { nome: 'Orador', papel: 'Líder, diplomata, manipulador', vigor: 2, pericias: ['persuasao', 'enganacao', 'etiqueta', 'intriga', 'comercio'], armadura: 'nenhuma', arma: 'sabre', kit: 'Sabre, roupas finas, anel de sinete, +5 K', hab: 'Palavra de Comando: um aliado se move 3 quadrados ou ganha +2 no próximo teste.' },
+  curandeiro: { nome: 'Curandeiro', papel: 'Suporte físico, recuperação', vigor: 2, pericias: ['medicina', 'natureza', 'alquimia', 'intuicao', 'persuasao'], armadura: 'couro', arma: 'nenhuma', cristal: true, kit: 'Cristal de foco, couro, 2 kits médicos, ervas de Nimriel', hab: 'Mãos Firmes: estabiliza ou cura 1d6 + INT de Vigor. Não usa armas: as mãos canalizam o Cristal de Foco (golpes desarmados usam Canalização e VON; evolua o cristal na árvore Cristal de Foco).' },
+  canalizador: { nome: 'Canalizador', papel: 'Especialista no próprio Dom', vigor: 2, pericias: ['canalizacao', 'atletismo', 'conhecimento', 'atencao', 'intimidacao'], armadura: 'couro', arma: 'nenhuma', cristal: true, kit: 'Cristal de foco, couro', hab: 'Fluxo Disciplinado: +3 Fôlego; a primeira técnica de cada turno custa 1 Fôlego a menos. Não usa armas: as mãos canalizam o Cristal de Foco (golpes desarmados usam Canalização e VON; evolua o cristal na árvore Cristal de Foco).', soAurethian: true, extra: { folego: 3 } },
 };
 
 const T = (...n) => n;
@@ -179,7 +179,7 @@ export const DONS_ELITE = {
 };
 export const TODOS_DONS = { ...DONS, ...DONS_ELITE };
 export const CUSTO_DOM = [1, 2, 3, 5];
-export const DANO_DOM = ['1d6+1', '2d6+2', '3d6+3', '5d6+4'];
+export const DANO_DOM = ['1', '4', '8', '14']; // somado ao dado Lyra (d20)
 
 export const RESSONANCIAS = {
   cromatico: { nome: 'Cromático', desc: 'Muda de cor com a emoção. 1×/cena, +2 de dano sob emoção forte.' },
@@ -193,24 +193,24 @@ export const RESSONANCIAS = {
 
 // Armas (o visual 3D fica em modelos.js). tipo liga a arma à árvore de talentos e à perícia de ataque.
 export const ARMAS = {
-  nenhuma: { nome: 'Punhos', tipo: 'briga', dano: '1d4' },
-  espada: { nome: 'Espada', tipo: 'lamina', dano: '1d8' }, sabre: { nome: 'Sabre curvo', tipo: 'lamina', dano: '1d8' },
-  adaga: { nome: 'Adaga', tipo: 'lamina', dano: '1d6' }, adaga_serrilhada: { nome: 'Adaga serrilhada', tipo: 'lamina', dano: '1d6' },
-  espada_longa: { nome: 'Espada longa', tipo: 'peso', dano: '2d6', duas: true }, montante: { nome: 'Montante', tipo: 'peso', dano: '2d6+1', duas: true },
-  machado: { nome: 'Machado', tipo: 'peso', dano: '1d8+1' }, machadinha: { nome: 'Machadinha', tipo: 'peso', dano: '1d8' },
-  machado_guerra: { nome: 'Machado de guerra', tipo: 'peso', dano: '2d6+1', duas: true }, machado_duplo: { nome: 'Machado duplo', tipo: 'peso', dano: '2d8', duas: true },
-  martelo: { nome: 'Martelo', tipo: 'peso', dano: '1d8' }, martelo_guerra: { nome: 'Martelo de guerra', tipo: 'peso', dano: '2d6+2', duas: true },
-  foice: { nome: 'Foice de guerra', tipo: 'peso', dano: '2d6', duas: true, alcance: 2 },
-  arco: { nome: 'Arco de madeira', tipo: 'distancia', dano: '1d8', duas: true, alcance: 14 }, arco_recurvo: { nome: 'Arco recurvo', tipo: 'distancia', dano: '1d8+1', duas: true, alcance: 16 },
-  arco_dourado: { nome: 'Arco dourado', tipo: 'distancia', dano: '1d10', duas: true, alcance: 18 }, arco_sombrio: { nome: 'Arco sombrio', tipo: 'distancia', dano: '1d10', duas: true, alcance: 18 },
-  besta: { nome: 'Besta de mão', tipo: 'distancia', dano: '1d8', alcance: 10 }, besta_pesada: { nome: 'Besta pesada', tipo: 'distancia', dano: '2d6', duas: true, alcance: 18 },
+  nenhuma: { nome: 'Punhos', tipo: 'briga', dano: '' },
+  espada: { nome: 'Espada', tipo: 'lamina', dano: '1' }, sabre: { nome: 'Sabre curvo', tipo: 'lamina', dano: '1' },
+  adaga: { nome: 'Adaga', tipo: 'lamina', dano: '0' }, adaga_serrilhada: { nome: 'Adaga serrilhada', tipo: 'lamina', dano: '0' },
+  espada_longa: { nome: 'Espada longa', tipo: 'peso', dano: '3', duas: true }, montante: { nome: 'Montante', tipo: 'peso', dano: '4', duas: true },
+  machado: { nome: 'Machado', tipo: 'peso', dano: '2' }, machadinha: { nome: 'Machadinha', tipo: 'peso', dano: '1' },
+  machado_guerra: { nome: 'Machado de guerra', tipo: 'peso', dano: '4', duas: true }, machado_duplo: { nome: 'Machado duplo', tipo: 'peso', dano: '5', duas: true },
+  martelo: { nome: 'Martelo', tipo: 'peso', dano: '1' }, martelo_guerra: { nome: 'Martelo de guerra', tipo: 'peso', dano: '4', duas: true },
+  foice: { nome: 'Foice de guerra', tipo: 'peso', dano: '3', duas: true, alcance: 2 },
+  arco: { nome: 'Arco de madeira', tipo: 'distancia', dano: '1', duas: true, alcance: 14 }, arco_recurvo: { nome: 'Arco recurvo', tipo: 'distancia', dano: '2', duas: true, alcance: 16 },
+  arco_dourado: { nome: 'Arco dourado', tipo: 'distancia', dano: '2', duas: true, alcance: 18 }, arco_sombrio: { nome: 'Arco sombrio', tipo: 'distancia', dano: '2', duas: true, alcance: 18 },
+  besta: { nome: 'Besta de mão', tipo: 'distancia', dano: '1', alcance: 10 }, besta_pesada: { nome: 'Besta pesada', tipo: 'distancia', dano: '3', duas: true, alcance: 18 },
 };
 export const PERICIA_ARMA = { lamina: 'combate_leve', peso: 'combate_pesado', distancia: 'pontaria', briga: 'briga' };
 const ARMA_ANTIGA = { espada_grande: 'espada_longa', machado_grande: 'machado_guerra', adagas: 'adaga', cajado: 'espada', varinha: 'adaga', lanca: 'foice', maca: 'martelo', leques: 'adaga' };
 export function armaDe(f) { const a = f?.aparencia?.arma; return ARMAS[a] ? a : ARMA_ANTIGA[a] || 'espada'; }
 export function temEscudo(f) { const ap = f?.aparencia || {}; return String(ap.secundaria || '').startsWith('escudo') && !ARMAS[armaDe(f)]?.duas; }
-export const ARMA_POR_VOCACAO = { lamina: 'sabre', sentinela: 'espada', batedor: 'arco', sombra: 'adaga', alquimista: 'besta', erudito: 'adaga', orador: 'espada', curandeiro: 'martelo', canalizador: 'espada' };
-export const SECUNDARIA_POR_VOCACAO = { sentinela: 'escudo_brasao', sombra: 'adaga', alquimista: 'bomba', curandeiro: 'escudo_madeira' };
+export const ARMA_POR_VOCACAO = { lamina: 'sabre', sentinela: 'espada', batedor: 'arco', sombra: 'adaga', alquimista: 'besta', erudito: 'adaga', orador: 'sabre', curandeiro: 'nenhuma', canalizador: 'nenhuma' };
+export const SECUNDARIA_POR_VOCACAO = { sentinela: 'escudo_brasao', sombra: 'adaga', alquimista: 'bomba' };
 
 // ================= Árvores de talentos =================
 // Cada nó custa 1 Ponto de Talento. Para pegar um nó do Grau N você precisa já ter N−1 pontos naquela árvore.
@@ -285,6 +285,16 @@ export const ARVORES = {
     N('con4', 4, 'Fluxo Contínuo', '1×/cena, ação: recupere 1d6 de Fôlego.'),
     N('con5', 5, 'Comunhão', '1×/sessão: ignore os efeitos da Zona 3 por uma rodada.'),
   ] },
+  // Cristal de Foco: compensa quem não usa armas (Canalizador, Curandeiro). Bônus valem nas técnicas e nos golpes desarmados.
+  cristal: { nome: 'Cristal de Foco', tipo: 'cristal', cor: '#7ff0e0', desc: 'Só Canalizador e Curandeiro. Evolua o cristal que substitui a arma.', nos: [
+    N('cri1a', 1, 'Cristal Desperto', '+1 de dano nas técnicas e nos golpes desarmados.', { danoDom: 1, danoFixo: { briga: 1 } }),
+    N('cri1b', 1, 'Mãos Condutoras', '+1 Defesa sem arma.', { defesaArma: { briga: 1 } }),
+    N('cri2a', 2, 'Cristal Lapidado', '+1 nos testes de Dom e nos ataques desarmados.', { testeDom: 1, ataque: { briga: 1 } }),
+    N('cri2b', 2, 'Reserva no Cristal', '+3 Fôlego.', { folego: 3 }),
+    N('cri3', 3, 'Cristal Ressonante', '+2 de dano nas técnicas e nos golpes desarmados; curas somam +2.', { danoDom: 2, danoFixo: { briga: 2 } }),
+    N('cri4', 4, 'Cristal Puro', '+1 nos testes de Dom e ataques desarmados; +1 Defesa sem arma.', { testeDom: 1, ataque: { briga: 1 }, defesaArma: { briga: 1 } }),
+    N('cri5', 5, 'Coração de Cristal', '1×/cena: ignore a punição do Dado de Aranor.'),
+  ] },
   imbuida: { nome: 'Arma Imbuída', tipo: 'hibrida', cor: '#c86aff', desc: 'Só Aurethian. O Dom corre pela arma: espada em chamas, flecha elétrica, martelo de gelo.', nos: [
     N('imb1', 1, 'Imbuir Arma', 'Ação menor, 1 Fôlego: até o fim da cena sua arma ganha o elemento do Dom (+1d4 de dano daquele tipo). Funciona com flechas e virotes.', { imbuir: '1d4' }),
     N('imb2a', 2, 'Lâmina Canalizada', 'Ao acertar com a arma imbuída, gaste 2 Fôlego para aplicar uma técnica de Nível 1 no alvo sem gastar ação. Exige 1 ponto numa árvore de arma.', { exigeArma: true }),
@@ -302,14 +312,15 @@ export function pontosTalento(f) {
 }
 export function arvoresPermitidas(f) {
   const aur = ehAurethian(f);
-  return Object.entries(ARVORES).filter(([, a]) => a.tipo === 'arma' || (aur ? a.tipo === 'dom' || a.tipo === 'hibrida' : a.tipo === 'vellunari')).map(([k]) => k);
+  const cristal = !!VOCACOES[f.vocacao]?.cristal;
+  return Object.entries(ARVORES).filter(([, a]) => a.tipo === 'arma' || (a.tipo === 'cristal' ? cristal : aur ? a.tipo === 'dom' || a.tipo === 'hibrida' : a.tipo === 'vellunari')).map(([k]) => k);
 }
 export function pontosNaArvore(f, arvore) { return (f.talentos || []).filter(id => TALENTO[id]?.arvore === arvore).length; }
 // por que um nó não pode ser pego agora (ou null)
 export function bloqueioTalento(f, id) {
   const t = TALENTO[id]; if (!t) return 'Talento desconhecido.';
   const aur = ehAurethian(f), arv = ARVORES[t.arvore];
-  if (!arvoresPermitidas(f).includes(t.arvore)) return arv.tipo === 'vellunari' ? 'Só Vellunari.' : 'Só Aurethian.';
+  if (!arvoresPermitidas(f).includes(t.arvore)) return arv.tipo === 'vellunari' ? 'Só Vellunari.' : arv.tipo === 'cristal' ? 'Só Canalizador e Curandeiro.' : 'Só Aurethian.';
   if (t.ef?.soVellunari && aur) return 'Mestria: só Vellunari.';
   if (aur && arv.tipo === 'arma' && t.grau > 3) return 'Aurethians vão até o Grau 3 nas armas.';
   const outros = (f.talentos || []).filter(x => x !== id);
@@ -336,16 +347,17 @@ export function temImbuir(f) { return ehAurethian(f) && (f.talentos || []).inclu
 // Ataque com a arma equipada: bônus no teste e dano (já com talentos e imbuir)
 export function ataqueArma(f, imbuida = false) {
   const a = atributosFinais(f), id = armaDe(f), arma = ARMAS[id], e = efeitos(f);
-  const per = PERICIA_ARMA[arma.tipo];
+  const cristal = id === 'nenhuma' && VOCACOES[f.vocacao]?.cristal; // mãos canalizam o Cristal de Foco
+  const per = cristal ? 'canalizacao' : PERICIA_ARMA[arma.tipo];
   const at = PERICIA[per]?.attr || 'FOR';
   const mod = a[at] + gradPericia(f, per) + bonusPericia(f, per) + num(e.ataque?.[arma.tipo]);
-  const atrDano = arma.tipo === 'distancia' ? 0 : arma.tipo === 'lamina' ? Math.max(a.FOR, a.AGI) : a.FOR;
+  const atrDano = cristal ? a.VON : arma.tipo === 'distancia' ? 0 : arma.tipo === 'lamina' ? Math.max(a.FOR, a.AGI) : a.FOR;
   const fixo = atrDano + num(e.danoFixo?.[arma.tipo]);
   let dano = arma.dano + (e.dano?.[arma.tipo] ? '+' + e.dano[arma.tipo] : '') + (fixo ? (fixo > 0 ? '+' : '') + fixo : '');
   if (imbuida && temImbuir(f)) dano += '+' + (e.imbuir || '1d4');
   let alcance = arma.alcance || 1;
   if (arma.tipo === 'distancia' && (f.talentos || []).includes('dis4a')) alcance *= 2;
-  return { id, nome: arma.nome, tipo: arma.tipo, pericia: per, mod, dano, alcance, longo: arma.tipo === 'distancia' ? alcance * 2 : alcance };
+  return { id, nome: cristal ? 'Mãos (Cristal de Foco)' : arma.nome, tipo: arma.tipo, pericia: per, mod, dano, alcance, longo: arma.tipo === 'distancia' ? alcance * 2 : alcance };
 }
 export function danoTecnica(f, nivel) {
   const e = efeitos(f);
@@ -437,7 +449,7 @@ export function derivados(f) {
   const arm = ARMADURAS[v.armadura] || ARMADURAS.nenhuma;
   const e = efeitos(f), arma = ARMAS[armaDe(f)];
   const extra = k => num(r.extra?.[k]) + num(s.extra?.[k]) + num(v.extra?.[k]) + num(res?.extra?.[k]) + num(e[k]);
-  const vigorMax = 12 + a.RES * 3 + num(v.vigor) + extra('vigor') + extra('vigorNivel') * nivel + (fac.includes('lavrador') ? 3 : 0) + 4 * (nivel - 1);
+  const vigorMax = 20 + a.RES * 3 + num(v.vigor) + extra('vigor') + extra('vigorNivel') * nivel + (fac.includes('lavrador') ? 3 : 0) + 5 * (nivel - 1);
   const folegoMax = 6 + (a.RES + a.VON) * 2 + num(est.folego) + extra('folego') + (nivel - 1);
   const limiar = Math.max(3, a.RES + a.VON) + extra('limiar');
   const limiarFer = a.RES + 8 + extra('limiarFer') + (fac.includes('lavrador') ? 1 : 0);

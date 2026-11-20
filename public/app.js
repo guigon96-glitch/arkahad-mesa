@@ -726,7 +726,7 @@ function editorNpc(id) {
     const raca = v('raca'), sexo = v('sexo'), base = raca === 'criatura' ? {} : aparenciaPadrao(raca, 'lamina', sexo);
     const pele = RACAS[raca]?.pele, trocou = n.raca !== raca || (n.aparencia?.sexo || 'm') !== sexo;
     const aparencia = { ...base, ...(trocou ? {} : n.aparencia || {}), sexo, corRoupa: v('roupa'), arma: v('arma'), secundaria: v('sec'), criatura: v('criatura'), base: v('cor'), ...(trocou && pele ? { pele: pele[Math.floor(Math.random() * pele.length)] } : {}) };
-    const dados = { nome: v('nome'), sigla: v('sigla'), cor: v('cor'), tipo: v('tipo'), raca, aparencia, vigor: num(v('vigor')), vigorMax: num(v('vigorMax')), defesa: num(v('defesa')), ini: num(v('ini')), desloc: num(v('desloc'), 6), tamanho: num(v('tamanho'), 1), ataque: num(v('ataque'), 3), dano: v('dano') || '1d6', alcance: num(v('alcance'), 1), protecao: num(v('protecao')), visivel: $('n_visivel').checked, descricao: v('descricao'), falas: v('falas').split('\n').map(s => s.trim()).filter(Boolean), notas: v('notas') };
+    const dados = { nome: v('nome'), sigla: v('sigla'), cor: v('cor'), tipo: v('tipo'), raca, aparencia, vigor: num(v('vigor')), vigorMax: num(v('vigorMax')), defesa: num(v('defesa')), ini: num(v('ini')), desloc: num(v('desloc'), 6), tamanho: num(v('tamanho'), 1), ataque: num(v('ataque'), 3), dano: v('dano') || '2', alcance: num(v('alcance'), 1), protecao: num(v('protecao')), visivel: $('n_visivel').checked, descricao: v('descricao'), falas: v('falas').split('\n').map(s => s.trim()).filter(Boolean), notas: v('notas') };
     npcs[id] = { ...npcs[id], ...dados }; enviar({ tipo: 'npc', id, dados });
     selecionar('npc:' + id);
   };
@@ -795,7 +795,7 @@ function atorAtivo() {
 function armaDoAtor(t) {
   if (t.tipo === 'pc' && t.ficha) return ataqueArma(t.ficha, !!t.imbuido);
   const al = Math.max(1, num(t.alcance, 1));
-  return { nome: 'Ataque', mod: num(t.ataque, 3), dano: t.dano || '1d6', alcance: al, longo: al > 1 ? al * 2 : al, tipo: al > 1 ? 'distancia' : 'lamina' };
+  return { nome: 'Ataque', mod: num(t.ataque, 3), dano: t.dano || '2', alcance: al, longo: al > 1 ? al * 2 : al, tipo: al > 1 ? 'distancia' : 'lamina' };
 }
 function vezDe(k) { const cb = mesa?.combate; return !!(cb?.ativo && cb.ordem?.[cb.turno]?.k === k); }
 function acoesDe(t) {
@@ -954,7 +954,7 @@ function atacarAlvos(ator, cfg0, ks, centro) {
   const mod = Math.min(...validos.map(a => av[alvos.indexOf(a)].mod));
   const cob = Object.fromEntries(validos.map(a => [a.k, av[alvos.indexOf(a)].cob]));
   const rotulo = cfg.tipo === 'tec' ? `${cfg.nome} (N${cfg.nivel})` : `${cfg.nome} em ${validos.length > 1 ? validos.length + ' alvos' : validos[0].nome}`;
-  enviar({ tipo: 'ataque', de: ator.k, alvos: validos.map(a => a.k), mod, cob, tirith: tirithHud, dano: cfg.dano, rotulo, dom: cfg.tipo === 'tec', distancia: !!cfg.distancia });
+  enviar({ tipo: 'ataque', de: ator.k, alvos: validos.map(a => a.k), mod, cob, tirith: tirithHud, dano: cfg.dano, rotulo, dom: cfg.tipo === 'tec' || (cfg.tipo === 'arma' && !!ator.imbuido && !!f && temImbuir(f)), distancia: !!cfg.distancia });
 }
 function anunciarTurno(m) {
   const b = $('banner'); if (!b) return;

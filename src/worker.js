@@ -1,5 +1,5 @@
 import { DurableObject } from 'cloudflare:workers';
-import { TERRENOS, LUZES, LUAS, r, num, custoCel, dijkstra, rolar2d10, rolarExpr } from '../public/regras.js';
+import { TERRENOS, LUZES, LUAS, r, num, custoCel, dijkstra, rolar2d10, rolarAtaque, rolarExpr } from '../public/regras.js';
 
 const MAX_JOGADORES = 6;
 const SESSAO_DIAS = 30;
@@ -622,14 +622,18 @@ export class Sala extends DurableObject {
         const alvos = [...new Set((Array.isArray(msg.alvos) ? msg.alvos : []).map(String))].slice(0, 16).map(k => [k, this.objetoDe(k)]).filter(([, o]) => o);
         if (!alvos.length) return erro('Escolha um alvo.');
         const cob = msg.cob && typeof msg.cob === 'object' ? msg.cob : {};
-        const res = rolar2d10(msg.mod, msg.tirith, 0, !!msg.dom);
-        const coroa = res.tags.includes('Coroa de Kael'), olho = res.tags.includes('Olho de Aranor');
-        const acertos = [], tags = [...res.tags.filter(t => !/Triunfo se passar/.test(t))];
+        const res = rolarAtaque(msg.mod, msg.tirith, !!msg.dom);
+        const coroa = res.kael === 20, olho = res.kael === 1;
+        const acertos = [], tags = [];
+        if (msg.dom) tags.push(`Aranor ${res.aranor}: punição do Dom`); // shortcut: tabela de punição ainda não existe; ligar aqui quando o dono montar
+        let critico = false;
         for (const [k, o] of alvos) {
           const def = num(o.defesa, 10) + Math.max(0, Math.min(5, Math.round(num(cob[k])))) + (o.guarda ? 2 : 0);
           const ok = coroa || (!olho && res.total >= def);
-          if (ok) acertos.push([k, o]);
-          tags.push(`${o.nome}: ${ok ? (coroa ? 'crítico!' : 'acertou') : 'errou'}`);
+          const crit = ok && (coroa || res.kael === res.lyra);
+          if (ok) acertos.push([k, o, crit]);
+          if (crit) critico = true;
+          tags.push(`${o.nome}: ${ok ? (crit ? 'crítico!' : 'acertou') : 'errou'}`);
         }
         const pele = (de.startsWith('pc:') ? autor.dados : null) || {};
         const base = {
@@ -639,16 +643,20 @@ export class Sala extends DurableObject {
         const ev1 = { ...base, dados: res.dados, total: res.total, tags, grau: acertos.length ? (alvos.length > 1 ? `${acertos.length} de ${alvos.length} atingidos` : 'Acertou') : 'Errou', desc: res.desc, rotulo: texto(msg.rotulo, 60) };
         this.enviarTodos(ev1);
         this.registrar({ ...ev1, dados: undefined, tipo: undefined, k: undefined, dom: undefined, alvos: undefined, distancia: undefined });
-        if (acertos.length && msg.dano) {
-          const d = rolarExpr(msg.dano);
-          if (d) {
-            const total = coroa ? d.total * 2 : d.total, tagsD = coroa ? ['Crítico: dano ×2'] : [];
-            for (const [, o] of acertos) {
-              const sofre = Math.max(0, total - num(o.protecao));
+        if (acertos.length) {
+          // dano = Lyra + dano da arma/técnica com seus modificadores (vazio = só Lyra)
+          const d = (msg.dano && rolarExpr(msg.dano)) || { dados: [], total: 0, desc: '' };
+          {
+            // crítico: Lyra conta como 20 e o alvo usa só metade da Proteção
+            const somaDano = res.lyra + d.total, somaCrit = 20 + d.total, tagsD = critico ? ['Crítico: Lyra 20, ½ Proteção'] : [];
+            d.desc = `Lyra ${res.lyra}${d.desc ? ' + ' + d.desc : ''}`;
+            for (const [, o, crit] of acertos) {
+              const prot = crit ? Math.floor(num(o.protecao) / 2) : num(o.protecao);
+              const sofre = Math.max(0, (crit ? somaCrit : somaDano) - prot);
               o.vigor = Math.max(-99, num(o.vigor) - sofre);
-              tagsD.push(`${o.nome} −${sofre}${num(o.protecao) ? ` (Proteção ${num(o.protecao)})` : ''}`);
+              tagsD.push(`${o.nome} −${sofre}${prot ? ` (Proteção ${prot})` : ''}`);
             }
-            const ev2 = { ...base, alvos: acertos.map(([k]) => k), dados: d.dados, total, tags: tagsD, grau: '', desc: d.desc, rotulo: 'Dano · ' + texto(msg.rotulo, 50), dano: true, t: Date.now() + 1 };
+            const ev2 = { ...base, alvos: acertos.map(([k]) => k), dados: d.dados, total: critico ? somaCrit : somaDano, tags: tagsD, grau: '', desc: d.desc, rotulo: 'Dano · ' + texto(msg.rotulo, 50), dano: true, t: Date.now() + 1 };
             this.enviarTodos(ev2);
             this.registrar({ ...ev2, dados: undefined, tipo: undefined, k: undefined, dom: undefined, alvos: undefined, distancia: undefined, dano: undefined });
           }
@@ -657,7 +665,14 @@ export class Sala extends DurableObject {
         break;
       }
       case 'rolar': {
-        const res = msg.modo === 'expr' ? rolarExpr(msg.expr) : rolar2d10(msg.mod, msg.tirith, msg.dif, !!msg.dom);
+        let res;
+        if (msg.modo === 'expr') res = rolarExpr(msg.expr);
+        else if (msg.dom) {
+          // todo uso de Dom rola Kael, Lyra e Aranor (d20); Kael + mod contra a DIF
+          const a = rolarAtaque(msg.mod, msg.tirith, true), dif = num(msg.dif);
+          const ok = a.kael === 20 || (a.kael !== 1 && a.total >= dif);
+          res = { dados: a.dados, total: a.total, tags: [`Aranor ${a.aranor}: punição do Dom`], grau: dif ? (ok ? 'Sucesso' : 'Falha') : '', desc: a.desc + (dif ? ` vs DIF ${dif}` : '') };
+        } else res = rolar2d10(msg.mod, msg.tirith, msg.dif, false);
         if (!res) return erro('Use algo como 2d6+3.');
         const pc = s.pcs[att.id];
         const pele = pc?.dados || {};

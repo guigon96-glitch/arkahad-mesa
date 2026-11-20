@@ -67,10 +67,10 @@ export const CRIATURAS_3D = {
 };
 
 export function armaPadrao(vocacao) {
-  return { lamina: 'sabre', sentinela: 'espada', batedor: 'arco', sombra: 'adaga', alquimista: 'besta', erudito: 'adaga', orador: 'espada', curandeiro: 'martelo', canalizador: 'espada' }[vocacao] || 'espada';
+  return { lamina: 'sabre', sentinela: 'espada', batedor: 'arco', sombra: 'adaga', alquimista: 'besta', erudito: 'adaga', orador: 'sabre', curandeiro: 'nenhuma', canalizador: 'nenhuma' }[vocacao] || 'espada';
 }
 export function secundariaPadrao(vocacao) {
-  return { sentinela: 'escudo_brasao', sombra: 'adaga', alquimista: 'bomba', curandeiro: 'escudo_madeira' }[vocacao] || 'nenhuma';
+  return { sentinela: 'escudo_brasao', sombra: 'adaga', alquimista: 'bomba' }[vocacao] || 'nenhuma';
 }
 // nomes antigos (KayKit) → novos
 const ARMA_ANTIGA = { espada_grande: 'espada_longa', machado_grande: 'machado_guerra', adagas: 'adaga', cajado: 'espada', varinha: 'adaga', lanca: 'foice', maca: 'martelo', leques: 'adaga' };

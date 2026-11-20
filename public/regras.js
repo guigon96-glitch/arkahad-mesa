@@ -167,6 +167,26 @@ export function rolar2d10(mod, modo, dif, dom) {
   return { dados, total, tags, grau, desc };
 }
 
+// Ataque: Kael d20 + mod = acerto; Lyra d20 = base do dano; Aranor d20 = punição do Dom (só com Dom).
+// Tirith (d20) troca o Kael na vantagem/desvantagem. Crítico: Kael 20 (acerta sempre) ou Kael = Lyra num acerto; Kael 1 erra sempre.
+export function rolarAtaque(mod, modo, dom) {
+  mod = num(mod);
+  const dk = { f: 20, v: r(20), c: 'kael' }, dl = { f: 20, v: r(20), c: 'lyra' }, dados = [dk, dl];
+  let kael = dk.v;
+  if (modo === 'vantagem' || modo === 'desvantagem') {
+    const dt = { f: 20, v: r(20), c: 'tirith' };
+    dados.push(dt);
+    const usaT = modo === 'vantagem' ? dt.v > dk.v : dt.v < dk.v;
+    (usaT ? dk : dt).fora = true;
+    kael = usaT ? dt.v : dk.v;
+  }
+  const aranor = dom ? r(20) : 0;
+  if (dom) dados.push({ f: 20, v: aranor, c: 'aranor' });
+  const total = kael + mod;
+  const desc = `Kael ${kael}${mod ? ` ${mod > 0 ? '+' : '−'} ${Math.abs(mod)}` : ''} · Lyra ${dl.v}${dom ? ` · Aranor ${aranor}` : ''}`;
+  return { dados, kael, lyra: dl.v, aranor, total, desc };
+}
+
 // Expressões livres: "2d6+3", "1d8-1+1d4"
 export function rolarExpr(expr) {
   const s = String(expr || '').replace(/\s/g, '').toLowerCase().slice(0, 40);
