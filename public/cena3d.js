@@ -9,7 +9,7 @@ import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { GTAOPass } from 'three/addons/postprocessing/GTAOPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
-import { construirSolo, carregarTexturasSolo, NIVEL_H as NIVEL_SOLO } from './terreno.js';
+import { construirSolo, carregarTexturasSolo, NIVEL_H as NIVEL_SOLO, MESA_Y } from './terreno.js';
 import { criarMesaDeJogo } from './mesajogo.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { criarMiniatura, criarDado, rotulo } from './miniatura.js';
@@ -92,16 +92,6 @@ function fazerTexturas() {
       }
       g.putImageData(img, 0, 0); const tx = new THREE.CanvasTexture(c); tx.wrapS = tx.wrapT = THREE.RepeatWrapping; return tx;
     })(),
-    // tampo da mesa de jogo: tábuas largas com veio
-    tampo: textura((g, t) => {
-      const n = 4, s = t / n;
-      for (let i = 0; i < n; i++) {
-        const v = Math.random() * 22; g.fillStyle = `rgb(${118 + v},${80 + v * .6},${48 + v * .3})`; g.fillRect(0, i * s, t, s);
-        for (let k = 0; k < 9; k++) { g.strokeStyle = k % 3 ? '#5a381c40' : '#3a220f55'; g.lineWidth = .6 + Math.random(); g.beginPath(); const y = i * s + 3 + Math.random() * (s - 6); g.moveTo(0, y); for (let x = 0; x <= t; x += 8) g.lineTo(x, y + Math.sin(x / 23 + k + i) * 1.6); g.stroke(); }
-        g.fillStyle = '#1e1208'; g.fillRect(0, i * s, t, 2);
-      }
-      salpicar(g, t, 300, ['#00000018', '#ffffff10'], .5, 1.4);
-    }, 256),
     mesa: textura((g, t) => { g.fillStyle = '#24170e'; g.fillRect(0, 0, t, t); for (let i = 0; i < 40; i++) { g.strokeStyle = i % 3 ? '#2e1e12' : '#1a1009'; g.lineWidth = 1 + Math.random() * 2; g.beginPath(); const y = Math.random() * t; g.moveTo(0, y); for (let x = 0; x <= t; x += 8) g.lineTo(x, y + Math.sin(x / 20 + i) * 2); g.stroke(); } }, 256),
   };
 }
@@ -397,52 +387,9 @@ export function criarCena(el, cb = {}) {
       if (luzes++ < 6) { const pl = new THREE.PointLight('#ff9a3a', 2.2, 6, 1.6); pl.position.y = .6; g.add(pl); chamas.push([pl, null, x + y]); }
       grupoTerreno.add(g);
     }
-    construirMesaJogo();
     for (const l of [kael, lyra]) { const s = Math.max(C, R) * .85; Object.assign(l.shadow.camera, { left: -s, right: s, top: s, bottom: -s, near: .5, far: 120 }); l.shadow.camera.updateProjectionMatrix(); }
   }
 
-  // ----------- mesa de jogo: o mapa é um diorama em cima de uma mesa de madeira -----------
-  const MESA_Y = -1.3;
-  let texFicha = null;
-  function construirMesaJogo() {
-    const C = mesa.cols, R = mesa.rows, M = solo.margem, x0 = -M, z0 = -M, x1 = C + M, z1 = R + M;
-    // laterais do diorama: do relevo até o tampo
-    const pos = [], uv = [], idx = [];
-    const borda = (ax, az, bx, bz) => {
-      const L = Math.hypot(bx - ax, bz - az), n = Math.ceil(L / .5), b0 = pos.length / 3;
-      for (let i = 0; i <= n; i++) { const x = ax + (bx - ax) * i / n, z = az + (bz - az) * i / n, h = solo.alturaPonto(x, z); pos.push(x, h, z, x, MESA_Y, z); uv.push(L * i / n / 2, h / 2, L * i / n / 2, MESA_Y / 2); }
-      for (let i = 0; i < n; i++) { const a = b0 + i * 2; idx.push(a, a + 1, a + 2, a + 2, a + 1, a + 3); }
-    };
-    borda(x0, z0, x1, z0); borda(x1, z0, x1, z1); borda(x1, z1, x0, z1); borda(x0, z1, x0, z0);
-    const geo = new THREE.BufferGeometry();
-    geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); geo.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
-    geo.setIndex(idx); geo.computeVertexNormals();
-    const lado = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ map: tex.penhasco, color: '#b8a894', roughness: .95, side: THREE.DoubleSide }));
-    lado.receiveShadow = true; grupoTerreno.add(lado);
-    // tampo
-    const L = Math.max(C, R) + 2 * M + 90, tt = tex.tampo.clone(); tt.needsUpdate = true; tt.repeat.set(L / 7, L / 7);
-    const tampo = new THREE.Mesh(new THREE.PlaneGeometry(L, L), new THREE.MeshStandardMaterial({ map: tt, roughness: .55, metalness: 0 }));
-    tampo.rotation.x = -Math.PI / 2; tampo.position.set(C / 2, MESA_Y, R / 2); tampo.receiveShadow = true; grupoTerreno.add(tampo);
-    // coisas dos jogadores: fichas, livro, caneca e lápis
-    if (!texFicha) texFicha = textura((g, t) => {
-      g.fillStyle = '#efe6d2'; g.fillRect(0, 0, t, t); g.fillStyle = '#7a5a32'; g.fillRect(16, 14, t * .55, 10);
-      g.strokeStyle = '#8a7a6288'; g.lineWidth = 1.5; for (let y = 44; y < t - 10; y += 14) { g.beginPath(); g.moveTo(16, y); g.lineTo(t - 16 - (y % 3) * 20, y); g.stroke(); }
-      g.strokeStyle = '#6a5a42'; g.strokeRect(t - 70, 40, 54, 54);
-    }, 256, false);
-    const ficha = (x, z, rot) => { const p = new THREE.Mesh(new THREE.PlaneGeometry(2.1, 2.9), new THREE.MeshStandardMaterial({ map: texFicha, roughness: .9 })); p.rotation.set(-Math.PI / 2, 0, rot); p.position.set(x, MESA_Y + .01, z); p.receiveShadow = true; grupoTerreno.add(p); };
-    ficha(x0 - 2.2, z1 + 1.2, .25); ficha(x1 + 2.4, z1 + .4, -.3); ficha(C / 2 - 1.5, z1 + 2.6, .05);
-    const livro = new THREE.Mesh(new THREE.BoxGeometry(2.4, .35, 3.2), [0, 1, 2, 3, 4, 5].map(i => new THREE.MeshStandardMaterial({ color: i === 2 || i === 3 || i === 1 ? '#6a221c' : '#e8dcc0', roughness: .8 })));
-    livro.position.set(x0 - 3, MESA_Y + .175, z0 + 3); livro.rotation.y = .4; livro.castShadow = livro.receiveShadow = true; grupoTerreno.add(livro);
-    const caneca = new THREE.Group(), barro = new THREE.MeshStandardMaterial({ color: '#4a6a7a', roughness: .5 });
-    const corpo = new THREE.Mesh(new THREE.CylinderGeometry(.42, .38, 1, 20, 1, true), barro); corpo.position.y = .5;
-    const fundo = new THREE.Mesh(new THREE.CircleGeometry(.38, 20), barro); fundo.rotation.x = -Math.PI / 2; fundo.position.y = .02;
-    const cafe = new THREE.Mesh(new THREE.CircleGeometry(.39, 20), new THREE.MeshStandardMaterial({ color: '#2a160a', roughness: .2 })); cafe.rotation.x = -Math.PI / 2; cafe.position.y = .82;
-    const alca = new THREE.Mesh(new THREE.TorusGeometry(.25, .06, 8, 16, Math.PI), barro); alca.rotation.z = -Math.PI / 2; alca.position.set(.42, .5, 0);
-    barro.side = THREE.DoubleSide; caneca.add(corpo, fundo, cafe, alca); caneca.traverse(o => { o.castShadow = true; });
-    caneca.position.set(x1 + 2.6, MESA_Y, z0 + 2); grupoTerreno.add(caneca);
-    const lapis = new THREE.Mesh(new THREE.CylinderGeometry(.05, .05, 2, 6), new THREE.MeshStandardMaterial({ color: '#e0b040', roughness: .6 }));
-    lapis.rotation.set(Math.PI / 2, 0, .9); lapis.position.set(x1 + 2, MESA_Y + .05, z1 + 2.2); lapis.castShadow = true; grupoTerreno.add(lapis);
-  }
   // onde os dados caem: na mesa, do lado de fora do diorama, perto do canto superior direito da tela
   const rayDados = new THREE.Raycaster(), planoMesa = new THREE.Plane(new THREE.Vector3(0, 1, 0), -MESA_Y);
   function pontoDosDados() {
