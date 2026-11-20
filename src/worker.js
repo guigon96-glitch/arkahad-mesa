@@ -220,7 +220,7 @@ function limparPc(d) {
   if ('aparencia' in o) { o.aparencia = objetoLimitado(o.aparencia, 3000); if (!o.aparencia) delete o.aparencia; }
   if ('imbuido' in o) o.imbuido = !!o.imbuido;
   if ('itens' in o) o.itens = (Array.isArray(o.itens) ? o.itens : []).slice(0, 80).map(it => ({ n: texto(it?.n, 60), q: Math.max(1, Math.min(999, Math.round(num(it?.q, 1)))) })).filter(it => it.n);
-  if ('barra' in o) o.barra = (Array.isArray(o.barra) ? o.barra : []).slice(0, 10).map(x => { const v = texto(x, 70); return /^(arma|defender|imbuir|tec:[1-5]|item:.{1,60})$/.test(v) ? v : ''; });
+  if ('barra' in o) o.barra = (Array.isArray(o.barra) ? o.barra : []).slice(0, 10).map(x => { const v = texto(x, 70); return /^(arma|mover|defender|imbuir|tec:[1-5]|item:.{1,60})$/.test(v) ? v : ''; });
   if ('moedas' in o) { const m = o.moedas || {}; o.moedas = Object.fromEntries(['k', 'l', 't'].map(c => [c, Math.max(0, Math.min(999999, Math.round(num(m[c]))))])); }
   if ('dados' in o) {
     const dd = o.dados || {};
@@ -537,16 +537,26 @@ export class Sala extends DurableObject {
         if (!mestre) {
           if (tipo !== 'pc' || id !== att.id) return erro('Você só move o seu personagem.');
           const cb = mesa.combate || COMBATE_VAZIO;
-          const lim = cb.ativo ? num(obj.desloc, 6) : 9999;
-          if (cb.ativo) {
+          if (!cb.ativo) {
+            const d = dijkstra(mesa, this.ocupadas('pc:' + id, mesa.id), num(obj.x), num(obj.y), 9999);
+            if (!d.has(x + ',' + y)) return erro('Sem caminho até lá.');
+          } else {
+            // Mover: 1 ação dá o Deslocamento inteiro, que pode ser dividido entre outras ações no mesmo turno
             if (cb.ordem[cb.turno]?.k !== 'pc:' + id) return erro('Aguarde o seu turno.');
-            const chave = `${cb.rodada}:${cb.turno}`;
+            const chave = `${cb.rodada}:${cb.turno}`, desloc = num(obj.desloc, 6);
             const usadas = obj.acoes?.chave === chave ? num(obj.acoes.usadas) : 0;
-            if (usadas >= 3) return erro('Você já usou as 3 ações.');
-            obj.acoes = { chave, usadas: usadas + 1 };
+            const resta = obj.mov?.chave === chave ? num(obj.mov.resta) : 0;
+            const d = dijkstra(mesa, this.ocupadas('pc:' + id, mesa.id), num(obj.x), num(obj.y), Math.max(resta, usadas < 3 ? desloc : 0));
+            const custo = d.get(x + ',' + y);
+            if (custo === undefined) return erro('Fora do seu Deslocamento.');
+            if (custo <= resta) obj.mov = { chave, resta: resta - custo };
+            else {
+              if (usadas >= 3) return erro('Você já usou as 3 ações.');
+              if (custo > desloc) return erro('Fora do seu Deslocamento.');
+              obj.acoes = { chave, usadas: usadas + 1 };
+              obj.mov = { chave, resta: desloc - custo };
+            }
           }
-          const d = dijkstra(mesa, this.ocupadas('pc:' + id, mesa.id), num(obj.x), num(obj.y), lim);
-          if (!d.has(x + ',' + y)) return erro(cb.ativo ? 'Fora do seu Deslocamento.' : 'Sem caminho até lá.');
         }
         obj.x = x; obj.y = y;
         // portal: quem para em cima atravessa para o outro mapa
@@ -611,7 +621,7 @@ export class Sala extends DurableObject {
         const pc = s.pcs[att.id], cb = s.mapas[this.idMapa(pc)]?.combate;
         if (!pc) return;
         const i = (Array.isArray(pc.itens) ? pc.itens : []).findIndex(it => it.n === texto(msg.n, 60));
-        if (i < 0) return erro('Esse item não está na Bolsa.');
+        if (i < 0) return erro('Esse item não está no Inventário.');
         if (cb?.ativo) {
           if (cb.ordem[cb.turno]?.k !== 'pc:' + att.id) return erro('Aguarde o seu turno.');
           const chave = `${cb.rodada}:${cb.turno}`, usadas = pc.acoes?.chave === chave ? num(pc.acoes.usadas) : 0;

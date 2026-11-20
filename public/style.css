@@ -529,3 +529,5 @@ details summary{color:var(--mudo)}
   .hud-b.fim{padding:0 10px}
   .hud-b.fim span:not(.ic),.hud-b.fim small{display:none}
 }
+/* Inventário fica no bloco direito, antes de Fim do turno / Próximo */
+.hud-lado .hud-bolsa{order:0;height:var(--alt-slot)}

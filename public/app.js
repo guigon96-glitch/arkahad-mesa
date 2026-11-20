@@ -157,7 +157,7 @@ function receber(m) {
       if (!souMestre() && aba === 'mestre') aba = 'ficha';
       const t = tokenPorK(selecionado);
       if (selecionado && !t) { selecionado = null; alcance = null; $('cartao').hidden = true; }
-      else if (t) calcAlcance(t);
+      calcAlcance();
       if (!edicao) render();
       if (aba !== 'dados' || primeira || recAntes !== recursosDe(pcs[eu()])) painel();
       atualizarOnline();
@@ -262,19 +262,46 @@ function possoMover(t) {
   if (t.tipo !== 'pc' || t.id !== eu()) return false;
   return !mesa.combate?.ativo || (minhaVez() && acoesUsadas() < 3);
 }
-function calcAlcance(t) {
-  alcance = t && possoMover(t) && mesa.combate?.ativo && !souMestre() ? dijkstra(mesa, ocupadas(t.k), num(t.x), num(t.y), num(t.desloc, 6)) : null;
+function calcAlcance() {
+  if (movendo && mesa?.combate?.ativo && !vezDe('pc:' + eu())) movendo = false;
+  alcance = movendo ? areaMover(tokenPorK('pc:' + eu())) : null;
 }
+// ===== Mover: 1 ação dá o Deslocamento inteiro, dividido como quiser no mesmo turno =====
+let movendo = false;
+function restoMov(t) { return t?.mov?.chave === chaveTurno() ? num(t.mov.resta) : 0; }
+function limiteMov(t) {
+  if (!mesa.combate?.ativo) return 9999;
+  return Math.max(restoMov(t), num(acoesDe(t)) > 0 ? num(t.desloc, 6) : 0);
+}
+function areaMover(t) { return t ? dijkstra(mesa, ocupadas(t.k), num(t.x), num(t.y), limiteMov(t)) : null; }
+function alternarMover(t) {
+  if (movendo) return pararMover();
+  if (!t || t.k !== 'pc:' + eu()) return;
+  if (mesa.combate?.ativo && !vezDe(t.k)) return avisar('Aguarde o seu turno.', 2200);
+  if (mesa.combate?.ativo && !restoMov(t) && num(acoesDe(t)) <= 0) return avisar('Você já usou as 3 ações.', 2200);
+  if (mira) cancelarMira();
+  movendo = true; calcAlcance(); $('cartao').hidden = true; render();
+}
+function pararMover() { movendo = false; alcance = null; render(); }
 function moverToken(t, x, y) {
   if (!possoMover(t)) return;
   const tam = num(t.tamanho, 1);
   if (x < 0 || y < 0 || x + tam > mesa.cols || y + tam > mesa.rows) return;
+  let extra = {};
   if (!souMestre()) {
-    const d = dijkstra(mesa, ocupadas(t.k), num(t.x), num(t.y), mesa.combate?.ativo ? num(t.desloc, 6) : 9999);
-    if (!d.has(x + ',' + y)) { avisar(mesa.combate?.ativo ? 'Fora do seu Deslocamento.' : 'Sem caminho até lá.', 2500); return; }
+    const emCombate = mesa.combate?.ativo;
+    if (emCombate && !movendo) { avisar('Para andar, use Mover na barra de atalhos.', 2500); return; }
+    const custo = dijkstra(mesa, ocupadas(t.k), num(t.x), num(t.y), limiteMov(t)).get(x + ',' + y);
+    if (custo === undefined) { avisar(emCombate ? 'Fora do seu Deslocamento.' : 'Sem caminho até lá.', 2500); return; }
+    if (emCombate) {
+      // mesma conta do servidor, para a barra mostrar na hora
+      const chave = chaveTurno(), resta = restoMov(t);
+      extra = custo <= resta ? { mov: { chave, resta: resta - custo } } : { mov: { chave, resta: num(t.desloc, 6) - custo }, acoes: { chave, usadas: 3 - num(acoesDe(t)) + 1 } };
+    }
   }
+  movendo = false;
   const base = t.tipo === 'pc' ? pcs : npcs;
-  base[t.id] = { ...base[t.id], x, y }; alcance = null; render();
+  base[t.id] = { ...base[t.id], ...extra, x, y }; alcance = null; render();
   enviar({ tipo: 'mover', k: t.k, x, y });
 }
 
@@ -293,6 +320,7 @@ function aoMover(i, e) {
 }
 function aoSoltar(i) {
   if (mira) { dispararMira(i); return; }
+  if (movendo) { arrasto = null; const eu_ = tokenPorK('pc:' + eu()); if (i.k === eu_?.k) return pararMover(); if (eu_ && dentro(i.x, i.y)) moverToken(eu_, i.x, i.y); return; }
   if (edicao) { terminarEdicao(); return; }
   if (souMestre() && ['pintar', 'altura', 'portal'].includes(modoMestre)) return;
   if (arrasto) {
@@ -473,7 +501,7 @@ $('girarD').onclick = () => cena?.girar(-Math.PI / 4);
 $('centrar').onclick = () => { const p = pcs[eu()]; if (p && cena) cena.focar(num(p.x), num(p.y)); else cena?.enquadrar(); };
 
 // ================= Cartão de token =================
-function selecionar(k) { selecionado = k; const t = tokenPorK(k); calcAlcance(t); render(); cartao(t); }
+function selecionar(k) { selecionado = k; const t = tokenPorK(k); calcAlcance(); render(); cartao(t); }
 function estadoVida(t) { const v = num(t.vigor), m = num(t.vigorMax, 0); if (!m) return ''; if (v <= 0) return 'Caído'; if (v / m <= .25) return 'À beira da morte'; if (v / m <= .5) return 'Ferido'; if (v < m) return 'Arranhado'; return 'Ileso'; }
 function medidor(rot, campo, max, cor, t, pode) {
   const v = num(t[campo]), m = Math.max(1, num(t[max], 1));
@@ -662,7 +690,7 @@ function painel() {
 function moedasDe(p) { const m = p?.moedas || {}; return { k: num(m.k), l: num(m.l), t: num(m.t) }; }
 function htmlItens() {
   const p = pcs[eu()];
-  if (!p) return '<div class="bloco"><h3>Bolsa</h3><p style="margin:0">Crie um personagem na aba Ficha para guardar itens e moedas.</p></div>';
+  if (!p) return '<div class="bloco"><h3>Inventário</h3><p style="margin:0">Crie um personagem na aba Ficha para guardar itens e moedas.</p></div>';
   const m = moedasDe(p), itens = Array.isArray(p.itens) ? p.itens : [];
   const moeda = (c, nome) => `<div class="moeda-linha m-${c}"><i class="moeda-ic"></i><span>${nome}</span><button class="mini" data-moeda="${c}" data-d="-1" aria-label="Menos ${nome}">−</button><input type="number" min="0" max="999999" value="${m[c]}" data-moeda-v="${c}" aria-label="${nome}"><button class="mini" data-moeda="${c}" data-d="1" aria-label="Mais ${nome}">+</button></div>`;
   return `<div class="bloco"><h3>Moedas</h3>${moeda('k', 'Kaelin')}${moeda('l', 'Lyrins')}${moeda('t', 'Tirins')}<p class="dom-notas" style="margin:6px 0 0">1 Kaelin (ouro) = 100 Lyrins (prata) = 10.000 Tirins (bronze).</p></div>
@@ -686,7 +714,7 @@ function ligarItens() {
   $('formItem').onsubmit = e => {
     e.preventDefault();
     const n = $('itemNome').value.trim().slice(0, 60); if (!n) return $('itemNome').focus();
-    if (itens.length >= 80) return avisar('A bolsa está cheia (80 itens).', 2500);
+    if (itens.length >= 80) return avisar('O Inventário está cheio (80 itens).', 2500);
     itens.push({ n, q: Math.max(1, Math.min(999, Math.round(num($('itemQtd').value, 1)))) });
     $('itemNome').value = ''; salvarBolsa({ itens }); $('itemNome')?.focus();
   };
@@ -872,12 +900,12 @@ function hud() {
   const barraHud = (rot, v, m, cls) => `<div class="hb ${cls}" title="${rot} ${num(v)}/${num(m)}"><span>${rot}</span><i><b style="width:${Math.max(0, Math.min(100, num(v) / Math.max(1, num(m)) * 100))}%"></b></i><em>${num(v)}/${num(m)}</em></div>`;
   const ehMeu = t.k === 'pc:' + eu(), mo = moedasDe(t);
   const retrato = `<div class="hud-retrato"><span class="hud-sigla" style="--cor:${esc(t.cor || '#e2b04a')}">${(() => { const r = t.tipo === 'pc' ? retratoDe(t.ficha, hud) : null; return r ? `<img src="${r}" alt="">` : esc(t.sigla || String(t.nome || '?')[0]); })()}</span><div class="hud-rec">${barraHud('Vigor', t.vigor, t.vigorMax, 'vigor')}${t.tipo === 'pc' ? barraHud('Fôlego', t.folego, t.folegoMax, 'folego') + barraHud('Tensão', t.tensao, t.limiar, 'tensao') : ''}</div></div>`;
-  const bolsa = ehMeu ? `<button class="hud-b hud-bolsa ${aba === 'itens' ? 'on' : ''}" data-hud="bolsa" title="Abrir a Bolsa"><span class="ic">👜</span><span>Bolsa</span><small><b class="m-k">${mo.k}</b> <b class="m-l">${mo.l}</b> <b class="m-t">${mo.t}</b></small></button>` : '';
+  const bolsa = ehMeu ? `<button class="hud-b hud-bolsa ${aba === 'itens' ? 'on' : ''}" data-hud="bolsa" title="Abrir o Inventário"><span class="ic">🎒</span><span>Inventário</span><small><b class="m-k">${mo.k}</b> <b class="m-l">${mo.l}</b> <b class="m-t">${mo.t}</b></small></button>` : '';
   let topoHud = '';
   if (cb.ativo) {
     const vez = tokenPorK(cb.ordem?.[cb.turno]?.k);
     topoHud = minha || (souMestre() && t.tipo !== 'pc' && vezDe(t.k))
-      ? `<span class="hud-vez">Sua vez</span>${t.tipo === 'pc' ? `<span class="pips-hud">${[0, 1, 2].map(i => `<i class="${i < resta ? 'ok' : ''}"></i>`).join('')}</span><span class="hud-sub">${resta} ${resta === 1 ? 'ação' : 'ações'} · mover gasta 1 (até ${num(t.desloc, 6)} casas)</span>` : ''}`
+      ? `<span class="hud-vez">Sua vez</span>${t.tipo === 'pc' ? `<span class="pips-hud">${[0, 1, 2].map(i => `<i class="${i < resta ? 'ok' : ''}"></i>`).join('')}</span><span class="hud-sub">${resta} ${resta === 1 ? 'ação' : 'ações'} · Mover: 1 ação = ${num(t.desloc, 6)} casas${restoMov(t) ? ` · restam ${restoMov(t)}` : ''}</span>` : ''}`
       : `<span class="hud-sub">Rodada ${num(cb.rodada, 1)} · vez de <b>${esc(vez?.nome || '—')}</b></span>`;
   } else topoHud = `<span class="hud-sub">Fora de combate · ações livres</span>`;
   el.innerHTML = `<div class="hud-linha">${retrato}<div class="hud-meio"><div class="hud-topo"><b class="hud-nome">${esc(t.nome)}</b>${topoHud}</div>
@@ -890,12 +918,13 @@ function hud() {
       <div class="hud-lado">
         <label class="hud-tirith" title="Dado de Tirith"><select id="hudTirith"><option value="normal">Normal</option><option value="vantagem">Vantagem</option><option value="desvantagem">Desvant.</option></select></label>
         ${t.k === 'pc:' + eu() ? `<button class="mini hud-editar ${editandoBarra ? 'ativo' : ''}" data-hud="editar" title="Organizar os atalhos">${editandoBarra ? 'Pronto' : '✎ Atalhos'}</button>` : ''}
+        ${bolsa}
         ${cb.ativo && (minha || (souMestre() && vezDe(t.k))) ? `<button class="hud-b fim" data-hud="fim"><span class="ic">⏭</span><span>Fim do turno</span><small>passa a vez</small></button>` : ''}
         ${souMestre() && cb.ativo && !(vezDe(t.k)) ? `<button class="hud-b fim" data-hud="fim"><span class="ic">⏭</span><span>Próximo</span><small>turno</small></button>` : ''}
       </div>
     </div>
     ${editandoBarra && slotEditado >= 0 ? `<div class="hud-menu escolha-atalho"><b>Atalho ${(slotEditado + 1) % 10}</b>${ops.map((o, j) => `<button data-escolha="${j}"${o.cor ? ` style="--cor:${o.cor}"` : ''}><span class="ic">${o.ic}</span><span><b>${esc(o.nome)}</b><small>${esc(o.sub)}</small></span></button>`).join('')}<button data-escolha="-1"><span class="ic">∅</span><span><b>Deixar vazio</b></span></button></div>` : ''}
-    </div></div>${bolsa}</div>
+    </div></div></div>
     ${mira ? `<div class="hud-mira">${esc(mira.titulo)} — clique no alvo · <button class="mini" data-hud="cancelar">Cancelar (Esc)</button></div>` : ''}`;
   el.hidden = false;
   $('hudTirith').value = tirithHud;
@@ -910,14 +939,20 @@ function tecDe(f, dom, nivel) { return { nome: dom.tec[nivel - 1], nivel, custo:
 function opcoesBarra(t) {
   const f = t.tipo === 'pc' ? t.ficha : null, dom = f && ehAurethian(f) ? TODOS_DONS[f.dom] : null, n = f ? nivelDom(f) : 0;
   const ops = [{ id: 'arma', ic: '⚔', nome: 'Atacar', sub: armaDoAtor(t).nome }];
+  if (t.k === 'pc:' + eu()) { const r = restoMov(t); ops.push({ id: 'mover', ic: '👣', nome: 'Mover', sub: r ? `${r} casas restantes neste turno` : `1 ação · até ${num(t.desloc, 6)} casas no turno`, on: movendo }); }
   if (dom) for (let i = 1; i <= n; i++) ops.push({ id: 'tec:' + i, ic: '✦', cor: dom.cor, nome: dom.tec[i - 1], sub: `${dom.nome} N${i} · ${CUSTO_DOM[i - 1]} Fôlego` });
   if (f && temImbuir(f)) ops.push({ id: 'imbuir', ic: '🜂', cor: dom?.cor, nome: t.imbuido ? 'Imbuída' : 'Imbuir', sub: f.talentos.includes('imb4') ? 'grátis' : '1 Fôlego', on: !!t.imbuido });
   if (t.tipo === 'pc') ops.push({ id: 'defender', ic: '⛨', nome: 'Defender', sub: '+2 Defesa até seu turno', on: !!t.guarda });
-  if (t.k === 'pc:' + eu()) for (const it of (Array.isArray(t.itens) ? t.itens : [])) ops.push({ id: 'item:' + it.n, ic: '🧪', nome: it.n, sub: `Item · ${num(it.q, 1)} na Bolsa` });
+  if (t.k === 'pc:' + eu()) for (const it of (Array.isArray(t.itens) ? t.itens : [])) ops.push({ id: 'item:' + it.n, ic: '🧪', nome: it.n, sub: `Item · ${num(it.q, 1)} no Inventário` });
   return ops;
 }
 function barraDe(t, ops) {
-  if (t.k === 'pc:' + eu() && Array.isArray(t.barra)) return Array.from({ length: 10 }, (_, i) => t.barra[i] || '');
+  if (t.k === 'pc:' + eu() && Array.isArray(t.barra)) {
+    const b = Array.from({ length: 10 }, (_, i) => t.barra[i] || '');
+    // barras salvas antes do Mover existir ganham o Mover no primeiro espaço vazio
+    if (!b.includes('mover') && !t.barra.includes('mover')) { const v = b.indexOf(''); if (v >= 0) b[v] = 'mover'; }
+    return b;
+  }
   const ids = ops.filter(o => !o.id.startsWith('item:')).map(o => o.id);
   return Array.from({ length: 10 }, (_, i) => ids[i] || '');
 }
@@ -931,7 +966,8 @@ function usarSlot(i) {
   if (editandoBarra) { slotEditado = slotEditado === i ? -1 : i; hud(); return; }
   const ops = opcoesBarra(t), id = barraDe(t, ops)[i]; if (!id) return;
   const op = ops.find(o => o.id === id);
-  if (!op) return avisar(id.startsWith('item:') ? 'Esse item não está mais na Bolsa.' : 'Atalho indisponível para este personagem.', 2200);
+  if (!op) return avisar(id.startsWith('item:') ? 'Esse item não está mais no Inventário.' : 'Atalho indisponível para este personagem.', 2200);
+  if (id === 'mover') return alternarMover(t);
   if (id.startsWith('item:')) {
     if (!podeAgir(t)) return avisar('Não é a sua vez (ou acabaram as ações).', 2500);
     return enviar({ tipo: 'usarItem', n: op.nome });
@@ -977,6 +1013,7 @@ function cfgMira(t, cfg) {
 }
 function iniciarMira(t, cfg) {
   if (!podeAgir(t)) { avisar(mesa.combate?.ativo ? 'Não é a sua vez (ou acabaram as ações).' : 'Não dá para agir agora.', 2500); return; }
+  if (movendo) { movendo = false; alcance = null; }
   mira = { ...cfgMira(t, cfg), de: t.k, x: num(t.x), y: num(t.y) };
   // casas ao alcance: forte = alcance normal, fraco = alcance longo; sem linha de visão fica de fora
   const mapa = new Map(), o = { x: mira.x, y: mira.y };
@@ -993,7 +1030,7 @@ function iniciarMira(t, cfg) {
   hud();
 }
 function cancelarMira() { mira = null; cena?.marcar(1, null); cena?.marcar(2, null); $('miraDica').hidden = true; hud(); }
-document.addEventListener('keydown', e => { if (e.key === 'Escape' && mira) cancelarMira(); });
+document.addEventListener('keydown', e => { if (e.key === 'Escape' && mira) cancelarMira(); else if (e.key === 'Escape' && movendo) pararMover(); });
 function tokensEm(x, y, raio) {
   return tokensTodos().filter(t => { const tam = num(t.tamanho, 1); for (let i = 0; i < tam; i++) for (let j = 0; j < tam; j++) if (Math.max(Math.abs(num(t.x) + i - x), Math.abs(num(t.y) + j - y)) <= raio) return true; return false; });
 }
