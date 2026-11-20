@@ -201,7 +201,7 @@ export class Saguao extends DurableObject {
 // Sala: uma mesa de jogo (estado + WebSockets)
 // =====================================================================
 const COMBATE_VAZIO = { ativo: false, ordem: [], turno: 0, rodada: 1 };
-const CAMPOS_PC = ['nome', 'sigla', 'cor', 'vigor', 'vigorMax', 'folego', 'folegoMax', 'tensao', 'limiar', 'defesa', 'desloc', 'ini', 'dados', 'robustez', 'determinacao', 'protecao', 'limiarFer', 'ficha', 'aparencia', 'imbuido'];
+const CAMPOS_PC = ['nome', 'sigla', 'cor', 'vigor', 'vigorMax', 'folego', 'folegoMax', 'tensao', 'limiar', 'defesa', 'desloc', 'ini', 'dados', 'robustez', 'determinacao', 'protecao', 'limiarFer', 'ficha', 'aparencia', 'imbuido', 'itens', 'moedas'];
 const CAMPOS_NPC = ['nome', 'sigla', 'cor', 'tipo', 'vigor', 'vigorMax', 'defesa', 'ini', 'desloc', 'tamanho', 'visivel', 'descricao', 'falas', 'notas', 'x', 'y', 'raca', 'aparencia', 'ataque', 'dano', 'alcance', 'protecao'];
 const RACAS_OK = ['sarthani', 'zarathim', 'veloryn', 'draveth', 'sypheris', 'dvarith', 'criatura'];
 function objetoLimitado(v, max) {
@@ -219,6 +219,8 @@ function limparPc(d) {
   if ('ficha' in o) { o.ficha = objetoLimitado(o.ficha, 16000); if (!o.ficha) delete o.ficha; }
   if ('aparencia' in o) { o.aparencia = objetoLimitado(o.aparencia, 3000); if (!o.aparencia) delete o.aparencia; }
   if ('imbuido' in o) o.imbuido = !!o.imbuido;
+  if ('itens' in o) o.itens = (Array.isArray(o.itens) ? o.itens : []).slice(0, 80).map(it => ({ n: texto(it?.n, 60), q: Math.max(1, Math.min(999, Math.round(num(it?.q, 1)))) })).filter(it => it.n);
+  if ('moedas' in o) { const m = o.moedas || {}; o.moedas = Object.fromEntries(['k', 'l', 't'].map(c => [c, Math.max(0, Math.min(999999, Math.round(num(m[c]))))])); }
   if ('dados' in o) {
     const dd = o.dados || {};
     o.dados = { kael: cor(dd.kael), lyra: cor(dd.lyra), material: ['cristal', 'osso', 'ferro', 'brasa'].includes(dd.material) ? dd.material : 'cristal' };
@@ -502,7 +504,7 @@ export class Sala extends DurableObject {
           if (alvo !== att.id) return;
           const mapa = mestre ? mesa.id : this.idMapa(null);
           const [x, y] = this.casaLivre(mapa);
-          s.pcs[alvo] = { nome: att.nome, cor: '#e2b04a', vigorMax: 21, folegoMax: 18, limiar: 6, defesa: 12, desloc: 6, ini: 0, ...dados, x, y, mapa, tensao: 0 };
+          s.pcs[alvo] = { nome: att.nome, cor: '#e2b04a', vigorMax: 21, folegoMax: 18, limiar: 6, defesa: 12, desloc: 6, ini: 0, moedas: { k: 15, l: 0, t: 0 }, itens: [], ...dados, x, y, mapa, tensao: 0 };
           s.pcs[alvo].vigor ??= s.pcs[alvo].vigorMax;
           s.pcs[alvo].folego ??= s.pcs[alvo].folegoMax;
         } else Object.assign(s.pcs[alvo], dados);

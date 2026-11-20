@@ -638,15 +638,51 @@ function abrirCriacao() {
 $('abas').addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; aba = b.dataset.aba; painel(); });
 function painel() {
   document.querySelectorAll('#abas button').forEach(x => x.classList.toggle('ativo', x.dataset.aba === aba));
-  const c = $('conteudo'), rolagem = c.scrollTop, dif = $('fichaDif')?.value, tir = $('fichaTirith')?.value;
+  const c = $('conteudo'), rolagem = c.scrollTop, dif = $('fichaDif')?.value, tir = $('fichaTirith')?.value, itemN = $('itemNome')?.value, focoItem = document.activeElement?.id === 'itemNome';
   if (aba === 'ficha') c.innerHTML = htmlFicha();
   else if (aba === 'dados') c.innerHTML = htmlDados();
   else if (aba === 'registro') c.innerHTML = htmlRegistro();
   else if (aba === 'mestre') c.innerHTML = htmlMestre();
+  else if (aba === 'itens') c.innerHTML = htmlItens();
   c.scrollTop = rolagem;
   if ($('fichaDif') && dif !== undefined) $('fichaDif').value = dif;
   if ($('fichaTirith') && tir) $('fichaTirith').value = tir;
+  if ($('itemNome') && itemN) $('itemNome').value = itemN;
+  if (focoItem) $('itemNome')?.focus();
   ligar();
+  if (aba === 'itens') ligarItens();
+}
+function moedasDe(p) { const m = p?.moedas || {}; return { k: num(m.k), l: num(m.l), t: num(m.t) }; }
+function htmlItens() {
+  const p = pcs[eu()];
+  if (!p) return '<div class="bloco"><h3>Bolsa</h3><p style="margin:0">Crie um personagem na aba Ficha para guardar itens e moedas.</p></div>';
+  const m = moedasDe(p), itens = Array.isArray(p.itens) ? p.itens : [];
+  const moeda = (c, nome) => `<div class="moeda-linha m-${c}"><i class="moeda-ic"></i><span>${nome}</span><button class="mini" data-moeda="${c}" data-d="-1" aria-label="Menos ${nome}">−</button><input type="number" min="0" max="999999" value="${m[c]}" data-moeda-v="${c}" aria-label="${nome}"><button class="mini" data-moeda="${c}" data-d="1" aria-label="Mais ${nome}">+</button></div>`;
+  return `<div class="bloco"><h3>Moedas</h3>${moeda('k', 'Kaelin')}${moeda('l', 'Lyrins')}${moeda('t', 'Tirins')}<p class="dom-notas" style="margin:6px 0 0">1 Kaelin (ouro) = 100 Lyrins (prata) = 10.000 Tirins (bronze).</p></div>
+  <div class="bloco"><h3>Itens · ${itens.length}/80</h3>
+    <form id="formItem" class="item-novo"><input id="itemNome" maxlength="60" placeholder="Nome do item" aria-label="Nome do item"><input id="itemQtd" type="number" min="1" max="999" value="1" aria-label="Quantidade"><button class="pri">Guardar</button></form>
+    <ul class="itens">${itens.map((it, i) => `<li><span class="item-n">${esc(it.n)}</span><button class="mini" data-item="${i}" data-d="-1" aria-label="Menos ${esc(it.n)}">−</button><b>${num(it.q, 1)}</b><button class="mini" data-item="${i}" data-d="1" aria-label="Mais ${esc(it.n)}">+</button><button class="mini" data-item-x="${i}" aria-label="Descartar ${esc(it.n)}" title="Descartar">✕</button></li>`).join('') || '<li class="vazio">A bolsa está vazia.</li>'}</ul></div>`;
+}
+function salvarBolsa(dados) {
+  const p = pcs[eu()]; if (!p) return;
+  pcs[eu()] = { ...p, ...dados }; painel(); hud();
+  enviar({ tipo: 'pc', dados });
+}
+function ligarItens() {
+  const c = $('conteudo'), p = pcs[eu()]; if (!p) return;
+  const m = moedasDe(p), itens = Array.isArray(p.itens) ? p.itens.map(it => ({ ...it })) : [];
+  const lim = v => Math.max(0, Math.min(999999, Math.round(num(v))));
+  c.querySelectorAll('[data-moeda]').forEach(b => b.onclick = () => salvarBolsa({ moedas: { ...m, [b.dataset.moeda]: lim(m[b.dataset.moeda] + num(b.dataset.d)) } }));
+  c.querySelectorAll('[data-moeda-v]').forEach(i => i.onchange = () => salvarBolsa({ moedas: { ...m, [i.dataset.moedaV]: lim(i.value) } }));
+  c.querySelectorAll('[data-item]').forEach(b => b.onclick = () => { const it = itens[num(b.dataset.item)]; it.q = Math.max(1, Math.min(999, num(it.q, 1) + num(b.dataset.d))); salvarBolsa({ itens }); });
+  c.querySelectorAll('[data-item-x]').forEach(b => b.onclick = () => { itens.splice(num(b.dataset.itemX), 1); salvarBolsa({ itens }); });
+  $('formItem').onsubmit = e => {
+    e.preventDefault();
+    const n = $('itemNome').value.trim().slice(0, 60); if (!n) return $('itemNome').focus();
+    if (itens.length >= 80) return avisar('A bolsa está cheia (80 itens).', 2500);
+    itens.push({ n, q: Math.max(1, Math.min(999, Math.round(num($('itemQtd').value, 1)))) });
+    $('itemNome').value = ''; salvarBolsa({ itens }); $('itemNome')?.focus();
+  };
 }
 function htmlFicha() {
   if (!voce) return '<p class="sub">Conectando…</p>';
@@ -826,6 +862,10 @@ function hud() {
   const dom = f && ehAurethian(f) ? TODOS_DONS[f.dom] : null, n = f ? nivelDom(f) : 0;
   const resta = acoesDe(t), minha = vezDe(t.k), pode = podeAgir(t);
   const tecs = dom ? dom.tec.slice(0, n).map((nome, i) => { const al = alcanceTecnica(f, i + 1); return { nome, nivel: i + 1, custo: CUSTO_DOM[i], inf: dom.inf[i], dano: danoTecnica(f, i + 1), ...al }; }) : [];
+  const barraHud = (rot, v, m, cls) => `<div class="hb ${cls}" title="${rot} ${num(v)}/${num(m)}"><span>${rot}</span><i><b style="width:${Math.max(0, Math.min(100, num(v) / Math.max(1, num(m)) * 100))}%"></b></i><em>${num(v)}/${num(m)}</em></div>`;
+  const ehMeu = t.k === 'pc:' + eu(), mo = moedasDe(t);
+  const retrato = `<div class="hud-retrato"><span class="hud-sigla" style="--cor:${esc(t.cor || '#e2b04a')}">${esc(t.sigla || String(t.nome || '?')[0])}</span><div class="hud-rec">${barraHud('Vigor', t.vigor, t.vigorMax, 'vigor')}${t.tipo === 'pc' ? barraHud('Fôlego', t.folego, t.folegoMax, 'folego') + barraHud('Tensão', t.tensao, t.limiar, 'tensao') : ''}</div></div>`;
+  const bolsa = ehMeu ? `<button class="hud-b hud-bolsa ${aba === 'itens' ? 'on' : ''}" data-hud="bolsa" title="Abrir a Bolsa"><span class="ic">👜</span><span>Bolsa</span><small><b class="m-k">${mo.k}</b> <b class="m-l">${mo.l}</b> <b class="m-t">${mo.t}</b></small></button>` : '';
   let topoHud = '';
   if (cb.ativo) {
     const vez = tokenPorK(cb.ordem?.[cb.turno]?.k);
@@ -833,7 +873,7 @@ function hud() {
       ? `<span class="hud-vez">Sua vez</span>${t.tipo === 'pc' ? `<span class="pips-hud">${[0, 1, 2].map(i => `<i class="${i < resta ? 'ok' : ''}"></i>`).join('')}</span><span class="hud-sub">${resta} ${resta === 1 ? 'ação' : 'ações'} · mover gasta 1 (até ${num(t.desloc, 6)} casas)</span>` : ''}`
       : `<span class="hud-sub">Rodada ${num(cb.rodada, 1)} · vez de <b>${esc(vez?.nome || '—')}</b></span>`;
   } else topoHud = `<span class="hud-sub">Fora de combate · ações livres</span>`;
-  el.innerHTML = `<div class="hud-topo"><b class="hud-nome">${esc(t.nome)}</b>${topoHud}</div>
+  el.innerHTML = `<div class="hud-linha">${retrato}<div class="hud-meio"><div class="hud-topo"><b class="hud-nome">${esc(t.nome)}</b>${topoHud}</div>
     <div class="hud-acoes">
       <button class="hud-b ${mira?.tipo === 'arma' ? 'on' : ''}" data-hud="arma" ${pode ? '' : 'disabled'} title="${esc(arma.nome)} · ${arma.tipo === 'distancia' ? `alcance ${arma.alcance} (até ${arma.longo} com −3)` : `alcance ${arma.alcance}`}"><span class="ic">⚔</span><span>Atacar</span><small>${esc(arma.nome)} · ${sinal(arma.mod)}</small></button>
       ${dom ? `<div class="hud-grupo"><button class="hud-b ${menuTec || mira?.tipo === 'tec' ? 'on' : ''}" data-hud="tecs" ${pode ? '' : 'disabled'} style="--cor:${dom.cor}"><span class="ic" style="color:${dom.cor}">✦</span><span>Técnicas</span><small>${esc(dom.nome)} · Fôlego ${num(t.folego)}</small></button>
@@ -843,7 +883,7 @@ function hud() {
       <label class="hud-tirith" title="Dado de Tirith"><select id="hudTirith"><option value="normal">Normal</option><option value="vantagem">Vantagem</option><option value="desvantagem">Desvant.</option></select></label>
       ${cb.ativo && (minha || (souMestre() && vezDe(t.k))) ? `<button class="hud-b fim" data-hud="fim"><span class="ic">⏭</span><span>Fim do turno</span><small>passa a vez</small></button>` : ''}
       ${souMestre() && cb.ativo && !(vezDe(t.k)) ? `<button class="hud-b fim" data-hud="fim"><span class="ic">⏭</span><span>Próximo</span><small>turno</small></button>` : ''}
-    </div>
+    </div></div>${bolsa}</div>
     ${mira ? `<div class="hud-mira">${esc(mira.titulo)} — clique no alvo · <button class="mini" data-hud="cancelar">Cancelar (Esc)</button></div>` : ''}`;
   el.hidden = false;
   $('hudTirith').value = tirithHud;
@@ -856,6 +896,7 @@ function acaoHud(a, t) {
   else if (a === 'tecs') { menuTec = !menuTec; if (mira) cancelarMira(); else hud(); }
   else if (a === 'imbuir') $('imbuir') ? $('imbuir').click() : alternarImbuir();
   else if (a === 'defender') enviar({ tipo: 'defender' });
+  else if (a === 'bolsa') { aba = 'itens'; painel(); hud(); if (matchMedia('(max-width:900px)').matches) $('abas').scrollIntoView({ behavior: 'smooth' }); }
   else if (a === 'fim') { cancelarMira(); enviar({ tipo: 'combate', acao: 'proximo' }); }
   else if (a === 'cancelar') cancelarMira();
 }

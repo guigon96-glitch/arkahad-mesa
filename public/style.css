@@ -285,9 +285,8 @@ input:focus,select:focus,textarea:focus{border-color:var(--ouro);box-shadow:inse
 .hud-b.on{background:linear-gradient(#3a2b19,#21180f)}
 .hud-menu{background:var(--vidro-forte);border-color:var(--fio);border-radius:14px;box-shadow:var(--brilho);animation:sobe .25s var(--mola) both}
 .mira-dica{background:var(--vidro-forte);border-radius:12px}
-.ini{background:var(--vidro);border-color:rgba(217,178,94,.15);border-radius:12px;animation:lateral .4s var(--mola) both}
-.ini:nth-child(3){animation-delay:.05s}.ini:nth-child(4){animation-delay:.1s}.ini:nth-child(5){animation-delay:.15s}.ini:nth-child(n+6){animation-delay:.2s}
-.ini.vez{background:linear-gradient(90deg,rgba(80,58,24,.85),rgba(30,22,14,.8));animation:lateral .4s var(--mola) both,pulsa 1.8s ease-in-out .4s infinite}
+.ini{background:var(--vidro);border-color:rgba(217,178,94,.15);border-radius:12px}
+.ini.vez{background:linear-gradient(90deg,rgba(80,58,24,.85),rgba(30,22,14,.8));animation:pulsa 1.8s ease-in-out infinite}
 .zoom button{background:var(--vidro);border-color:var(--fio);border-radius:12px}
 .dica{background:rgba(0,0,0,.5)}
 .banner{font-size:40px;background:linear-gradient(90deg,#f6dfa4,#fff1c8,#d9b25e);-webkit-background-clip:text;background-clip:text;color:transparent;filter:drop-shadow(0 3px 12px #000)}
@@ -345,3 +344,39 @@ input:focus,select:focus,textarea:focus{border-color:var(--ouro);box-shadow:inse
 
 @media (prefers-reduced-transparency:reduce){.topo,.lado,.cartao,.hud,.hud-menu,.mira-dica,.aviso,.ini,.caixa,.cr-caixa,.zoom button{background:#16110c;-webkit-backdrop-filter:none;backdrop-filter:none}}
 @media (prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important}}
+/* ===== barra do jogador: retrato, recursos e Bolsa ===== */
+.hud-linha{display:flex;align-items:center;gap:14px}
+.hud-meio{min-width:0;flex:1}
+.hud-retrato{display:flex;align-items:center;gap:10px;padding-right:14px;border-right:1px solid rgba(217,178,94,.2)}
+.hud-sigla{flex:none;width:54px;height:54px;border-radius:50%;display:grid;place-items:center;font:700 20px Cinzel,serif;color:#fff3da;text-shadow:0 1px 3px #000;background:radial-gradient(circle at 35% 30%,color-mix(in srgb,var(--cor) 70%,#fff),var(--cor) 45%,color-mix(in srgb,var(--cor) 40%,#000));box-shadow:0 0 0 2px #120d08,0 0 0 3px var(--ouro),0 0 18px color-mix(in srgb,var(--cor) 50%,transparent)}
+.hud-rec{display:flex;flex-direction:column;gap:4px;width:180px}
+.hb{display:grid;grid-template-columns:48px 1fr auto;align-items:center;gap:6px;font-size:11px;color:var(--mudo)}
+.hb i{position:relative;display:block;height:7px;border-radius:999px;background:#060403;box-shadow:inset 0 1px 2px #000;overflow:hidden}
+.hb i b{display:block;height:100%;border-radius:inherit;transition:width .4s ease}
+.hb i::after{content:"";position:absolute;inset:0;background:linear-gradient(rgba(255,255,255,.3),transparent 60%)}
+.hb em{font-style:normal;font-variant-numeric:tabular-nums;color:var(--ink);min-width:38px;text-align:right}
+.hb.vigor{font-size:12px}.hb.vigor span{font:700 12px Cinzel,serif;color:#cfe8bf}
+.hb.vigor i{height:13px;outline:1px solid rgba(217,178,94,.45)}
+.hb.vigor b{background:linear-gradient(#8fd06f,#4f8a3d 60%,#3a6a2c);box-shadow:0 0 10px rgba(110,190,80,.6)}
+.hb.folego span{color:#9cc0ff}.hb.folego b{background:linear-gradient(#9cc0ff,#4d7fdc)}
+.hb.tensao span{color:#ff8b7e}.hb.tensao b{background:linear-gradient(#ff7b6b,#a82a22)}
+.hud-bolsa{align-self:stretch}
+.hud-bolsa small b{font-weight:700}
+.m-k{color:#f2cf73}.m-l{color:#d4dbe6}.m-t{color:#d08a55}
+/* aba Bolsa */
+.moeda-linha{display:grid;grid-template-columns:22px 1fr 32px 96px 32px;align-items:center;gap:6px;margin:5px 0}
+.moeda-linha input{text-align:center;padding:4px 6px;font-variant-numeric:tabular-nums}
+.moeda-ic{width:20px;height:20px;border-radius:50%;box-shadow:inset 0 -2px 0 #0006,0 0 8px currentColor}
+.moeda-linha.m-k .moeda-ic{background:radial-gradient(circle at 35% 30%,#fff1b8,#e2b04a 50%,#8a6420)}
+.moeda-linha.m-l .moeda-ic{background:radial-gradient(circle at 35% 30%,#fff,#b9c2cf 50%,#6b7480)}
+.moeda-linha.m-t .moeda-ic{background:radial-gradient(circle at 35% 30%,#ffd2a8,#c27a43 50%,#6d3f1d)}
+.moeda-linha span{color:var(--ink)}
+.item-novo{display:grid;grid-template-columns:1fr 64px auto;gap:6px;margin-bottom:10px}
+.item-novo input[type=number]{text-align:center}
+.itens{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:4px}
+.itens li{display:grid;grid-template-columns:1fr 32px 34px 32px 32px;align-items:center;gap:4px;padding:5px 6px 5px 10px;border-radius:10px;background:rgba(0,0,0,.25);border:1px solid rgba(217,178,94,.12)}
+.itens li b{text-align:center;font-variant-numeric:tabular-nums;color:var(--ouro)}
+.itens .item-n{overflow-wrap:anywhere}
+.itens li.vazio{display:block;color:var(--mudo);text-align:center;padding:14px;border-style:dashed}
+@media(max-width:800px){.hud-linha{flex-wrap:wrap;gap:8px}.hud-retrato{flex-basis:100%;border-right:0;padding:0 0 6px;border-bottom:1px solid rgba(217,178,94,.2)}.hud-sigla{width:40px;height:40px;font-size:16px}.hud-rec{flex:1;width:auto}.hud-bolsa{flex:1}}
+@media (prefers-reduced-motion:reduce){.hb i b{transition:none!important}}
