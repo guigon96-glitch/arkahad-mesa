@@ -13,6 +13,8 @@ import { construirSolo, carregarTexturasSolo, pontosDaMargem, NIVEL_H as NIVEL_S
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { criarMiniatura, criarDado, rotulo } from './miniatura.js';
 import { carregarModelos, carregarNatureza, criarPersonagem, criarCriatura3D, CRIATURAS_3D, pecaCenario, pecaNatureza, temCenario, temNatureza, modelosProntos, TEMPO } from './modelos.js';
+// celular/tablet: céus 1k e chão 512 (memória de vídeo menor)
+const TELA_FINA = matchMedia('(pointer: coarse)').matches;
 
 // ---------- configuração fácil de editar ----------
 const ALTURA = { '.': .12, '_': .16, ',': .1, '"': .14, '~': .04, '=': .17, '+': .16, 'v': .12, '#': .16, m: .12, h: .12, k: .14, P: .14, Q: .12, 'T': .14, '^': .12, '*': .12, b: .12, c: .12, s: .12, n: .14, a: .16, o: .14, w: .12 };
@@ -396,7 +398,7 @@ export function criarCena(el, cb = {}) {
       ceuAtual = luz;
       const usar = t => { if (ceuAtual !== luz) return; cena.environment = t; cena.background = c.fundoCor ? new THREE.Color(c.fundoCor) : t; };
       if (hdrs[c.hdr]) usar(hdrs[c.hdr]);
-      else carregaHdr.loadAsync('/ceus/' + c.hdr + '.hdr').then(eq => { const t = pmrem.fromEquirectangular(eq).texture; eq.dispose(); hdrs[c.hdr] = t; usar(t); }).catch(() => {});
+      else carregaHdr.loadAsync('/ceus/' + (TELA_FINA ? c.hdr : c.hdr.replace('_1k', '_2k')) + '.hdr').then(eq => { const t = pmrem.fromEquirectangular(eq).texture; eq.dispose(); hdrs[c.hdr] = t; usar(t); }).catch(() => {});
     }
     cena.environmentIntensity = c.env; cena.backgroundIntensity = c.fundo; cena.backgroundBlurriness = .06;
     renderer.toneMappingExposure = c.exp;

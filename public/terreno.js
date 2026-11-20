@@ -21,7 +21,8 @@ export function carregarTexturasSolo(base = '/texturas/') {
   const ler = n => new Promise((ok, erro) => { const i = new Image(); i.onload = () => ok(i); i.onerror = erro; i.src = base + n; });
   const montar = async sufixo => {
     const imgs = await Promise.all(CAMADAS.map(c => ler(`${c}_${sufixo}.jpg`)));
-    const T = 512, cv = document.createElement('canvas'); cv.width = cv.height = T;
+    // usa a resolução dos arquivos (até 1024); celular fica em 512 para poupar memória de vídeo
+    const T = Math.min(imgs[0].naturalWidth || 512, matchMedia('(pointer: coarse)').matches ? 512 : 1024), cv = document.createElement('canvas'); cv.width = cv.height = T;
     const g = cv.getContext('2d', { willReadFrequently: true }), dados = new Uint8Array(T * T * 4 * imgs.length);
     imgs.forEach((im, i) => { g.clearRect(0, 0, T, T); g.drawImage(im, 0, 0, T, T); dados.set(g.getImageData(0, 0, T, T).data, i * T * T * 4); });
     const t = new THREE.DataArrayTexture(dados, T, T, imgs.length);
