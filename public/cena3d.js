@@ -484,7 +484,7 @@ export function criarCena(el, cb = {}) {
       // teleporte (habilidade): some num clarão e reaparece, sem andar
       if ((tk.x !== t.x || tk.y !== t.y) && t.tp !== tk.tp) {
         const de = tk.g.position.clone(), para = new THREE.Vector3(t.x + tam / 2, alturaEm(t.x, t.y), t.y + tam / 2);
-        efx.salto(de, para, t.cristal || '#c9a0ff');
+        if (de.distanceTo(para) > .05) efx.salto(de, para, t.cristal || '#c9a0ff');
         tk.anim = null; tk.g.position.copy(para); tk.x = t.x; tk.y = t.y;
         tk.mini.rotation.y = Math.atan2(para.x - de.x, para.z - de.z);
       }
@@ -711,6 +711,11 @@ export function criarCena(el, cb = {}) {
     // habilidade do Dom (ver efeitos.js)
     efeito(s) {
       const a = tokens.get(s.de); if (!a) return;
+      // teleporte: some e reaparece já na animação (o estado chega depois, sem andar)
+      if (s.forma === 'salto' && s.centro && !s.falhou && mesa) {
+        const para = new THREE.Vector3(s.centro.x + .5, alturaEm(s.centro.x, s.centro.y), s.centro.y + .5);
+        efx.salto(a.g.position.clone(), para, s.cor); a.anim = null; a.g.position.copy(para); a.x = s.centro.x; a.y = s.centro.y;
+      }
       const meio = tk => tk.g.position.clone().add(new THREE.Vector3(0, tk.alturaMini * .55, 0));
       const centro = s.centro && mesa ? new THREE.Vector3(s.centro.x + .5, alturaEm(s.centro.x, s.centro.y) + .02, s.centro.y + .5) : null;
       const alvos = (s.alvos || []).map(k => tokens.get(k) && { k, p: meio(tokens.get(k)), chao: tokens.get(k).g.position.clone(), acertou: (s.acertos || []).includes(k) }).filter(Boolean);

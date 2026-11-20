@@ -1,6 +1,6 @@
 import { DurableObject } from 'cloudflare:workers';
 import { TERRENOS, LUZES, LUAS, r, num, custoCel, dijkstra, rolar2d10, rolarAtaque, rolarExpr, nivelPorXp, CONDICOES, CONDS_CAOS, modCond, temCond, deslocCom, distanciaCasas } from '../public/regras.js';
-import { HABILIDADE, danoHabilidade } from '../public/conteudo.js';
+import { HABILIDADE, danoHabilidade, TODOS_DONS } from '../public/conteudo.js';
 
 const MAX_JOGADORES = 6;
 const SESSAO_DIAS = 30;
@@ -203,7 +203,7 @@ export class Saguao extends DurableObject {
 // =====================================================================
 const COMBATE_VAZIO = { ativo: false, ordem: [], turno: 0, rodada: 1 };
 const CAMPOS_PC = ['nome', 'sigla', 'cor', 'vigor', 'vigorMax', 'folego', 'folegoMax', 'tensao', 'limiar', 'defesa', 'desloc', 'ini', 'dados', 'robustez', 'determinacao', 'protecao', 'limiarFer', 'ficha', 'aparencia', 'imbuido', 'itens', 'moedas', 'barra'];
-const CAMPOS_NPC = ['nome', 'sigla', 'cor', 'tipo', 'vigor', 'vigorMax', 'defesa', 'ini', 'desloc', 'tamanho', 'visivel', 'descricao', 'falas', 'notas', 'x', 'y', 'raca', 'aparencia', 'ataque', 'dano', 'alcance', 'protecao', 'xp'];
+const CAMPOS_NPC = ['nome', 'sigla', 'cor', 'tipo', 'vigor', 'vigorMax', 'defesa', 'ini', 'desloc', 'tamanho', 'visivel', 'descricao', 'falas', 'notas', 'x', 'y', 'raca', 'aparencia', 'ataque', 'dano', 'alcance', 'protecao', 'xp', 'dom', 'habs'];
 const RACAS_OK = ['sarthani', 'zarathim', 'veloryn', 'draveth', 'sypheris', 'dvarith', 'criatura'];
 function objetoLimitado(v, max) {
   if (!v || typeof v !== 'object' || Array.isArray(v)) return undefined;
@@ -238,6 +238,8 @@ function limparNpc(d) {
   if ('tipo' in o) o.tipo = ['npc', 'monstro', 'aliado'].includes(o.tipo) ? o.tipo : 'npc';
   for (const k of ['vigor', 'vigorMax', 'defesa', 'ini', 'desloc', 'x', 'y', 'ataque', 'protecao']) if (k in o) o[k] = Math.round(num(o[k]));
   if ('xp' in o) o.xp = Math.max(0, Math.min(200, Math.round(num(o.xp))));
+  if ('dom' in o) o.dom = TODOS_DONS[o.dom] ? o.dom : '';
+  if ('habs' in o) o.habs = [...new Set((Array.isArray(o.habs) ? o.habs : []).map(String))].filter(id => HABILIDADE[id]).slice(0, 12);
   if ('alcance' in o) o.alcance = Math.max(1, Math.min(40, Math.round(num(o.alcance, 1))));
   if ('dano' in o) o.dano = /^[0-9d+\-]{1,20}$/i.test(String(o.dano || '')) ? String(o.dano).toLowerCase() : '1d6';
   if ('tamanho' in o) o.tamanho = Math.max(1, Math.min(4, Math.round(num(o.tamanho, 1))));
@@ -673,7 +675,9 @@ export class Sala extends DurableObject {
         let alvos = [...new Set((Array.isArray(msg.alvos) ? msg.alvos : []).map(String))].slice(0, 16).map(k => [k, this.objetoDe(k)]).filter(([, o]) => o);
         // habilidade do Dom: dados, condições e efeitos vêm da tabela, não do cliente
         const hab = msg.hab ? HABILIDADE[String(msg.hab)] : null;
-        if (msg.hab && (!hab || !de.startsWith('pc:') || !(autor.ficha?.talentos || []).includes(hab.id))) return erro('Habilidade não aprendida.');
+        // PC: aprendida na árvore; NPC: o Mestre marcou no editor
+        const sabe = hab && (de.startsWith('pc:') ? (autor.ficha?.talentos || []).includes(hab.id) : mestre && (autor.habs || []).includes(hab.id));
+        if (msg.hab && !sabe) return erro('Habilidade não aprendida.');
         if (hab && temCond(autor, 'mudo')) return erro(`${autor.nome} está silenciado e não pode usar o Dom.`);
         if (!hab || hab.t === 'atq') this.tirarCond(autor, 'oculto'); // atacar revela quem está oculto
         if (hab && hab.t !== 'atq') {

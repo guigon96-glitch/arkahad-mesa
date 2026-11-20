@@ -159,7 +159,7 @@ export function criarEfeitos(grupo) {
         }
         break;
       }
-      case 'salto': salto(chao0, chao0, cor, 0); break;
+      case 'salto': break; // o salto em si é feito pela cena (efeito)
       case 'parede': celulas.forEach((p, i) => {
         const t = 250 + i * 60;
         coluna(p, cor, .42, 1.3 * m, t, 700); particulas(p, cor, 10, e === 'gotas' ? 'gotas' : e === 'folhas' ? 'folhas' : 'cristal', .3, t + 100, 900);

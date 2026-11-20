@@ -223,7 +223,7 @@ function visualDe(t) {
   }
   const raca = t.raca || (t.tipo === 'monstro' ? 'criatura' : 'sarthani');
   const aparencia = t.aparencia || { ...aparenciaPadrao(raca === 'criatura' ? 'sarthani' : raca, 'lamina'), corRoupa: t.cor || '#8c7a63', base: t.cor || '#8c7a63' };
-  return { aparencia: { ...aparencia, base: t.cor || aparencia.base }, raca, cristal: t.cristal || null };
+  return { aparencia: { ...aparencia, base: t.cor || aparencia.base }, raca, cristal: t.cristal || TODOS_DONS[t.dom]?.cor || null };
 }
 function render() {
   if (!mesa) return;
@@ -878,22 +878,34 @@ function editorNpc(id) {
     <div class="linha">${f('vigor', 'Vigor')}${f('vigorMax', 'Vigor máx.')}${f('defesa', 'Defesa')}</div>
     <div class="linha">${f('ini', 'Bônus inic.')}${f('desloc', 'Desloc.')}${f('tamanho', 'Tamanho (casas)')}</div>
     <div class="linha">${f('ataque', 'Bônus de ataque')}${f('dano', 'Dano', 'text')}${f('alcance', 'Alcance (casas)')}${f('protecao', 'Proteção')}<div><label for="n_xp">XP ao derrotar</label><input id="n_xp" type="number" min="0" placeholder="${Math.max(1, Math.round(num(n.vigorMax, 10) / 5))}" value="${esc(n.xp ?? '')}"></div></div>
+    <label for="n_dom">Dom</label><select id="n_dom"><option value="">Sem Dom</option>${Object.entries(TODOS_DONS).map(([k, d]) => `<option value="${k}" ${n.dom === k ? 'selected' : ''}>${esc(d.nome)} — ${esc(d.tema)}</option>`).join('')}</select>
+    <div id="n_habs"></div>
     <label style="display:flex;gap:8px;align-items:center;font-size:15px;color:var(--ink)"><input id="n_visivel" type="checkbox" style="width:auto" ${n.visivel !== false ? 'checked' : ''}> Visível para os jogadores</label>
     <label for="n_descricao">Descrição (jogadores veem)</label><textarea id="n_descricao">${esc(n.descricao)}</textarea>
     <label for="n_falas">Falas (uma por linha)</label><textarea id="n_falas">${esc((n.falas || []).join('\n'))}</textarea>
     <label for="n_notas">Notas secretas do Mestre</label><textarea id="n_notas">${esc(n.notas)}</textarea>
     <button class="pri" style="width:100%;margin-top:10px">Salvar NPC</button></form>`;
   c.hidden = false;
+  let habs = [...(n.habs || [])];
+  const arvoreNpc = () => { $('n_habs').innerHTML = arvoreHabsNpc($('n_dom').value, habs); $('n_habs').querySelectorAll('[data-nhab]').forEach(b => b.onchange = () => { habs = b.checked ? [...habs, b.dataset.nhab] : habs.filter(x => x !== b.dataset.nhab); b.closest('.hab-no').classList.toggle('tem', b.checked); }); };
+  $('n_dom').onchange = arvoreNpc; arvoreNpc();
   $('fechaCartao').onclick = () => { c.hidden = true; };
   $('formNpc').onsubmit = e => {
     e.preventDefault(); const v = k => $('n_' + k).value;
     const raca = v('raca'), sexo = v('sexo'), base = raca === 'criatura' ? {} : aparenciaPadrao(raca, 'lamina', sexo);
     const pele = RACAS[raca]?.pele, trocou = n.raca !== raca || (n.aparencia?.sexo || 'm') !== sexo;
     const aparencia = { ...base, ...(trocou ? {} : n.aparencia || {}), sexo, corRoupa: v('roupa'), arma: v('arma'), secundaria: v('sec'), criatura: v('criatura'), base: v('cor'), ...(trocou && pele ? { pele: pele[Math.floor(Math.random() * pele.length)] } : {}) };
-    const dados = { nome: v('nome'), sigla: v('sigla'), cor: v('cor'), tipo: v('tipo'), raca, aparencia, vigor: num(v('vigor')), vigorMax: num(v('vigorMax')), defesa: num(v('defesa')), ini: num(v('ini')), desloc: num(v('desloc'), 6), tamanho: num(v('tamanho'), 1), ataque: num(v('ataque'), 3), dano: v('dano') || '2', alcance: num(v('alcance'), 1), protecao: num(v('protecao')), ...(v('xp') !== '' ? { xp: num(v('xp')) } : {}), visivel: $('n_visivel').checked, descricao: v('descricao'), falas: v('falas').split('\n').map(s => s.trim()).filter(Boolean), notas: v('notas') };
+    const dados = { nome: v('nome'), sigla: v('sigla'), cor: v('cor'), tipo: v('tipo'), raca, aparencia, vigor: num(v('vigor')), vigorMax: num(v('vigorMax')), defesa: num(v('defesa')), ini: num(v('ini')), desloc: num(v('desloc'), 6), tamanho: num(v('tamanho'), 1), ataque: num(v('ataque'), 3), dano: v('dano') || '2', alcance: num(v('alcance'), 1), protecao: num(v('protecao')), ...(v('xp') !== '' ? { xp: num(v('xp')) } : {}), visivel: $('n_visivel').checked, dom: v('dom'), habs: habs.filter(x => HABILIDADE[x]?.dom === v('dom')), descricao: v('descricao'), falas: v('falas').split('\n').map(s => s.trim()).filter(Boolean), notas: v('notas') };
     npcs[id] = { ...npcs[id], ...dados }; enviar({ tipo: 'npc', id, dados });
     selecionar('npc:' + id);
   };
+}
+// árvore do Dom no editor de NPC: o Mestre marca livremente (sem pontos nem pré-requisito)
+function arvoreHabsNpc(dom, habs) {
+  const arv = ARVORES['hab_' + dom]; if (!arv) return '';
+  const no = n => { const h = HABILIDADE[n.id]; return `<label class="hab-no ${habs.includes(n.id) ? 'tem' : ''} ${h.n === 4 ? 'suprema' : ''}" style="--cor:${arv.cor}"><b><input type="checkbox" data-nhab="${n.id}" ${habs.includes(n.id) ? 'checked' : ''} style="width:auto"> ${ICONE_HAB[h.t]} ${esc(h.nome)}</b><small>${esc(n.desc)}</small></label>`; };
+  return `<div class="hab-arvore" style="--cor:${arv.cor};margin-top:6px"><h4>${esc(arv.nome)}</h4><div class="hab-g">${no(arv.nos[0])}</div><div class="hab-g dois">${no(arv.nos[1])}${no(arv.nos[2])}</div><div class="hab-g">${no(arv.nos[3])}</div></div>
+    <p class="cr-nota" style="margin:2px 0 0">Marque o que o NPC sabe usar. Os testes de Dom usam o Bônus de ataque; NPC não gasta Fôlego. Selecione o NPC e use pela barra.</p>`;
 }
 function ligar() {
   const q = s => document.querySelector(s);
@@ -1042,7 +1054,7 @@ function opcoesBarra(t) {
   const ops = [{ id: 'arma', ic: '⚔', nome: 'Atacar', sub: armaDoAtor(t).nome }];
   if (t.k === 'pc:' + eu()) { const r = restoMov(t); ops.push({ id: 'mover', ic: '👣', nome: 'Mover', sub: r ? `${r} casas restantes neste turno` : `1 ação · até ${num(t.desloc, 6)} casas no turno`, on: movendo }); }
   if (dom) for (let i = 1; i <= n; i++) ops.push({ id: 'tec:' + i, ic: '✦', cor: dom.cor, nome: dom.tec[i - 1], sub: `${dom.nome} N${i} · ${CUSTO_DOM[i - 1]} Fôlego` });
-  if (f) for (const h of habilidadesDe(f)) ops.push({ id: 'hab:' + h.id, ic: ICONE_HAB[h.t], cor: h.cor, nome: h.nome, sub: `${TALENTO[h.id].desc}` });
+  for (const h of habilidadesDoAtor(t)) ops.push({ id: 'hab:' + h.id, ic: ICONE_HAB[h.t], cor: h.cor, nome: h.nome, sub: `${TALENTO[h.id].desc}` });
   if (f && temImbuir(f)) ops.push({ id: 'imbuir', ic: '🜂', cor: dom?.cor, nome: t.imbuido ? 'Imbuída' : 'Imbuir', sub: f.talentos.includes('imb4') ? 'grátis' : '1 Fôlego', on: !!t.imbuido });
   if (t.tipo === 'pc') ops.push({ id: 'defender', ic: '⛨', nome: 'Defender', sub: '+2 Defesa até seu turno', on: !!t.guarda });
   if (t.k === 'pc:' + eu()) for (const it of (Array.isArray(t.itens) ? t.itens : [])) ops.push({ id: 'item:' + it.n, ic: '🧪', nome: it.n, sub: `Item · ${num(it.q, 1)} no Inventário` });
@@ -1111,7 +1123,7 @@ function alternarImbuir() {
 function cfgMira(t, cfg) {
   if (cfg.tipo === 'arma') { const a = armaDoAtor(t); return { ...cfg, ...a, tipo: 'arma', tipoArma: a.tipo, raio: 0, distancia: a.tipo === 'distancia', titulo: `${a.nome}: alcance ${a.alcance}${a.longo > a.alcance ? ` (até ${a.longo} com −3)` : ''}` }; }
   const f = t.ficha, at = f ? atributosFinais(f) : {}, dm = f ? TODOS_DONS[f.dom] : null;
-  const modTec = f && dm ? at[dm.chave] + gradPericia(f, 'canalizacao') + bonusTesteDom(f) : 0;
+  const modTec = f && dm ? at[dm.chave] + gradPericia(f, 'canalizacao') + bonusTesteDom(f) : num(t.ataque, 3); // NPC usa o bônus de ataque
   return { ...cfg, modTec, longo: cfg.alcance, distancia: !cfg.atravessa, titulo: `${cfg.nome}: alcance ${cfg.alcance}${cfg.raio ? ` · área ${cfg.raio * 2 + 1}×${cfg.raio * 2 + 1}` : ''}` };
 }
 function iniciarMira(t, cfg) {
@@ -1157,6 +1169,8 @@ function avaliar(ator, cfg, alvo) {
   if (alvo.guarda) notas.push('Alvo em guarda (+2 Defesa)');
   return { ok, mod, cob, dist, notas };
 }
+// habilidades de um PC (árvore) ou de um NPC (marcadas pelo Mestre)
+function habilidadesDoAtor(t) { return t.tipo === 'pc' ? habilidadesDe(t.ficha) : (t.habs || []).map(id => HABILIDADE[id]).filter(Boolean); }
 const ICONE_HAB = { atq: '✸', si: '◈', apoio: '✚', mov: '➹', campo: '▦' };
 // apoio mira aliados (e pode incluir quem usa); ataque mira os outros; campo pega todos na área; teleporte, ninguém
 function alvosMira(ator, i) {
@@ -1166,7 +1180,7 @@ function alvosMira(ator, i) {
 }
 // habilidade do Dom: em si sai na hora; as outras abrem a mira
 function usarHabilidade(t, id) {
-  const h = HABILIDADE[id], f = t.ficha; if (!h || !f) return false;
+  const h = HABILIDADE[id]; if (!h) return false;
   menuTec = false;
   if (mira?.hab === id) { cancelarMira(); return false; }
   if (t.cond?.silenciado) { avisar(`${t.nome} está silenciado e não pode usar o Dom.`, 2500); return false; }
