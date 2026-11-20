@@ -72,7 +72,7 @@ void main(){ vUv = uv; vec4 mv = modelViewMatrix * vec4(position, 1.); vec3 n = 
 const VERT_PLANO = `varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.); }`;
 // 0 fogo · 1 gelo/cristal · 2 raio · 3 fumaça · 4 energia (luz, plantas, água, som…)
 const MODO = { fogo: 0, gelo: 1, cristal: 1, raio: 2, fumaca: 3 };
-const FRAG_ENERGIA = `uniform vec3 uCor; uniform float uT, uOp, uModo; varying vec2 vUv; varying float vFres;${RUIDO}
+const FRAG_ENERGIA = `uniform vec3 uCor; uniform float uT, uOp, uModo; uniform sampler2D uTex; varying vec2 vUv; varying float vFres;${RUIDO}
 void main(){
   vec2 p = vUv * vec2(6., 3.); float n;
   if (uModo < .5) { n = fbm(p + vec2(0., -uT * 2.6)); n = pow(clamp(n * 1.5 * (1.15 - vUv.y), 0., 1.), 1.6); }
@@ -80,7 +80,9 @@ void main(){
   else if (uModo < 2.5) { n = step(.6, vn(p * 3. + floor(uT * 30.))) * .9 + fbm(p * 4. + uT * 9.) * .45; }
   else if (uModo < 3.5) { n = fbm(p * .8 + vec2(uT * .3, -uT * .7)); }
   else { n = fbm(p + vec2(uT * 1.1, -uT * 1.6)) * .85 + .25; }
-  n = clamp(n, 0., 1.);
+  // textura pintada (Gemini) correndo por cima do ruído: dá forma de chama, veio, raio ou fumaça
+  float tx = texture2D(uTex, vUv * vec2(2., 1.) + vec2(uT * .04, uModo < .5 ? -uT * .35 : -uT * .12)).r;
+  n = clamp(n * .55 + tx * (.35 + n * .6), 0., 1.);
   float a = n * uOp * (.35 + vFres);
   vec3 c = uModo > 2.5 && uModo < 3.5 ? mix(uCor * .3, vec3(.12), .5) : mix(uCor, vec3(1.), pow(n, 3.) * .85) * 1.7;
   gl_FragColor = vec4(c, a);
@@ -119,7 +121,13 @@ function matShader(frag, vert, cor, extra = {}, normal = false) {
     vertexShader: vert, fragmentShader: frag, transparent: true, depthWrite: false, side: THREE.DoubleSide, blending: normal ? THREE.NormalBlending : THREE.AdditiveBlending,
   });
 }
-const matEnergia = (cor, estilo) => matShader(FRAG_ENERGIA, VERT_FRES, cor, { uModo: MODO[estilo] ?? 4 }, estilo === 'fumaca');
+// texturas de efeito em tons de cinza (geradas no Gemini) em public/texturas/fx/
+const TEX_FX = {}, ARQ_FX = { fogo: 'fogo', gelo: 'gelo', cristal: 'gelo', raio: 'raio', fumaca: 'fumaca' };
+function texFx(estilo) {
+  const n = ARQ_FX[estilo] || 'energia';
+  return (TEX_FX[n] ||= new THREE.TextureLoader().load(`/texturas/fx/${n}.jpg`, t => { t.wrapS = t.wrapT = THREE.RepeatWrapping; }));
+}
+const matEnergia = (cor, estilo) => matShader(FRAG_ENERGIA, VERT_FRES, cor, { uModo: MODO[estilo] ?? 4, uTex: texFx(estilo) }, estilo === 'fumaca');
 
 export function criarEfeitos(grupo) {
   const lista = [];
@@ -171,12 +179,16 @@ export function criarEfeitos(grupo) {
     m.rotation.x = -Math.PI / 2; m.position.copy(p).add(V(0, .05, 0)); m.scale.setScalar(Math.max(r0, r1)); m.renderOrder = 2;
     add([m], dur, k => { const e = 1 - (1 - k) ** 3; mat.uniforms.uR.value = (r0 + (r1 - r0) * e) / Math.max(r0, r1); mat.uniforms.uOp.value = 1 - k; m.position.y = p.y + .05 + sobe * k; }, atraso);
   }
-  // círculo mágico no chão: aparece girando, brilha e some
-  function circulo(p, cor, raio, atraso = 0, dur = 1000) {
+  // círculo mágico no chão: aparece girando, brilha e some; com runa do Dom no centro (fundo preto some no modo aditivo)
+  const runas = {}, carregador = new THREE.TextureLoader();
+  const texRuna = url => (runas[url] ||= carregador.load(url, t => { t.colorSpace = THREE.SRGBColorSpace; }));
+  function circulo(p, cor, raio, atraso = 0, dur = 1000, runa = null) {
     const mat = matShader(FRAG_CIRCULO, VERT_PLANO, cor);
     const m = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), mat);
     m.rotation.x = -Math.PI / 2; m.position.copy(p).add(V(0, .06, 0)); m.renderOrder = 2;
-    add([m], dur, k => { const e = k < .25 ? 1 - (1 - k / .25) ** 3 : 1; m.scale.setScalar(raio * (.6 + .4 * e)); mat.uniforms.uOp.value = k < .25 ? k / .25 : k > .7 ? (1 - k) / .3 : 1; }, atraso);
+    let r = null;
+    if (runa) { r = new THREE.Mesh(new THREE.PlaneGeometry(.9, .9), new THREE.MeshBasicMaterial({ map: texRuna(runa), transparent: true, depthWrite: false, blending: THREE.AdditiveBlending })); r.position.z = .01; r.renderOrder = 3; m.add(r); }
+    add([m], dur, k => { const e = k < .25 ? 1 - (1 - k / .25) ** 3 : 1, op = k < .25 ? k / .25 : k > .7 ? (1 - k) / .3 : 1; m.scale.setScalar(raio * (.6 + .4 * e)); mat.uniforms.uOp.value = op; if (r) { r.material.opacity = op; r.rotation.z = -k * 2; } }, atraso);
   }
   // bola de energia que cresce e some (explosão, impacto)
   function esfera(p, cor, r0, r1, atraso = 0, dur = 500, op = .8, estilo = 'luz') {
@@ -253,7 +265,7 @@ export function criarEfeitos(grupo) {
     const { p0, chao0, alvos, centro, celulas = [] } = pos, cor = new THREE.Color(s.cor || '#9ad0ff'), e = s.estilo, m = s.suprema ? 1.8 : 1;
     const branco = cor.clone().lerp(new THREE.Color('#ffffff'), .6);
     // concentração: círculo mágico e brilho subindo em quem usa
-    circulo(chao0, cor, .75 * m, 0, 900);
+    circulo(chao0, cor, .75 * m, 0, 900, s.runa);
     particulas(chao0, cor, Math.round(14 * m), s.apoio ? 'luz' : e, .35, 0, 600);
     if (s.suprema) { coluna(chao0, cor, .45, 2.2, 0, 700, e); esfera(p0, branco, .1, .9, 150, 400, .6); }
     const acertos = alvos.filter(a => a.acertou);
@@ -264,7 +276,7 @@ export function criarEfeitos(grupo) {
     const desvio = (a, t) => particulas(a.p.clone().add(V(Math.random() - .5, .2, Math.random() - .5)), cor, 8, e, .1, t, 600);
     const area = s.raio && centro;
     // aviso da área: círculo mágico onde vai cair
-    if (area && ['explosao', 'coluna', 'parede'].includes(s.forma)) circulo(centro, cor, s.raio + .6, 120, 1300);
+    if (area && ['explosao', 'coluna', 'parede'].includes(s.forma)) circulo(centro, cor, s.raio + .6, 120, 1300, s.runa);
     switch (s.forma) {
       case 'projetil': for (const a of alvos) { const t = orbe(p0, a.acertou ? a.p : a.p.clone().add(V(.7, .3, .4)), cor, e, 250, .12 * m); if (a.acertou) { impacto(a.p, t); bater(a.k, t); } else desvio(a, t); } break;
       case 'raio': {

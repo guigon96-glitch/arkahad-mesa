@@ -577,6 +577,8 @@ for (const [dom, lista] of Object.entries(HAB_DOM)) {
       return { ...N(id, GRAU_HAB[i], h.nome, `${CUSTO_HAB[i]} Fôlego${i === 3 ? ', +1 Tensão' : ''}. ${descHabilidade(h)}`), hab: true, nivelMin: i === 3 ? 5 : 0 };
     }) };
 }
+// ícones gerados no Canva (public/icones/<id>.webp); sem o arquivo, cai no símbolo de texto
+export function icone(id, reserva = '', cls = 'ico') { return `<img src="/icones/${id}.webp" alt="" class="${cls}" loading="lazy" onerror="this.outerHTML='${reserva}'">`; }
 // habilidades que o personagem aprendeu (na ordem da árvore)
 export function habilidadesDe(f) { return (f?.talentos || []).map(id => HABILIDADE[id]).filter(h => h && ehAurethian(f) && (h.dom === f.dom || (f.estrato === 'dualista' && h.dom === f.dom2))); }
 export function danoHabilidade(f, h) { const e = f ? efeitos(f) : {}; return h.t === 'atq' && h.dados !== '-' ? h.dados + (e.danoDom ? '+' + e.danoDom : '') : h.dados; }

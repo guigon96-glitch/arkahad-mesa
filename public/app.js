@@ -7,7 +7,7 @@ import { tocarSom, somDoDom, volumeSom, definirVolume } from './sons.js';
 import {
   ATRIBUTOS, PERICIAS, RACAS, VOCACOES, TODOS_DONS, DONS, CUSTO_DOM, notasDom, RESSONANCIAS, ORIGENS, ESTRATOS,
   ataqueArma, danoTecnica, bonusTesteDom, temImbuir, TALENTO, ARVORES, pontosTalento, alcanceTecnica,
-  HABILIDADE, habilidadesDe, pontosNaArvore,
+  HABILIDADE, habilidadesDe, pontosNaArvore, icone,
   aparenciaPadrao, atributosFinais, gradPericia, habilidadesVocacao, HAB_VOCACAO, bonusPericia, ehAurethian, nivelDom, derivados,
 } from './conteudo.js';
 
@@ -619,7 +619,7 @@ async function animarHabilidade(m) {
   const h = HABILIDADE[m.hab]; if (!cena || !h) return;
   cena.acao(m.k, h.anim === 'golpe' ? 'ataque' : 'magia');
   somHabilidade(h, m);
-  cena.efeito({ forma: h.anim, de: m.k, alvos: m.alvos || [], acertos: m.acertos || [], centro: m.centro, raio: h.raio, cor: h.cor, estilo: ESTILO_DOM[h.dom] || 'luz', suprema: h.n === 4, nome: h.nome, apoio: h.t !== 'atq', cadeia: !!h.cadeia, falhou: !!m.falhou });
+  cena.efeito({ forma: h.anim, de: m.k, alvos: m.alvos || [], acertos: m.acertos || [], centro: m.centro, raio: h.raio, cor: h.cor, estilo: ESTILO_DOM[h.dom] || 'luz', suprema: h.n === 4, runa: `/icones/runa_${h.dom}.webp`, nome: h.nome, apoio: h.t !== 'atq', cadeia: !!h.cadeia, falhou: !!m.falhou });
   await new Promise(r => setTimeout(r, h.n === 4 ? 1700 : 1100));
 }
 // sons da habilidade no ritmo da animação (efeitos.js): conjurar → lançar → impacto
@@ -701,7 +701,7 @@ function htmlFichaCompleta(p) {
     ${pedidos.length && !souMestre() ? `<p style="margin:6px 0 0;color:var(--ouro)">Aguardando o Mestre: ${pedidos.map(x => esc(x.rotulo)).join(', ')}</p>` : ''}</div>
     ${blocoCombate}
     ${blocoHabilidades(p, f)}
-    ${dom ? `<div class="bloco"><h3 style="color:${dom.cor}">${esc(dom.nome)} — ${esc(dom.tema)}</h3><div style="font-size:13px;color:var(--mudo);margin-bottom:6px">Chave ${dom.chave} · Canalização ${gradPericia(f, 'canalizacao')} · Cristal ${esc(RESSONANCIAS[f.ressonancia]?.nome || '')}</div><div class="dom-notas">${notasDom(dom).map(esc).join('<br>')}</div>${tecnicas(dom, n)}
+    ${dom ? `<div class="bloco"><h3 style="color:${dom.cor}">${icone('runa_' + f.dom, '', 'ico runa')} ${esc(dom.nome)} — ${esc(dom.tema)}</h3><div style="font-size:13px;color:var(--mudo);margin-bottom:6px">Chave ${dom.chave} · Canalização ${gradPericia(f, 'canalizacao')} · Cristal ${esc(RESSONANCIAS[f.ressonancia]?.nome || '')}</div><div class="dom-notas">${notasDom(dom).map(esc).join('<br>')}</div>${tecnicas(dom, n)}
       ${dom2 ? `<h3 style="color:${dom2.cor};margin-top:10px">${esc(dom2.nome)} (secundário)</h3>${tecnicas(dom2, Math.max(1, n - 1))}` : ''}</div>` : ''}
     <div class="bloco"><h3>Perícias</h3><div class="pers">${destaques.map(linhaPer).join('')}</div>
       <details><summary>Outras perícias</summary><div class="pers">${outras.map(linhaPer).join('')}</div></details></div>
@@ -723,9 +723,9 @@ function blocoHabilidades(p, f) {
     ${arvs.map(d => {
       const arv = ARVORES['hab_' + d], nos = arv.nos, tem = id => (f.talentos || []).includes(id);
       const no = n => { const h = HABILIDADE[n.id], ok = tem(n.id);
-        return `<div class="hab-no ${ok ? 'tem' : ''} ${h.n === 4 ? 'suprema' : ''}" style="--cor:${arv.cor}"><b>${ICONE_HAB[h.t]} ${esc(h.nome)}</b><small>${esc(n.desc)}</small>
+        return `<div class="hab-no ${ok ? 'tem' : ''} ${h.n === 4 ? 'suprema' : ''}" style="--cor:${arv.cor}"><b>${icone(h.id, ICONE_HAB[h.t], 'ico hab-ic')} ${esc(h.nome)}</b><small>${esc(n.desc)}</small>
           ${ok ? `<button class="mini" data-hab="${n.id}">Usar</button>` : `<em>${n.nivelMin ? `🔒 nível ${n.nivelMin} · ` : '🔒 '}G${n.grau}</em>`}</div>`; };
-      return `<div class="hab-arvore" style="--cor:${arv.cor}"><h4>${esc(TODOS_DONS[d].nome)} <small>${pontosNaArvore(f, 'hab_' + d)}/4</small></h4>
+      return `<div class="hab-arvore" style="--cor:${arv.cor}"><h4>${icone('runa_' + d, '', 'ico runa')} ${esc(TODOS_DONS[d].nome)} <small>${pontosNaArvore(f, 'hab_' + d)}/4</small></h4>
         <div class="hab-g">${no(nos[0])}</div><div class="hab-g dois">${no(nos[1])}${no(nos[2])}</div><div class="hab-g">${no(nos[3])}</div></div>`;
     }).join('')}
     <p class="cr-nota" style="margin:6px 0 0">Aprenda com Pontos de Talento em <b>Editar personagem → Talentos</b>. Use pela barra de atalhos (✎ Atalhos) ou aqui. Condições duram turnos de quem as carrega.</p></div>`;
@@ -949,8 +949,8 @@ function editorNpc(id) {
 // árvore do Dom no editor de NPC: o Mestre marca livremente (sem pontos nem pré-requisito)
 function arvoreHabsNpc(dom, habs) {
   const arv = ARVORES['hab_' + dom]; if (!arv) return '';
-  const no = n => { const h = HABILIDADE[n.id]; return `<label class="hab-no ${habs.includes(n.id) ? 'tem' : ''} ${h.n === 4 ? 'suprema' : ''}" style="--cor:${arv.cor}"><b><input type="checkbox" data-nhab="${n.id}" ${habs.includes(n.id) ? 'checked' : ''} style="width:auto"> ${ICONE_HAB[h.t]} ${esc(h.nome)}</b><small>${esc(n.desc)}</small></label>`; };
-  return `<div class="hab-arvore" style="--cor:${arv.cor};margin-top:6px"><h4>${esc(arv.nome)}</h4><div class="hab-g">${no(arv.nos[0])}</div><div class="hab-g dois">${no(arv.nos[1])}${no(arv.nos[2])}</div><div class="hab-g">${no(arv.nos[3])}</div></div>
+  const no = n => { const h = HABILIDADE[n.id]; return `<label class="hab-no ${habs.includes(n.id) ? 'tem' : ''} ${h.n === 4 ? 'suprema' : ''}" style="--cor:${arv.cor}"><b><input type="checkbox" data-nhab="${n.id}" ${habs.includes(n.id) ? 'checked' : ''} style="width:auto"> ${icone(h.id, ICONE_HAB[h.t], 'ico hab-ic')} ${esc(h.nome)}</b><small>${esc(n.desc)}</small></label>`; };
+  return `<div class="hab-arvore" style="--cor:${arv.cor};margin-top:6px"><h4>${icone('runa_' + dom, '', 'ico runa')} ${esc(arv.nome)}</h4><div class="hab-g">${no(arv.nos[0])}</div><div class="hab-g dois">${no(arv.nos[1])}${no(arv.nos[2])}</div><div class="hab-g">${no(arv.nos[3])}</div></div>
     <p class="cr-nota" style="margin:2px 0 0">Marque o que o NPC sabe usar. Os testes de Dom usam o Bônus de ataque; NPC não gasta Fôlego. Selecione o NPC e use pela barra.</p>`;
 }
 function ligar() {
@@ -1073,7 +1073,7 @@ function hud() {
       <div class="atalhos ${editandoBarra ? 'editando' : ''}" role="toolbar" aria-label="Atalhos 1 a 0">${barra.map((id, i) => {
         const op = ops.find(o => o.id === id), ativo = op && ((id === 'arma' && mira?.tipo === 'arma') || (id.startsWith('tec:') && mira?.tipo === 'tec' && mira.nivel === num(id.slice(4))) || (id.startsWith('hab:') && mira?.hab === id.slice(4)) || op.on);
         const livre = op && (id === 'imbuir' || (id === 'defender' ? pode && !t.guarda : pode));
-        return `<button class="slot ${op ? '' : 'vazio'} ${ativo ? 'on' : ''} ${editandoBarra && slotEditado === i ? 'sel' : ''}" data-slot="${i}" ${!editandoBarra && op && !livre ? 'disabled' : ''} title="${op ? esc(`${op.nome} — ${op.sub}`) : editandoBarra ? 'Escolher atalho' : 'Vazio'}"${op?.cor ? ` style="--cor:${op.cor}"` : ''}><kbd>${(i + 1) % 10}</kbd><span class="ic">${op ? op.ic : ''}</span><small>${op ? esc(op.nome) : ''}</small></button>`;
+        return `<button class="slot ${op ? '' : 'vazio'} ${ativo ? 'on' : ''} ${editandoBarra && slotEditado === i ? 'sel' : ''}" data-slot="${i}" ${!editandoBarra && op && !livre ? 'disabled' : ''} title="${op ? esc(`${op.nome} — ${op.sub}`) : editandoBarra ? 'Escolher atalho' : 'Vazio'}"${op?.cor ? ` style="--cor:${op.cor}"` : ''}><kbd>${(i + 1) % 10}</kbd><span class="ic">${op ? (op.img ? icone(op.img, op.ic) : op.ic) : ''}</span><small>${op ? esc(op.nome) : ''}</small></button>`;
       }).join('')}</div>
       <div class="hud-lado">
         <label class="hud-tirith" title="Dado de Tirith"><select id="hudTirith"><option value="normal">Normal</option><option value="vantagem">Vantagem</option><option value="desvantagem">Desvant.</option></select></label>
@@ -1083,7 +1083,7 @@ function hud() {
         ${souMestre() && cb.ativo && !(vezDe(t.k)) ? `<button class="hud-b fim" data-hud="fim"><span class="ic">⏭</span><span>Próximo</span><small>turno</small></button>` : ''}
       </div>
     </div>
-    ${editandoBarra && slotEditado >= 0 ? `<div class="hud-menu escolha-atalho"><b>Atalho ${(slotEditado + 1) % 10}</b>${ops.map((o, j) => `<button data-escolha="${j}"${o.cor ? ` style="--cor:${o.cor}"` : ''}><span class="ic">${o.ic}</span><span><b>${esc(o.nome)}</b><small>${esc(o.sub)}</small></span></button>`).join('')}<button data-escolha="-1"><span class="ic">∅</span><span><b>Deixar vazio</b></span></button></div>` : ''}
+    ${editandoBarra && slotEditado >= 0 ? `<div class="hud-menu escolha-atalho"><b>Atalho ${(slotEditado + 1) % 10}</b>${ops.map((o, j) => `<button data-escolha="${j}"${o.cor ? ` style="--cor:${o.cor}"` : ''}><span class="ic">${o.img ? icone(o.img, o.ic) : o.ic}</span><span><b>${esc(o.nome)}</b><small>${esc(o.sub)}</small></span></button>`).join('')}<button data-escolha="-1"><span class="ic">∅</span><span><b>Deixar vazio</b></span></button></div>` : ''}
     </div></div></div>
     ${mira ? `<div class="hud-mira">${esc(mira.titulo)} — clique no alvo · <button class="mini" data-hud="cancelar">Cancelar (Esc)</button></div>` : ''}`;
   el.hidden = false;
@@ -1101,7 +1101,7 @@ function opcoesBarra(t) {
   const ops = [{ id: 'arma', ic: '⚔', nome: 'Atacar', sub: armaDoAtor(t).nome }];
   if (t.k === 'pc:' + eu()) { const r = restoMov(t); ops.push({ id: 'mover', ic: '👣', nome: 'Mover', sub: r ? `${r} casas restantes neste turno` : `1 ação · até ${num(t.desloc, 6)} casas no turno`, on: movendo }); }
   if (dom) for (let i = 1; i <= n; i++) ops.push({ id: 'tec:' + i, ic: '✦', cor: dom.cor, nome: dom.tec[i - 1], sub: `${dom.nome} N${i} · ${CUSTO_DOM[i - 1]} Fôlego` });
-  for (const h of habilidadesDoAtor(t)) ops.push({ id: 'hab:' + h.id, ic: ICONE_HAB[h.t], cor: h.cor, nome: h.nome, sub: `${TALENTO[h.id].desc}` });
+  for (const h of habilidadesDoAtor(t)) ops.push({ id: 'hab:' + h.id, img: h.id, ic: ICONE_HAB[h.t], cor: h.cor, nome: h.nome, sub: `${TALENTO[h.id].desc}` });
   if (f && temImbuir(f)) ops.push({ id: 'imbuir', ic: '🜂', cor: dom?.cor, nome: t.imbuido ? 'Imbuída' : 'Imbuir', sub: f.talentos.includes('imb4') ? 'grátis' : '1 Fôlego', on: !!t.imbuido });
   if (t.tipo === 'pc') ops.push({ id: 'defender', ic: '⛨', nome: 'Defender', sub: '+2 Defesa até seu turno', on: !!t.guarda });
   if (t.k === 'pc:' + eu()) for (const it of (Array.isArray(t.itens) ? t.itens : [])) ops.push({ id: 'item:' + it.n, ic: '🧪', nome: it.n, sub: `Item · ${num(it.q, 1)} no Inventário` });

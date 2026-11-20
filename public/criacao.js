@@ -5,7 +5,7 @@ import { criarMiniatura } from './miniatura.js';
 import { carregarModelos, criarPersonagem, modelosProntos, ARMAS_3D, SECUNDARIAS, CABELOS_3D, ROUPAS, ACESSORIOS, SEXOS, ESTILO_DOM } from './modelos.js';
 import {
   ATRIBUTOS, PERICIAS, RACAS, ORIGENS, ESTRATOS, FACANHAS, VOCACOES, DONS, DONS_ELITE, TODOS_DONS, notasDom, RESSONANCIAS,
-  CUSTO_DOM, fichaVazia, aparenciaPadrao, pontosAtributo, atributosFinais, ARVORES, TALENTO, pontosTalento, arvoresPermitidas, pontosNaArvore, bloqueioTalento,
+  CUSTO_DOM, fichaVazia, aparenciaPadrao, pontosAtributo, atributosFinais, ARVORES, TALENTO, pontosTalento, arvoresPermitidas, pontosNaArvore, bloqueioTalento, icone,
   ataqueArma, danoTecnica, ARMA_POR_VOCACAO, SECUNDARIA_POR_VOCACAO,
   pontosPericia, gradPericia, maxPericia, bonusPericia, ehAurethian, nivelDom, derivados, validar,
 } from './conteudo.js';
@@ -128,7 +128,7 @@ export function abrirCriador({ ficha, dadosCor, aoSalvar, aoFechar }) {
       const no = n => {
         const tem = f.talentos.includes(n.id), bloq = tem ? null : bloqueioTalento(f, n.id);
         const semPonto = !tem && pt.gastos >= pt.total;
-        return `<button class="cr-talento ${tem ? 'sel' : ''}" data-acao="talento" data-v="${n.id}" ${(!tem && (bloq || semPonto)) ? 'disabled' : ''} title="${esc(bloq || '')}"><b>${esc(n.nome)}</b><small>${esc(n.desc)}</small>${!tem && bloq ? `<em>${esc(bloq)}</em>` : ''}</button>`;
+        return `<button class="cr-talento ${tem ? 'sel' : ''}" data-acao="talento" data-v="${n.id}" ${(!tem && (bloq || semPonto)) ? 'disabled' : ''} title="${esc(bloq || '')}"><b>${n.hab ? icone(n.id, '', 'ico hab-ic') + ' ' : ''}${esc(n.nome)}</b><small>${esc(n.desc)}</small>${!tem && bloq ? `<em>${esc(bloq)}</em>` : ''}</button>`;
       };
       return `<div class="cr-arvore ${ok ? '' : 'fechada'}" style="--cor:${arv.cor}"><h4>${esc(arv.nome)} <small>${pontosNaArvore(f, k)} pts</small></h4><p>${esc(arv.desc)}</p>
         ${ok ? [1, 2, 3, 4, 5].filter(g => grau(g).length).map(g => `<div class="cr-grau"><span>G${g}</span><div>${grau(g).map(no).join('')}</div></div>`).join('') : `<p class="cr-nota">${arv.tipo === 'vellunari' ? 'Só para Vellunari.' : arv.tipo === 'cristal' ? 'Só para Canalizador e Curandeiro.' : 'Só para Aurethians.'}</p>`}</div>`;
