@@ -18,7 +18,7 @@ O sistema foi desenhado para rodar numa mesa virtual com **login Google**, **at�
 ### B.2 Regras que o software deve automatizar
 
 - **Rolador 2d10** com dado dourado (Kael) e azul (Lyra), Dado de Tirith para Vantagem/Desvantagem, detecção de Conjunção, Coroa de Kael, Olho de Aranor e graus de sucesso.
-- **Eco do Fluxo** automático em testes de Dom (Lyra = 1 → +1 Tensão).
+- **Rolador de ataque** com d20 separados: Kael (amarelo, acerto), Lyra (azul, dano) e, com Dom, Aranor (vermelho, punição do Dom); Tirith d20 para Vantagem/Desvantagem.
 - **Contadores** de Fôlego e Tensão com a zona atual, conversão de déficit em Tensão, rolagem de Sintoma e alerta de Teste de Colapso.
 - **Economia de ações** (3 ações + Reação) e penalidade de ataques múltiplos.
 - **Grade de 1,5 m** com Deslocamento, diagonais 1–2, terreno difícil, áreas (3×3, cone, linha) e alcance.

@@ -1,6 +1,6 @@
 # Mesa de Arkahad — guia para o Claude Code
 
-Mesa virtual 3D para o RPG de Arkahad (sistema próprio, 2d10 Kael/Lyra). Até 6 jogadores + Mestre, login Google, sessões com senha, vários mapas por sessão ligados por portais. Tudo em português (interface, código, nomes de variáveis).
+Mesa virtual 3D para o RPG de Arkahad (sistema próprio: testes em 2d10 Kael/Lyra; ataques em d20 separados — Kael acerto, Lyra dano, Aranor punição do Dom). Até 6 jogadores + Mestre, login Google, sessões com senha, vários mapas por sessão ligados por portais. Tudo em português (interface, código, nomes de variáveis).
 
 ## Economia de tokens (siga sempre)
 - Leia só o que a tarefa precisa. Use `grep -n` para achar a função e leia com offset/limit; nunca leia `app.js`, `cena3d.js` ou `worker.js` inteiros.
@@ -40,7 +40,7 @@ Comandos do projeto: `/tarefa <pedido>`, `/regra <pergunta>`, `/modelo3d <arquiv
   - `grid`: um caractere por casa (ver `TERRENOS` em `regras.js`: `"` mato, `.` terra, `,` areia, `_` ladrilho, `=` madeira, `v` vidro negro, `~` água, `T` árvore, `P` pinheiro, `Q` árvore seca, `k` arbusto, `#` muro, `m` paliçada, `h` muro baixo, `+` porta, `^` rocha, `*` fogueira, `b c s n a o w` objetos).
   - `alt`: `'0'..'4'` = nível −1..+3 (`nivelEm`). `NIVEL_H` em `terreno.js` dá a altura visual.
 - PCs e NPCs têm `mapa`; o servidor resolve com `idMapa()`. Cada jogador recebe só o mapa onde está o personagem dele (`estadoPara`); o Mestre recebe o mapa `meta.vendo` e todos os NPCs.
-- O cliente nunca é a autoridade: movimento (Dijkstra com custo de subida), turno, 3 ações por turno, rolagens e ataques (`case 'ataque'`: rola, compara com Defesa + cobertura + guarda, aplica dano − Proteção) acontecem no servidor. O cliente só calcula prévias (alcance, linha de visão, bônus de altura) e envia o modificador.
+- O cliente nunca é a autoridade: movimento (Dijkstra com custo de subida), turno, 3 ações por turno, rolagens e ataques (`case 'ataque'`: `rolarAtaque` em `regras.js`, Kael + mod contra Defesa + cobertura + guarda, dano = Lyra + dano da arma − Proteção) acontecem no servidor. O cliente só calcula prévias (alcance, linha de visão, bônus de altura) e envia o modificador.
 - Toda entrada do cliente passa por `limparPc` / `limparNpc` / `mapaValidado`. Ao criar campo novo, adicione-o às listas `CAMPOS_PC` / `CAMPOS_NPC` e valide.
 - Mensagens WebSocket principais: `mesa` (editar o mapa atual), `mapa` (criar/ir/importar/apagar/inicial/trazer), `portal`, `pc`, `npc`, `apagarNpc`, `mover`, `combate`, `ataque`, `defender`, `rolar`, `acoes`, `ping`, `aviso`.
 

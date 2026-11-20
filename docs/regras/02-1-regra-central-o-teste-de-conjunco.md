@@ -32,14 +32,14 @@ Toda ação incerta é resolvida com **2d10 + Atributo + Perícia ≥ Dificuldad
 
 Quando Kael e Lyra mostram o mesmo número, ocorre uma **Conjunção** — as "Sombras Duplas" do destino.
 
-- **Conjunção em sucesso = Triunfo.** Escolha um: efeito dobrado, ação extra gratuita de 1 ação, ou um fato narrativo favorável. Em ataques, é **Golpe Crítico** (ver Combate).
+- **Conjunção em sucesso = Triunfo.** Escolha um: efeito dobrado, ação extra gratuita de 1 ação, ou um fato narrativo favorável. (Ataques usam outra rolagem; ver Combate.)
 - **Conjunção em falha = Ruína.** O Mestre aplica uma complicação séria: arma presa, aliado exposto, cristal vibra (+1 Tensão) ou inimigo ganha vantagem.
 - **10 e 10 (Coroa de Kael):** sucesso automático com Triunfo, qualquer que seja a DIF que o personagem possa tentar.
 - **1 e 1 (Olho de Aranor):** falha automática com Ruína.
 
 ### 1.4 O Dado de Lyra e os Dons
 
-Ao usar um Dom, se o **Dado de Lyra mostrar 1**, ocorre um **Eco do Fluxo**: o cristal vibra e o usuário ganha **+1 Tensão** (ver Regras dos Dons), mesmo que o teste tenha sucesso. Se o **Dado de Kael mostrar 10** num teste de Dom bem-sucedido, a técnica custa **1 Fôlego a menos** (mínimo 0).
+**Ataques e Dons não usam 2d10.** Todo ataque rola Kael (acerto) e Lyra (dano) como dados de 20 faces separados; ao usar um Dom, rola-se também o **Dado de Aranor** (d20, vermelho), que define a punição pelo uso do Dom. Ver Combate (10.3) e Regras dos Dons (7.2).
 
 ### 1.5 Vantagem e Desvantagem
 

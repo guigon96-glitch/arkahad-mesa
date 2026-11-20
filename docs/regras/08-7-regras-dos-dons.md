@@ -4,22 +4,24 @@ Todo Dom consome o corpo; o **Cristal Regulador** limita a potência a 50% e con
 
 ### 7.1 Níveis de Dom
 
-| Nível | Nome | Quem chega | Custo base (Fôlego) | Ações | DIF utilitária | Dano típico |
+| Nível | Nome | Quem chega | Custo base (Fôlego) | Ações | DIF utilitária | Dano (Lyra +) |
 | --- | --- | --- | --- | --- | --- | --- |
-| 1 | Utilitário | Operários | 1 | 1 | 12 | 1d6 + 1 |
-| 2 | Treinado | Operários | 2 | 1–2 | 15 | 2d6 + 2 |
-| 3 | Combate | Operários veteranos, Elite | 3 | 2 | 18 | 3d6 + 3 |
-| 4 | Grande Escala | Elite | 5 (+1 Tensão) | 3 | 21 | 5d6 + 4 em área |
-| 5 | Mestre | Elite lendária (Nível 10) | 7 (+1 Tensão) | 3 | 24 | 6d6 + 5 em área |
+| 1 | Utilitário | Operários | 1 | 1 | 12 | Lyra + 1 |
+| 2 | Treinado | Operários | 2 | 1–2 | 15 | Lyra + 4 |
+| 3 | Combate | Operários veteranos, Elite | 3 | 2 | 18 | Lyra + 8 |
+| 4 | Grande Escala | Elite | 5 (+1 Tensão) | 3 | 21 | Lyra + 14 em área |
+| 5 | Mestre | Elite lendária (Nível 10) | 7 (+1 Tensão) | 3 | 24 | Lyra + 18 em área |
+
+Onde o Códice indica dano direto de uma técnica (ex.: 2d6+2), use o dano do nível desta tabela: **Lyra (d20) + bônus**.
 
 O personagem conhece **todas as técnicas do seu nível e dos níveis abaixo**. Toda técnica tem um **Atributo-chave** (definido no Códice).
 
 ### 7.2 Usar uma técnica
 
 1. Declare a técnica e pague as ações e o Fôlego.
-2. Role **2d10 + Atributo-chave + Canalização**.
+2. Role **Kael, Lyra e Aranor (três d20)**: Kael + Atributo-chave + Canalização é o teste.
 3. Compare: contra a **Defesa** (projéteis, golpes), **Robustez** (frio, veneno, peso) ou **Determinação** (mente, ilusão) do alvo; ou contra a **DIF utilitária** do nível.
-4. Verifique o **Dado de Lyra**: 1 = Eco do Fluxo (+1 Tensão).
+4. Verifique o **Dado de Aranor**: ele define a punição pelo uso do Dom (tabela em elaboração). A Lyra dá o dano (Lyra + bônus do nível).
 5. Aplique o efeito. Em área, role uma vez e compare com cada alvo; quem resiste sofre metade.
 
 **Técnicas sustentadas** (barreiras, campos, formas) custam 1 ação e 1 Fôlego por turno para manter. A partir do **4º turno seguido**, cada turno sustentado soma +1 Tensão (uso prolongado).
@@ -33,7 +35,7 @@ O personagem conhece **todas as técnicas do seu nível e dos níveis abaixo**. 
 
 ### 7.4 Tensão e as Três Zonas de Esforço
 
-**Ganha-se Tensão** quando: o Fôlego não cobre a técnica (cada ponto que falta vira 1 Tensão); usa técnica N4 ou N5; sustenta além de 3 turnos; ocorre Eco do Fluxo; tira Ruína num teste de Dom; o cristal é atingido.
+**Ganha-se Tensão** quando: o Fôlego não cobre a técnica (cada ponto que falta vira 1 Tensão); usa técnica N4 ou N5; sustenta além de 3 turnos; tira Ruína num teste de Dom; o cristal é atingido.
 
 | Zona | Tensão | Estado | Efeito mecânico |
 | --- | --- | --- | --- |

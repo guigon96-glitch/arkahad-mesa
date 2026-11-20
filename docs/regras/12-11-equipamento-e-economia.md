@@ -22,24 +22,26 @@ A moeda é cunhada em Kaerith: **1 Kaelin (K, ouro) = 100 Lyrins (L, prata) = 10
 
 Propriedades: **Ágil** (penalidade múltipla −4/−8; pode usar AGI), **Pesada** (duas mãos), **Versátil** (dano maior com duas mãos), **Alcance** (ataca a 2 q), **Arremesso**, **Impacto** (ignora 2 de Proteção de pele endurecida e escamas), **Perfurante** (ignora 2 de Proteção), **Recarga X** (ações para recarregar), **Condutora** (para Dons, ver abaixo).
 
-| Arma | Dano | Perícia | Propriedades | Alcance | Preço | Volume |
+O dano da arma é um **bônus fixo somado ao Dado de Lyra** (d20), ver 10.3.
+
+| Arma | Dano (Lyra +) | Perícia | Propriedades | Alcance | Preço | Volume |
 | --- | --- | --- | --- | --- | --- | --- |
-| Adaga | 1d4 | Leve | Ágil, Arremesso | 4/8 | 50 L | 1 |
-| Espada curta | 1d6 | Leve | Ágil | — | 1 K | 1 |
-| Sabre de Cethor | 1d8 | Leve | Ágil | — | 2 K | 1 |
-| Leques de Guerra (par) | 1d6 | Leve | Ágil, Condutora, abre com mola (1A) | — | 8 K | 2 |
-| Maça | 1d8 | Pesado | Impacto | — | 1 K | 2 |
-| Espada longa | 1d8 / 1d10 | Pesado | Versátil | — | 3 K | 2 |
-| Lança | 1d8 | Pesado | Alcance, Arremesso | 3/6 | 1 K | 2 |
-| Martelo de guerra | 1d10 | Pesado | Impacto | — | 3 K | 2 |
-| Machado grande | 1d12 | Pesado | Pesada | — | 4 K | 3 |
-| Alabarda | 1d12 | Pesado | Pesada, Alcance | — | 4 K | 3 |
-| Funda | 1d4 | Pontaria | — | 10/20 | 10 L | 0 |
-| Arco curto | 1d6 | Pontaria | Duas mãos | 16/32 | 2 K | 2 |
-| Arco longo | 1d8 | Pontaria | Duas mãos, FOR mínima 2 | 24/48 | 4 K | 2 |
-| Besta leve | 1d10 | Pontaria | Recarga 1 | 16/32 | 4 K | 2 |
-| Besta pesada | 2d6 | Pontaria | Recarga 2, Perfurante | 20/40 | 7 K | 3 |
-| Desarmado | 1d3 | Briga | Ágil | — | — | — |
+| Adaga | +0 | Leve | Ágil, Arremesso | 4/8 | 50 L | 1 |
+| Espada curta | +0 | Leve | Ágil | — | 1 K | 1 |
+| Sabre de Cethor | +1 | Leve | Ágil | — | 2 K | 1 |
+| Leques de Guerra (par) | +0 | Leve | Ágil, Condutora, abre com mola (1A) | — | 8 K | 2 |
+| Maça | +1 | Pesado | Impacto | — | 1 K | 2 |
+| Espada longa | +1 / +2 | Pesado | Versátil | — | 3 K | 2 |
+| Lança | +1 | Pesado | Alcance, Arremesso | 3/6 | 1 K | 2 |
+| Martelo de guerra | +2 | Pesado | Impacto | — | 3 K | 2 |
+| Machado grande | +3 | Pesado | Pesada | — | 4 K | 3 |
+| Alabarda | +3 | Pesado | Pesada, Alcance | — | 4 K | 3 |
+| Funda | +0 | Pontaria | — | 10/20 | 10 L | 0 |
+| Arco curto | +0 | Pontaria | Duas mãos | 16/32 | 2 K | 2 |
+| Arco longo | +1 | Pontaria | Duas mãos, FOR mínima 2 | 24/48 | 4 K | 2 |
+| Besta leve | +2 | Pontaria | Recarga 1 | 16/32 | 4 K | 2 |
+| Besta pesada | +3 | Pontaria | Recarga 2, Perfurante | 20/40 | 7 K | 3 |
+| Desarmado | só FOR | Briga | Ágil | — | — | — |
 
 **Condutora:** pontas de cobre ou cristal. Um Aurethian de Zephyr, Voltri, Kalthor ou Sonara pode lançar técnicas de N1–N2 pela arma no mesmo ataque (2A, paga o Fôlego, um teste só).
 
@@ -69,7 +71,7 @@ Propriedades: **Ágil** (penalidade múltipla −4/−8; pode usar AGI), **Pesad
 | Ferro Lunar | Minas de Velshar | Armas: +2 dano contra quem sustenta Dom ou usou um nesta rodada; Ferrar e Dissolução têm DIF +5 contra ele. Brilha na Noite Azul (Desvantagem em Furtividade) | Peça ×5; minério 50 L/kg |
 | Aço Dvarith | Forja Eterna | +1 dano permanente; quebra só em Ruína dupla | Peça ×3 |
 | Couro de Velkaroth | Caça em Vorngard | Proteção-Dom +2 em armaduras leves | 100 L o metro |
-| Garras de Urskath | Ursos de Velshar | Manoplas de garra 1d6 Ágil, Perfurante | 6 K |
+| Garras de Urskath | Ursos de Velshar | Manoplas de garra +0 Ágil, Perfurante | 6 K |
 | Escamas de serpe | Mar de Aranor | Armadura média sem penalidade aquática | 8 K |
 | Cristais Estelares | Velshar e Cethor | Amplificam forjas e rituais; instáveis (Ruína em Ofício: explosão 3d6) | 1.000 K o grama |
 | Fragmentos Vaeloryn | Mercado de Zafira | Combustível do Cristalis | 5 K cada |

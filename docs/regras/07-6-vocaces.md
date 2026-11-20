@@ -88,6 +88,8 @@ Todas as vocações usam armas simples; Lâmina, Sentinela, Batedor e Sombra usa
 
 ### 6.8 Curandeiro
 
+**Não usa armas:** cura e luta com as mãos, canalizando o **Cristal de Foco** (ver 6.10).
+
 | Nível | Habilidade |
 | --- | --- |
 | 1 | **Mãos Firmes** (1 ação + kit): estabiliza um Caído ou cura 1d6 + INT de Vigor (1 vez por alvo por cena). |
@@ -98,6 +100,8 @@ Todas as vocações usam armas simples; Lâmina, Sentinela, Batedor e Sombra usa
 
 ### 6.9 Canalizador (somente Aurethians)
 
+**Não usa armas:** o Dom é a arma; as mãos canalizam o **Cristal de Foco** (ver 6.10).
+
 | Nível | Habilidade |
 | --- | --- |
 | 1 | **Fluxo Disciplinado:** +3 Fôlego; a primeira técnica de Dom em cada turno custa 1 Fôlego a menos. |
@@ -106,3 +110,18 @@ Todas as vocações usam armas simples; Lâmina, Sentinela, Batedor e Sombra usa
 | 7 | **Limiar Expandido:** +2 Limiar de Colapso; o primeiro ponto de Tensão da cena não gera sintoma. |
 | 10 | **Avatar do Dom:** 1 vez por sessão, usa uma técnica de 1 nível acima do seu (até N4) sem entrar em Overdrive. |
 
+### 6.10 Cristal de Foco (Curandeiro e Canalizador)
+
+Quem não usa armas canaliza o Cristal de Foco pelas mãos:
+- **Golpe desarmado:** Kael + VON + Canalização para acertar; dano = Lyra + VON (ver 10.3).
+- **Evoluir o cristal:** a árvore de Talentos **Cristal de Foco** (só Curandeiro e Canalizador) vai até o Grau 5, mesmo para Aurethians. Os bônus valem nas técnicas de Dom e nos golpes desarmados.
+
+| Grau | Talento | Efeito |
+| --- | --- | --- |
+| 1 | Cristal Desperto | +1 de dano nas técnicas e nos golpes desarmados |
+| 1 | Mãos Condutoras | +1 Defesa sem arma |
+| 2 | Cristal Lapidado | +1 nos testes de Dom e nos ataques desarmados |
+| 2 | Reserva no Cristal | +3 Fôlego |
+| 3 | Cristal Ressonante | +2 de dano nas técnicas e nos golpes desarmados; curas somam +2 |
+| 4 | Cristal Puro | +1 nos testes de Dom e ataques desarmados; +1 Defesa sem arma (exige nível 3) |
+| 5 | Coração de Cristal | 1×/cena: ignore a punição do Dado de Aranor (exige nível 5) |

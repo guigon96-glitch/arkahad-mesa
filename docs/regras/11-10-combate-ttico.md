@@ -29,16 +29,30 @@ O combate acontece num mapa em grade de **quadrados de 1,5 m**, em rodadas de ce
 
 ### 10.3 Ataque e dano
 
-**Ataque:** 2d10 + atributo + perícia contra a **Defesa** do alvo. Corpo a corpo leve e à distância usam AGI; corpo a corpo pesado e briga usam FOR.
+Todo ataque rola **dados de 20 faces separados**, cada um com uma função:
 
-**Dano:** dado da arma + FOR (corpo a corpo e arremesso) − **Proteção** do alvo. Arcos e bestas não somam FOR.
+| Dado | Cor | Função |
+| --- | --- | --- |
+| **Kael** (d20) | Amarelo | Acerto: Kael + atributo + perícia contra a **Defesa** do alvo |
+| **Lyra** (d20) | Azul | Base do dano |
+| **Aranor** (d20) | Vermelho | Só quando há Dom (técnica ou arma imbuída): punição pelo uso do Dom |
+
+Sem Dom rolam 2 dados (Kael e Lyra); com Dom rolam 3. Testes que não são ataque continuam usando 2d10 (ver capítulo 1), exceto testes de Dom, que também rolam Kael, Lyra e Aranor em d20 (Kael + modificador contra a DIF).
+
+**Ataque:** Kael + atributo + perícia + modificadores (altura, alcance, Mirar, posturas etc.) ≥ Defesa do alvo (+ cobertura, + Defender). Corpo a corpo leve e à distância usam AGI; corpo a corpo pesado e briga usam FOR.
+- **Kael 20:** acerta sempre e é Golpe Crítico.
+- **Kael 1:** erra sempre.
+- **Vantagem/Desvantagem:** role um **Dado de Tirith** (d20) junto; ele substitui o Kael se for maior (Vantagem) ou menor (Desvantagem).
+
+**Dano:** Lyra + bônus da arma + FOR (corpo a corpo e arremesso; lâminas usam o maior entre FOR e AGI) + talentos − **Proteção** do alvo. Arcos e bestas não somam atributo. Desarmado: Lyra + FOR. Técnicas de Dom: Lyra + bônus do nível (ver 7.1).
 
 | Resultado | Efeito no dano |
 | --- | --- |
 | Acerto | Dano normal |
-| Sucesso Pleno (+5) | +3 de dano |
-| Golpe Crítico (Conjunção em acerto, ou +10) | Dados da arma no máximo + role-os de novo e some; ignora metade da Proteção |
-| Ruína no ataque | Arma presa ou derrubada, ou você fica Desprevenido |
+| Golpe Crítico (Kael 20, ou Kael igual à Lyra num acerto) | A Lyra conta como 20; o alvo usa só metade da Proteção |
+| Kael 1 | Erro automático; o Mestre pode aplicar Ruína (arma presa ou derrubada, ou você fica Desprevenido) |
+
+**Aranor (punição do Dom):** o valor do Aranor define a punição por usar o Dom, de cansaço e visão reduzida até perda de Vigor. *Tabela em elaboração.*
 
 ### 10.4 Manobras (custam Fôlego)
 

@@ -33,7 +33,7 @@ São sete, na escala de **0 a 6**. Um adulto comum tem 1 ou 2; 3 é treinado; 4 
 
 | Valor | Fórmula | Notas |
 | --- | --- | --- |
-| Vigor (PV) | 12 + RES × 3; +4 por nível após o 1º | Saúde física. 0 = Caído |
+| Vigor (PV) | 20 + RES × 3 + Vocação; +5 por nível após o 1º | Saúde física. 0 = Caído |
 | Fôlego | 6 + (RES + VON) × 2; +1 por nível após o 1º | Gasto por Dons e Manobras |
 | Limiar de Colapso | RES + VON (mínimo 3) | Tensão máxima antes da Zona 3 |
 | Limiar de Ferimento | RES + 8 | Dano igual ou maior num só golpe causa Ferimento |

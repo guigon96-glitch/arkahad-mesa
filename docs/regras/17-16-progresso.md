@@ -18,15 +18,15 @@ Personagens vão do **Nível 1 ao 10** acumulando XP; uma campanha típica sobe 
 | Nível | XP total | Ganhos gerais | Vocação |
 | --- | --- | --- | --- |
 | 1 | 0 | Criação | Habilidade de 1º nível |
-| 2 | 10 | +4 Vigor, +1 Fôlego, +2 perícias, 1 Talento | — |
-| 3 | 25 | +4 Vigor, +1 Fôlego, +2 perícias | Habilidade de 3º nível |
-| 4 | 45 | +4 Vigor, +1 Fôlego, +2 perícias, +1 atributo, 1 Talento | — |
-| 5 | 70 | +4 Vigor, +1 Fôlego, +2 perícias | Habilidade de 5º nível |
-| 6 | 100 | +4 Vigor, +1 Fôlego, +2 perícias, 1 Talento | — |
-| 7 | 135 | +4 Vigor, +1 Fôlego, +2 perícias | Habilidade de 7º nível |
-| 8 | 175 | +4 Vigor, +1 Fôlego, +2 perícias, +1 atributo, 1 Talento | — |
-| 9 | 220 | +4 Vigor, +1 Fôlego, +2 perícias | — |
-| 10 | 270 | +4 Vigor, +1 Fôlego, +2 perícias, 1 Talento | Habilidade de 10º nível |
+| 2 | 10 | +5 Vigor, +1 Fôlego, +2 perícias, 1 Talento | — |
+| 3 | 25 | +5 Vigor, +1 Fôlego, +2 perícias | Habilidade de 3º nível |
+| 4 | 45 | +5 Vigor, +1 Fôlego, +2 perícias, +1 atributo, 1 Talento | — |
+| 5 | 70 | +5 Vigor, +1 Fôlego, +2 perícias | Habilidade de 5º nível |
+| 6 | 100 | +5 Vigor, +1 Fôlego, +2 perícias, 1 Talento | — |
+| 7 | 135 | +5 Vigor, +1 Fôlego, +2 perícias | Habilidade de 7º nível |
+| 8 | 175 | +5 Vigor, +1 Fôlego, +2 perícias, +1 atributo, 1 Talento | — |
+| 9 | 220 | +5 Vigor, +1 Fôlego, +2 perícias | — |
+| 10 | 270 | +5 Vigor, +1 Fôlego, +2 perícias, 1 Talento | Habilidade de 10º nível |
 
 Vellunari ganham uma Façanha do Sangue Comum nos níveis 4, 7 e 10. Perícias podem chegar a 4 no Nível 5 e a 5 no Nível 9. Atributos chegam a 6 apenas por progressão.
 
