@@ -68,13 +68,13 @@ O dano da arma é um **bônus fixo somado ao Dado de Lyra** (d20), ver 10.3.
 
 | Material | Origem | Regra | Preço |
 | --- | --- | --- | --- |
-| Ferro Lunar | Minas de Velshar | Armas: +2 dano contra quem sustenta Dom ou usou um nesta rodada; Ferrar e Dissolução têm DIF +5 contra ele. Brilha na Noite Azul (Desvantagem em Furtividade) | Peça ×5; minério 50 L/kg |
+| Ferro Lunar | Minas de Velshar | Armas: +2 dano contra quem sustenta Dom ou usou um nesta rodada; Geo (metal) e Dissolução têm DIF +5 contra ele. Brilha na Noite Azul (Desvantagem em Furtividade) | Peça ×5; minério 50 L/kg |
 | Aço Dvarith | Forja Eterna | +1 dano permanente; quebra só em Ruína dupla | Peça ×3 |
 | Couro de Velkaroth | Caça em Vorngard | Proteção-Dom +2 em armaduras leves | 100 L o metro |
 | Garras de Urskath | Ursos de Velshar | Manoplas de garra +0 Ágil, Perfurante | 6 K |
 | Escamas de serpe | Mar de Aranor | Armadura média sem penalidade aquática | 8 K |
 | Cristais Estelares | Velshar e Cethor | Amplificam forjas e rituais; instáveis (Ruína em Ofício: explosão 3d6) | 1.000 K o grama |
-| Fragmentos Vaeloryn | Mercado de Zafira | Combustível do Cristalis | 5 K cada |
+| Fragmentos Vaeloryn | Mercado de Zafira | Catalisador raro de Dons (Gravitio, Dissolução) | 5 K cada |
 
 ### 11.5 Equipamento geral
 

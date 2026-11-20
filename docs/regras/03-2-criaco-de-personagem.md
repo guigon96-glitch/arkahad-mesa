@@ -39,7 +39,7 @@ São sete, na escala de **0 a 6**. Um adulto comum tem 1 ou 2; 3 é treinado; 4 
 | Limiar de Ferimento | RES + 8 | Dano igual ou maior num só golpe causa Ferimento |
 | Defesa | 10 + AGI + ⌊Nível/2⌋ + escudo | Contra ataques físicos e Dons de projétil |
 | Robustez | 10 + RES + ⌊Nível/2⌋ | Contra venenos, frio, calor, peso, doenças |
-| Determinação | 10 + VON + ⌊Nível/2⌋ | Contra Psyka, ilusões, medo, Somnis |
+| Determinação | 10 + VON + ⌊Nível/2⌋ | Contra Psyka, ilusões, medo e sonhos |
 | Iniciativa | AGI + PER | Somado a 2d10 no início do combate |
 | Deslocamento | 6 quadrados (9 m) | Modificado por raça e armadura |
 | Carga | 10 + FOR × 3 Volumes | Acima disso: Sobrecarregado |

@@ -100,14 +100,14 @@ Quando dois Dons se opõem diretamente (barreira contra projétil, ilusão contr
 
 | Dom dominante | Domina |
 | --- | --- |
-| Zephyr | Kalthor (fumaça), Toxys (gases), Nebulon, Aquilon (espuma), Geo (barreiras erodidas) |
+| Zephyr | Kalthor (fumaça), Toxys (gases), Aquilon (espuma), Geo (barreiras erodidas) |
 | Kalthor / Chama do Abismo | Cryon, Verdis |
 | Cryon | Zephyr, Aquilon |
-| Lumora | Umbra, Phasma |
+| Lumora | Umbra |
 | Vithar | Toxys |
-| Eco Estelar | Phasma, Psyka, Chronos, Visora, Spectra, Specula, Morphis, Somnis, Umbra |
-| Dissolução | Geo, Ferrar, Aether, Gravitio, Biomor, Cristais Vaeloryn |
-| Véu do Caos / Caosmora | Lumora, Eco Estelar |
+| Eco Estelar | Psyka, Umbra, Lumora, Morphis |
+| Dissolução | Geo, Gravitio, Morphis |
+| Véu do Caos | Lumora, Eco Estelar |
 
 ### 7.8 Contramedidas
 

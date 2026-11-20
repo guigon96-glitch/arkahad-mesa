@@ -1,6 +1,6 @@
 import { DurableObject } from 'cloudflare:workers';
 import { TERRENOS, LUZES, LUAS, r, num, custoCel, dijkstra, rolar2d10, rolarAtaque, rolarExpr, nivelPorXp, CONDICOES, CONDS_CAOS, modCond, temCond, deslocCom, distanciaCasas } from '../public/regras.js';
-import { HABILIDADE, danoHabilidade, TODOS_DONS } from '../public/conteudo.js';
+import { HABILIDADE, danoHabilidade, TODOS_DONS, DOM_FUNDIDO, migrarHabs, migrarFicha } from '../public/conteudo.js';
 
 const MAX_JOGADORES = 6;
 const SESSAO_DIAS = 30;
@@ -217,7 +217,7 @@ function limparPc(d) {
   if ('sigla' in o) o.sigla = texto(o.sigla, 3);
   if ('cor' in o) o.cor = cor(o.cor);
   for (const k of ['vigor', 'vigorMax', 'folego', 'folegoMax', 'tensao', 'limiar', 'defesa', 'desloc', 'ini', 'robustez', 'determinacao', 'protecao', 'limiarFer']) if (k in o) o[k] = Math.max(-99, Math.min(999, Math.round(num(o[k]))));
-  if ('ficha' in o) { o.ficha = objetoLimitado(o.ficha, 16000); if (!o.ficha) delete o.ficha; }
+  if ('ficha' in o) { o.ficha = migrarFicha(objetoLimitado(o.ficha, 16000)); if (!o.ficha) delete o.ficha; }
   if ('aparencia' in o) { o.aparencia = objetoLimitado(o.aparencia, 3000); if (!o.aparencia) delete o.aparencia; }
   if ('imbuido' in o) o.imbuido = !!o.imbuido;
   if ('itens' in o) o.itens = (Array.isArray(o.itens) ? o.itens : []).slice(0, 80).map(it => ({ n: texto(it?.n, 60), q: Math.max(1, Math.min(999, Math.round(num(it?.q, 1)))) })).filter(it => it.n);
@@ -238,8 +238,8 @@ function limparNpc(d) {
   if ('tipo' in o) o.tipo = ['npc', 'monstro', 'aliado'].includes(o.tipo) ? o.tipo : 'npc';
   for (const k of ['vigor', 'vigorMax', 'defesa', 'ini', 'desloc', 'x', 'y', 'ataque', 'protecao']) if (k in o) o[k] = Math.round(num(o[k]));
   if ('xp' in o) o.xp = Math.max(0, Math.min(200, Math.round(num(o.xp))));
-  if ('dom' in o) o.dom = TODOS_DONS[o.dom] ? o.dom : '';
-  if ('habs' in o) o.habs = [...new Set((Array.isArray(o.habs) ? o.habs : []).map(String))].filter(id => HABILIDADE[id]).slice(0, 12);
+  if ('dom' in o) { o.dom = DOM_FUNDIDO[o.dom] || o.dom; o.dom = TODOS_DONS[o.dom] ? o.dom : ''; }
+  if ('habs' in o) o.habs = migrarHabs((Array.isArray(o.habs) ? o.habs : []).map(String)).filter(id => HABILIDADE[id]).slice(0, 12);
   if ('alcance' in o) o.alcance = Math.max(1, Math.min(40, Math.round(num(o.alcance, 1))));
   if ('dano' in o) o.dano = /^[0-9d+\-]{1,20}$/i.test(String(o.dano || '')) ? String(o.dano).toLowerCase() : '1d6';
   if ('tamanho' in o) o.tamanho = Math.max(1, Math.min(4, Math.round(num(o.tamanho, 1))));
@@ -292,6 +292,9 @@ export class Sala extends DurableObject {
       if (this.s.meta) { this.s.meta.mapaInicial = 'm1'; this.s.meta.vendo = 'm1'; }
     }
     this.s.mapas ||= {};
+    // Dons cortados na revisão: fichas e NPCs salvos vão para o Dom que absorveu o antigo
+    for (const p of Object.values(this.s.pcs)) migrarFicha(p?.ficha);
+    for (const n of Object.values(this.s.npcs)) if (n) { if (DOM_FUNDIDO[n.dom]) n.dom = DOM_FUNDIDO[n.dom]; if (n.habs) n.habs = migrarHabs(n.habs); }
     return this.s;
   }
   async gravar(...chaves) {

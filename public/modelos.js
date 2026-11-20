@@ -306,8 +306,8 @@ function tracos(raca, ap) {
 // ---------------- efeito de Dom na arma (imbuir) ----------------
 export const ESTILO_DOM = {
   kalthor: 'fogo', chama_abismo: 'fogo', cryon: 'gelo', voltri: 'raio', verdis: 'folhas', toxys: 'gotas', umbra: 'fumaca', lumora: 'luz', sonara: 'ondas',
-  zephyr: 'vento', aquilon: 'gotas', cristalis: 'cristal', gravitio: 'orbita', chronos: 'orbita', nebulon: 'fumaca', somnis: 'orbita', psyka: 'ondas',
-  aether: 'luz', spectra: 'fumaca', specula: 'cristal', geo: 'cristal', ferrar: 'raio', entropia: 'raio', dissolucao: 'fumaca', veu_caos: 'fumaca',
+  zephyr: 'vento', aquilon: 'gotas', gravitio: 'orbita', psyka: 'ondas',
+  geo: 'cristal', dissolucao: 'fumaca', veu_caos: 'fumaca',
 };
 function texParticula() {
   if (texParticula.t) return texParticula.t;

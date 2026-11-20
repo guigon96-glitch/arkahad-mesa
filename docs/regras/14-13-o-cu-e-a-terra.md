@@ -13,7 +13,7 @@ O ano tem 365 dias, divididos em duas Estações de Luz: **Estação da Sombra**
 | Dia de Kael | Dia, qualquer estação | Dourada e quente, sombras nítidas | Quente (Cethor: escaldante) | Normal. Cavernícolas: Desvantagem em Percepção ao meio-dia |
 | Noite Verdadeira | Noite na Estação da Sombra | Escuridão real, só reflexo das luas | Amena | Furtividade com Vantagem fora de luz; criaturas fotossensíveis caçam; Umbra sem luz não funciona |
 | Noite Azul | Noite na Estação da Vigília | Azul, fria, constante; nunca escuro total | Cai rápido: frio intenso mesmo claro | Sem escuridão total (no máximo penumbra); Robustez DIF 12 por hora sem abrigo (Draveth com Desvantagem); descanso sem abrigo escuro exige VON DIF 13 ou recupera metade; o Fluxo fica visível: usar Dom dá Desvantagem em Furtividade e qualquer um percebe Dons a 12 q |
-| Conjunção Celeste | Crepúsculo e amanhecer na Vigília | Sombras Duplas: uma negra, uma azul | Transição | Triunfos e Ruínas têm efeito dobrado; Umbra +1 dado; Spectra e Somnis alcance ×2. Momento ritual de "Julgamento" |
+| Conjunção Celeste | Crepúsculo e amanhecer na Vigília | Sombras Duplas: uma negra, uma azul | Transição | Triunfos e Ruínas têm efeito dobrado; Umbra +1 dado; Psyka alcance ×2. Momento ritual de "Julgamento" |
 
 ### 13.3 As três luas
 
@@ -44,7 +44,7 @@ A cada turno de vigília (4 horas), o Mestre rola 1d10: em 1, um encontro do Bes
 | Região | Perigo | Regra |
 | --- | --- | --- |
 | Cethor | Véus de Kael (tempestade de areia) | Sobrevivência DIF 16 ou 2d6 de dano e o grupo se perde; Zephyr N3 abre um corredor |
-| Deserto de Krynnar | Vidro negro e pulsos de runas | 1d6 de calor por hora sem proteção; bússolas falham; Voltri, Eco Estelar e Visora com DIF +3 |
+| Deserto de Krynnar | Vidro negro e pulsos de runas | 1d6 de calor por hora sem proteção; bússolas falham; Voltri, Eco Estelar e Psyka com DIF +3 |
 | Deserto Boriner | Pó de vidro verde | Sem máscara, 1 de dano por hora e Sangrando ao correr |
 | Velshar | Nevascas e avalanches | Robustez DIF 15 por hora no frio; avalanche: Atletismo DIF 18 ou 4d6 e Soterrado (Imobilizado) |
 | Minas de Velshar | Musgo de Lyra | Ilumina túneis; tocar causa 1d4 de queimadura |

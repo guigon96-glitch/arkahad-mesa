@@ -2,7 +2,7 @@
 
 Dons de Elite quase não têm rebote: são o que decide guerras. **Jogadores só os acessam no estrato Elite e com aprovação do Mestre.** Regra geral: não têm Sintoma do Dom (o 6 na tabela de Sintomas não tem efeito) e usam os custos normais de Fôlego, mas quem os exibe vira alvo de todas as facções.
 
-### 9.1 Os oito Dons de Elite
+### 9.1 Os cinco Dons de Elite
 
 **Chama do Abismo** (VON) — fogo primordial sem fonte; a cor da chama é única de cada portador. Ignora Resistência a fogo e não se apaga com água comum.
 
@@ -33,23 +33,11 @@ Dons de Elite quase não têm rebote: são o que decide guerras. **Jogadores só
 - N4 reduz a pó uma estrutura 6×6, ou campo raio 3 onde Dons dominados não funcionam por 1 rodada.
 - Limitação: alvos a mais de 12 q, DIF +3.
 
-**Entropia** (INT) — caos molecular: deterioração e detonação.
-
-- N1 enferruja, apodrece, quebra. N2 detona um objeto: 2d8 em raio 1. N3 3d8 e −3 Proteção permanente na armadura do alvo. N4 zona 5×5: 5d8+4 e todo objeto comum dentro se degrada.
-- Limitação: −2 contra alvos que se moveram neste turno.
-
-**Caosmora** (PRE) — distorção em massa, mais forte que o Véu do Caos.
-
-- N1 raio 2 \[Det\]: Caídos por perda de equilíbrio. N2 terreno falso 6×6. N3 anula visão ou audição de todos em 6×6. N4 raio 12 \[Det\]: inimigos atacam os próprios aliados por 1 rodada.
+*Entropia e Caosmora foram fundidas em Dissolução e no Véu do Caos; Intuara saiu (o Erudito já faz esse papel). Quem tinha uma delas passa para Dissolução, Véu do Caos ou Eco Estelar.*
 
 **Eterna** (RES) — regeneração avançada de si mesmo (não cura outros).
 
 - N1 regenera 1 Vigor por turno em combate; 1A cura 1d8+RES. N2 2 por turno; Ferimentos fecham em 1 minuto. N3 Reação: anula um Ferimento; membro perdido volta em 10 minutos. N4 uma vez por cena, ao cair a 0, volta no início do turno seguinte com 5d6 de Vigor.
-
-**Intuara** (INT) — compreensão analítica de técnicas e mecanismos.
-
-- N1 observar por 1A revela uma fraqueza de mecanismo ou postura. N2 contra um alvo observado por 1 rodada: +2 ataque e Defesa. N3 copia uma manobra vista; mecanismos e armadilhas têm DIF −5. N4 por 1 rodada, todo acerto contra o alvo analisado é Golpe Crítico.
-- Limitação: só um alvo por vez; com 3+ inimigos ativos, Desvantagem; dor de cabeça após a cena (−1 em INT até a Pausa).
 
 ### 9.2 Dualistas (Quimerismo Áurico)
 
@@ -63,12 +51,8 @@ O Dualista tem **dois Dons e um único tanque de Fôlego**. Pode trocar de Dom l
 | Kalthor + Zephyr | Redemoinho de Brasas | Área dobra; alvos Em Chamas |
 | Cryon + Aquilon | Mar de Cristal | Água congela: Imobilizado sem teste por 1 rodada |
 | Verdis + Toxys | Jardim Venenoso | Espinhos aplicam Envenenado |
-| Umbra + Phasma | Pesadelo Vivo | Ilusão ganha corpo de sombra: causa dano físico |
-| Geo + Ferrar | Bastião de Ferro | Barreira com o dobro do Vigor estrutural |
-| Lumora + Specula | Labirinto de Espelhos | Cego + 1d4 cópias sem custo extra |
 | Gravitio + Geo | Queda da Montanha | Pedras esmagam: Caído e Imobilizado |
-| Psyka + Somnis | Voz no Sono | Sugestão dura até o próximo sono do alvo |
-| Sonara + Aether | Sino de Guerra | Barreira que atordoa quem a toca |
+| Sonara + Gravitio | Sino de Guerra | Barreira que atordoa quem a toca |
 
 Combos fora da tabela são permitidos se o jogador justificar a física; o Mestre define o efeito adicional.
 

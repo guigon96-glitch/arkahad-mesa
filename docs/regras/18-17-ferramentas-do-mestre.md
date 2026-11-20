@@ -18,7 +18,7 @@ Bônus de ataque já somado; Def. = Defesa, Rob. = Robustez, Det. = Determinaç�
 | Guarda de vila (Vellunari) | 0,5 | 14 | 12 / 12 / 11 | 2 | Lança +5, 1d8+2 | 8 | Testa Moral cedo |
 | Soldado de linha com Ferro Lunar | 2 | 24 | 13 / 14 / 13 | 3 (Dom 3) | Espada +7, 1d8+3 (+2 contra quem usa Dom) | 12 | Formação: +1 Defesa por aliado adjacente (máx. +2) |
 | Aurethian Operário (Kalthor N2) | 2 | 20 | 13 / 13 / 14 | 1 | Adaga +5, 1d4+1; Esfera de Fogo +7, 2d6+2 | 16 | Limiar de Colapso 5 |
-| Espião de Casa (Specula N2) | 3 | 22 | 15 / 12 / 15 | 2 | Sabre +8, 1d8+3 | 15 | Espelho de Defesa; Furtividade +8 |
+| Espião de Casa (Lumora N2) | 3 | 22 | 15 / 12 / 15 | 2 | Sabre +8, 1d8+3 | 15 | Espelho de Defesa; Furtividade +8 |
 | Mercador Draveth do Sol Escamado | 1 | 18 | 11 / 14 / 14 | 1 | Adaga +3, 1d4 | 10 | Comércio +9; sempre tem 2 guarda-costas |
 | Veterano Zarathim | 4 | 40 | 14 / 16 / 14 | 3 | Machado grande +10, 1d12+4 | 16 | Cabeçada 1d6; Orgulho de Aranor |
 | Renegado de Ithorak (Umbra N3) | 4 | 32 | 15 / 13 / 14 | 2 | 2 adagas +9, 1d4+3; Lâmina de Sombra +9, 3d6+3 | 20 | Golpe Furtivo +2d6 |

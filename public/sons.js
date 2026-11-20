@@ -33,6 +33,6 @@ export function definirVolume(v) {
   if (saida) saida.gain.value = volume;
 }
 // som de impacto de cada Dom (elemento → arquivo e tom)
-const SOM_DOM = { geo: ['pedra', 1], ferrar: ['metal', 1], aquilon: ['liquido', .9], toxys: ['liquido', 1.2], verdis: ['liquido', 1.5], biomor: ['liquido', .7], cristalis: ['cristal', 1], specula: ['cristal', 1.3], gravitio: ['explosao_grande', 1.2] };
+const SOM_DOM = { geo: ['pedra', 1], aquilon: ['liquido', .9], toxys: ['liquido', 1.2], verdis: ['liquido', 1.5], gravitio: ['explosao_grande', 1.2] };
 const SOM_ESTILO = { fogo: ['explosao', 1.15], gelo: ['gelo', 1], raio: ['raio', 1.2], folhas: ['liquido', 1.5], gotas: ['liquido', 1], fumaca: ['explosao', .7], luz: ['cura', 1.5], ondas: ['onda', 1.3], vento: ['zunido', 1.3], cristal: ['cristal', 1], orbita: ['teleporte', .8] };
 export function somDoDom(dom, estilo) { return SOM_DOM[dom] || SOM_ESTILO[estilo] || ['acerto', 1]; }

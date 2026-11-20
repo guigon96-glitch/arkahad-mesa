@@ -37,7 +37,7 @@ O Vellunari escolhe 2 na criação e ganha mais uma nos níveis 4, 7 e 10. Elas 
 
 | Façanha | Efeito |
 | --- | --- |
-| Vontade de Ferro | Vantagem em Determinação contra Psyka, Phasma, Somnis e Umbra |
+| Vontade de Ferro | Vantagem em Determinação contra Psyka e Umbra |
 | Mão Calejada | Manobras de combate custam 1 Fôlego a menos (mínimo 0) |
 | Caçador de Sangue-Estelar | Treinado em Ferro Lunar: +2 de dano contra quem usou um Dom nesta rodada |
 | Engenho Alquímico | −2 DIF em Alquimia; prepara 1 dose extra por sessão de trabalho |
