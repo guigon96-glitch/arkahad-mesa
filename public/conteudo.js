@@ -138,6 +138,29 @@ export const VOCACOES = {
   canalizador: { nome: 'Canalizador', papel: 'Especialista no próprio Dom', vigor: 2, pericias: ['canalizacao', 'atletismo', 'conhecimento', 'atencao', 'intimidacao'], armadura: 'couro', arma: 'nenhuma', cristal: true, kit: 'Cristal de foco, couro', hab: 'Fluxo Disciplinado: +3 Fôlego; a primeira técnica de cada turno custa 1 Fôlego a menos. Não usa armas: as mãos canalizam o Cristal de Foco (golpes desarmados usam Canalização e VON; evolua o cristal na árvore Cristal de Foco).', soAurethian: true, extra: { folego: 3 } },
 };
 
+// Habilidades de Vocação nos níveis 3, 5, 7 e 10 (o nível 1 é `hab` em VOCACOES) e armaduras permitidas. Fonte: docs/regras/07-6-vocaces.md
+export const HAB_VOCACAO = {
+  lamina: { armaduras: 'Leve, Média', 3: 'Golpe Preciso: seus ataques ignoram 2 de Proteção.', 5: 'Fluxo de Lâmina: penalidade por ataques múltiplos cai de −5/−10 para −3/−6.', 7: 'Rompe-Cristal: em Golpe Crítico contra um Aurethian, o alvo ganha +2 Tensão.', 10: 'Mestre da Prova do Sol: ataques corpo a corpo são Golpe Crítico também quando o total supera a Defesa em 10+.' },
+  sentinela: { armaduras: 'Todas + escudos', 3: 'Âncora: imune a empurrão e derrubada; inimigos que saem de um quadrado adjacente a você provocam um ataque de Reação.', 5: 'Escudo Lunar: com escudo de Ferro Lunar, reduz em 5 o dano de qualquer Dom que o atinja ou atinja aliado atrás de você.', 7: 'Inquebrável: 1 vez por cena, ao chegar a 0 Vigor, fica com 1 e de pé.', 10: 'Bastião: aliados adjacentes recebem +2 em Defesa, Robustez e Determinação.' },
+  batedor: { armaduras: 'Leve', 3: 'Passo Leve: ignora terreno difícil natural; Deslocamento +1.', 5: 'Tiro Duplo (2 ações): dois ataques à distância com −2 cada, sem penalidade múltipla.', 7: 'Emboscador: Vantagem em todos os ataques na primeira rodada se agir antes do alvo.', 10: 'Caçador de Feras: +2d6 de dano contra criaturas do Bestiário; sabe uma fraqueza de cada uma.' },
+  sombra: { armaduras: 'Leve', 3: 'Mil Rostos: mantém 2 identidades falsas com documentos; Vantagem em disfarces.', 5: 'Evasão (Reação): sofre metade do dano de uma área (nenhum se passar no teste). Golpe Furtivo vira +3d6.', 7: 'Golpe de Misericórdia: ataques contra alvos Indefesos são Golpe Crítico automático.', 10: 'Fantasma de Ithorak: em penumbra ou sombra, pode se esconder com 1 ação mesmo sendo observado. (Golpe Furtivo +4d6 desde o nível 9.)' },
+  alquimista: { armaduras: 'Leve', 3: 'Arremesso Alquímico: frascos viram ataques de Pontaria em área 2×2 com o efeito da receita.', 5: 'Destilado Mestre: poções e venenos duram o dobro e a DIF para resistir sobe +2.', 7: 'Antídoto Universal (1 ação): remove qualquer veneno ou doença não-Elite de um alvo.', 10: 'Grande Obra: 1 vez por semana, cria um Elixir de Tirith (remove 1 Cicatriz ou cura todo o Vigor) ou uma Cinza Negra (nuvem 3×3: +2 Tensão a cada uso de Dom dentro dela por 1 minuto).' },
+  erudito: { armaduras: 'Leve', 3: 'Leitor de Runas: ativa, desativa e repara runas e relíquias pré-Queda (Runas, DIF do Mestre).', 5: 'Plano Perfeito: com 10 min de preparo, distribui 3 bônus de +2 entre aliados para a próxima cena.', 7: 'Contramedida (Reação): impõe Desvantagem num teste de Dom inimigo cujo Dom você já identificou.', 10: 'Arquivista Proibido: 1 vez por aventura, pergunte ao Mestre uma verdade sobre o mundo.' },
+  orador: { armaduras: 'Leve, Média', 3: 'Rede de Influência: +2 contatos; ganha 1 ponto de Influência por sessão.', 5: 'Discurso Inflamado (2 ações, 1 vez por cena): aliados recuperam 1d6 + PRE de Fôlego e perdem Amedrontado.', 7: 'Teia de Favores: 1 vez por sessão, declara que alguém na cena lhe deve um favor.', 10: 'Voz dos Cinco: move a Reputação do grupo com uma facção em ±1 por aventura.' },
+  curandeiro: { armaduras: 'Leve, Média', 3: 'Cirurgião de Campo: trata Ferimentos em 10 minutos (Medicina DIF 15), removendo a penalidade.', 5: 'Triagem: Mãos Firmes afeta dois aliados adjacentes com a mesma ação.', 7: 'Leitor de Corpos: 10 minutos de cuidados removem 2 Tensão de um Aurethian.', 10: 'Vida e Morte: 1 vez por sessão, traz de volta um aliado morto há até 1 rodada, com 1 Vigor e 1 Cicatriz.' },
+  canalizador: { armaduras: 'Leve', 3: 'Técnica-Assinatura: uma técnica que você conhece causa +1 dado de dano ou tem +1 quadrado de alcance/área.', 5: 'Respiração do Cristal (1 ação): recupera 2 + VON de Fôlego, 1 vez por cena.', 7: 'Limiar Expandido: +2 Limiar de Colapso; o primeiro ponto de Tensão da cena não gera sintoma.', 10: 'Avatar do Dom: 1 vez por sessão, usa uma técnica de 1 nível acima do seu (até N4) sem entrar em Overdrive.' },
+};
+export const NIVEIS_VOCACAO = [1, 3, 5, 7, 10];
+// Lista [{ nivel, texto, ok }] das habilidades da Vocação; ok = já liberada no nível do personagem.
+export function habilidadesVocacao(f) {
+  const v = VOCACOES[f.vocacao], h = HAB_VOCACAO[f.vocacao];
+  if (!v || !h) return [];
+  const n = num(f.nivel, 1);
+  return NIVEIS_VOCACAO.map(nv => ({ nivel: nv, texto: nv === 1 ? v.hab : h[nv], ok: n >= nv }));
+}
+// Grau máximo de perícia: 3 até o nível 4, 4 a partir do 5, 5 a partir do 9 (Progressão 16.2).
+export function maxPericia(f) { const n = num(f.nivel, 1); return n >= 9 ? 5 : n >= 5 ? 4 : 3; }
+
 const T = (...n) => n;
 // Técnicas: nome em tec[i]; inf[i] = { acao (custo em ações/Fôlego), alc (alcance/área), ef (efeito) }. Fonte: planilha dons.xlsx do dono.
 const I = (acao, alc, ef) => ({ acao, alc, ef });
@@ -605,7 +628,7 @@ export function gradPericia(f, id) {
   let g = num(f.pericias?.[id]);
   if ((ORIGENS[f.origem]?.pericias || []).includes(id)) g += 1;
   if (voc && voc.pericias.slice(0, 2).includes(id)) g += 1;
-  return Math.min(3, g);
+  return Math.min(maxPericia(f), g);
 }
 export function bonusPericia(f, id) {
   const r = RACAS[f.raca], s = r?.subs?.[f.sub] || {};

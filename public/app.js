@@ -6,7 +6,7 @@ import { retratoDe } from './retrato.js';
 import {
   ATRIBUTOS, PERICIAS, RACAS, VOCACOES, TODOS_DONS, DONS, CUSTO_DOM, notasDom, RESSONANCIAS, ORIGENS, ESTRATOS,
   ataqueArma, danoTecnica, bonusTesteDom, temImbuir, TALENTO, ARVORES, pontosTalento, alcanceTecnica,
-  aparenciaPadrao, atributosFinais, gradPericia, bonusPericia, ehAurethian, nivelDom, derivados,
+  aparenciaPadrao, atributosFinais, gradPericia, habilidadesVocacao, HAB_VOCACAO, bonusPericia, ehAurethian, nivelDom, derivados,
 } from './conteudo.js';
 
 // ================= CONFIGURAÇÃO VISUAL (fácil de editar) =================
@@ -645,7 +645,7 @@ function htmlFichaCompleta(p) {
       ${dom2 ? `<h3 style="color:${dom2.cor};margin-top:10px">${esc(dom2.nome)} (secundário)</h3>${tecnicas(dom2, Math.max(1, n - 1))}` : ''}</div>` : ''}
     <div class="bloco"><h3>Perícias</h3><div class="pers">${destaques.map(linhaPer).join('')}</div>
       <details><summary>Outras perícias</summary><div class="pers">${outras.map(linhaPer).join('')}</div></details></div>
-    <div class="bloco"><h3>${esc(voc.nome)}</h3><p style="margin:0 0 6px">${esc(voc.hab)}</p><div style="font-size:14px;color:var(--mudo)">Kit: ${esc(voc.kit)} · Armadura: ${esc(d.armadura)}</div>
+    <div class="bloco"><h3>${esc(voc.nome)}</h3>${habilidadesVocacao(f).map(h => `<p style="margin:0 0 6px${h.ok ? '' : ';opacity:.45'}" title="${h.ok ? 'Liberada' : 'Libera no nível ' + h.nivel}"><b>N${h.nivel}${h.ok ? '' : ' 🔒'}</b> ${esc(h.texto)}</p>`).join('')}<div style="font-size:14px;color:var(--mudo)">Kit: ${esc(voc.kit)} · Armadura: ${esc(d.armadura)} · Proficiência: ${esc(HAB_VOCACAO[f.vocacao]?.armaduras || '')}</div>
       ${f.fardo ? `<p style="margin:8px 0 0"><b>Fardo:</b> ${esc(f.fardo)}</p>` : ''}${f.juramento ? `<p style="margin:4px 0 0"><b>Juramento:</b> ${esc(f.juramento)}</p>` : ''}
       ${(f.facanhas || []).length ? `<p style="margin:4px 0 0"><b>Façanhas:</b> ${f.facanhas.map(esc).join(', ')}</p>` : ''}</div>
     <button class="pri" id="abrirCriador" style="width:100%">Editar personagem</button>`;

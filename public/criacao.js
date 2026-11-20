@@ -7,7 +7,7 @@ import {
   ATRIBUTOS, PERICIAS, RACAS, ORIGENS, ESTRATOS, FACANHAS, VOCACOES, DONS, DONS_ELITE, TODOS_DONS, notasDom, RESSONANCIAS,
   CUSTO_DOM, fichaVazia, aparenciaPadrao, pontosAtributo, atributosFinais, ARVORES, TALENTO, pontosTalento, arvoresPermitidas, pontosNaArvore, bloqueioTalento,
   ataqueArma, danoTecnica, ARMA_POR_VOCACAO, SECUNDARIA_POR_VOCACAO,
-  pontosPericia, gradPericia, bonusPericia, ehAurethian, nivelDom, derivados, validar,
+  pontosPericia, gradPericia, maxPericia, bonusPericia, ehAurethian, nivelDom, derivados, validar,
 } from './conteudo.js';
 
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -227,7 +227,7 @@ export function abrirCriador({ ficha, dadosCor, aoSalvar, aoFechar }) {
       }
       case 'per': {
         const atual = f.pericias[v] || 0, p = pontosPericia(f);
-        if (d > 0 && (p.gastos >= p.total || gradPericia(f, v) >= 3)) return;
+        if (d > 0 && (p.gastos >= p.total || gradPericia(f, v) >= maxPericia(f))) return;
         if (d < 0 && atual <= 0) return;
         f.pericias[v] = atual + d; if (!f.pericias[v]) delete f.pericias[v]; break;
       }
