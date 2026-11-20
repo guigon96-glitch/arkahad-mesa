@@ -595,6 +595,33 @@ export function criarCena(el, cb = {}) {
 
   // ----------- laço -----------
   const relogio = new THREE.Clock();
+  // câmera pelo teclado: WASD/setas andam, Q/E giram, Shift acelera (ignora quando digita num campo)
+  const teclas = new Set(), TECLA = { w: 'f', arrowup: 'f', s: 't', arrowdown: 't', a: 'e', arrowleft: 'e', d: 'd', arrowright: 'd', q: 'gq', e: 'ge' };
+  const digitando = e => e.target.closest?.('input,textarea,select,[contenteditable]') || e.ctrlKey || e.metaKey || e.altKey;
+  let rapido = false;
+  const aoTecla = e => {
+    if (e.key === 'Shift') rapido = e.type === 'keydown';
+    const t = TECLA[e.key.toLowerCase()];
+    if (!t) return;
+    if (e.type === 'keyup') { teclas.delete(t); return; }
+    if (digitando(e) || !dom.isConnected || !dom.offsetParent) return;
+    teclas.add(t); e.preventDefault();
+  };
+  const soltarTudo = () => { teclas.clear(); rapido = false; };
+  addEventListener('keydown', aoTecla); addEventListener('keyup', aoTecla); addEventListener('blur', soltarTudo);
+  function andarTeclado(dt) {
+    if (!teclas.size) return;
+    if (teclas.has('gq') || teclas.has('ge')) api.girar((teclas.has('gq') ? 1 : -1) * dt * 1.8);
+    const frente = controles.target.clone().sub(camera.position); frente.y = 0; if (frente.lengthSq() < 1e-6) return; frente.normalize();
+    const lado = new THREE.Vector3(-frente.z, 0, frente.x), mov = new THREE.Vector3();
+    if (teclas.has('f')) mov.add(frente); if (teclas.has('t')) mov.sub(frente); if (teclas.has('d')) mov.add(lado); if (teclas.has('e')) mov.sub(lado);
+    if (!mov.lengthSq()) return;
+    const vel = (4 + camera.position.distanceTo(controles.target) * .6) * (rapido ? 2.2 : 1);
+    mov.normalize().multiplyScalar(vel * dt);
+    // não deixa o foco sair do mapa
+    if (mesa) { const t = controles.target; mov.x = Math.max(-2 - t.x, Math.min(mesa.cols + 2 - t.x, mov.x)); mov.z = Math.max(-2 - t.z, Math.min(mesa.rows + 2 - t.z, mov.z)); }
+    controles.target.add(mov); camera.position.add(mov);
+  }
   let usarPos = true;
   const ro = new ResizeObserver(() => { const w = el.clientWidth, h = el.clientHeight; if (!w || !h) return; renderer.setSize(w, h); composer.setPixelRatio(renderer.getPixelRatio()); composer.setSize(w, h); camera.aspect = w / h; camera.updateProjectionMatrix(); });
   ro.observe(el);
@@ -620,6 +647,7 @@ export function criarCena(el, cb = {}) {
     if (pausado) return;
     const dt = Math.min(.05, relogio.getDelta()), agora = performance.now(), t = agora / 1000;
     medirDesempenho(agora);
+    andarTeclado(dt);
     controles.update();
     TEMPO.value = t;
     for (const p of portaisAnim) { p.vortice.rotation.z = -t * 1.6; p.chaoLuz.rotation.z = t * .8; p.luz.intensity = 2 + Math.sin(t * 3 + p.s) * .5; }
@@ -738,7 +766,7 @@ export function criarCena(el, cb = {}) {
     enquadrar() { if (mesa) enquadrar(); },
     pausar(v) { pausado = !!v; if (!v) relogio.getDelta(); },
     _cam: camera, _ctl: controles, _alt: (x, z) => solo?.alturaPonto(x, z), get _solo() { return solo; },
-    destruir() { ativo = false; ro.disconnect(); controles.dispose(); renderer.dispose(); dom.remove(); },
+    destruir() { removeEventListener('keydown', aoTecla); removeEventListener('keyup', aoTecla); removeEventListener('blur', soltarTudo); ativo = false; ro.disconnect(); controles.dispose(); renderer.dispose(); dom.remove(); },
   };
   return api;
 }

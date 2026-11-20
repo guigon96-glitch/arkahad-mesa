@@ -3,6 +3,7 @@ import { criarCena } from './cena3d.js';
 import { CRIATURAS_3D, ARMAS_3D, SECUNDARIAS, SEXOS, ESTILO_DOM } from './modelos.js';
 import { abrirCriador } from './criacao.js';
 import { retratoDe } from './retrato.js';
+import { tocarSom, somDoDom, volumeSom, definirVolume } from './sons.js';
 import {
   ATRIBUTOS, PERICIAS, RACAS, VOCACOES, TODOS_DONS, DONS, CUSTO_DOM, notasDom, RESSONANCIAS, ORIGENS, ESTRATOS,
   ataqueArma, danoTecnica, bonusTesteDom, temImbuir, TALENTO, ARVORES, pontosTalento, alcanceTecnica,
@@ -174,7 +175,7 @@ function receber(m) {
       $('erroSenha').textContent = m.erro || '';
       $('modalSenha').hidden = false; $('senhaSala').value = ''; $('senhaSala').focus();
       break;
-    case 'condicao': cena?.pulso(m.k, m.dano ? '#ff5a3a' : '#5fd05a'); break;
+    case 'condicao': cena?.pulso(m.k, m.dano ? '#ff5a3a' : '#5fd05a'); tocarSom(m.dano ? 'pulso' : 'cura', { tom: m.dano ? 1 : 1.6, vol: .6 }); break;
     case 'dado': case 'golpe': case 'habilidade': {
       filaOcupada++;
       filaDados = filaDados.then(() => m.tipo === 'golpe' ? animarGolpe(m) : m.tipo === 'habilidade' ? animarHabilidade(m) : animarDados(m)).catch(() => {}).finally(() => { filaOcupada--; });
@@ -519,6 +520,10 @@ function mostrarPing(x, y, cor) { cena?.ping(x, y, cor); }
 $('zMais').onclick = () => cena?.zoom(.8);
 $('zMenos').onclick = () => cena?.zoom(1.25);
 $('girarE').onclick = () => cena?.girar(Math.PI / 4);
+// volume: alto → baixo → mudo
+const ICONE_SOM = v => v >= .6 ? '🔊' : v > 0 ? '🔉' : '🔇';
+$('som').textContent = ICONE_SOM(volumeSom());
+$('som').onclick = () => { const v = volumeSom(); definirVolume(v >= .6 ? .3 : v > 0 ? 0 : .7); $('som').textContent = ICONE_SOM(volumeSom()); tocarSom('dado1'); };
 $('girarD').onclick = () => cena?.girar(-Math.PI / 4);
 $('centrar').onclick = () => { const p = pcs[eu()]; if (p && cena) cena.focar(num(p.x), num(p.y)); else cena?.enquadrar(); };
 
@@ -601,6 +606,9 @@ async function animarGolpe(m) {
   if (!cena) return;
   cena.acao(m.k, m.dom ? 'magia' : 'ataque');
   const cor = corDoDom(m.k);
+  // som: magia = disparo; distância = zunido da flecha; corpo a corpo = corte e pancada
+  if (m.dom) tocarSom('disparo', { atraso: 380, vol: .6 }); else if (m.distancia) tocarSom('zunido', { tom: 1.7, atraso: 350, vol: .7 }); else tocarSom('corte', { atraso: 380 });
+  if ((m.alvos || []).length) tocarSom(m.dom ? 'acerto' : m.distancia ? 'acerto' : 'soco', { atraso: m.dom || m.distancia ? 750 : 460, vol: .8 });
   for (const a of m.alvos || []) {
     if (m.dom || m.distancia) cena.projetil(m.k, a, m.dom ? cor : null, !!m.dom);
     else setTimeout(() => cena.impacto(a, m.k), 450);
@@ -610,11 +618,31 @@ async function animarGolpe(m) {
 async function animarHabilidade(m) {
   const h = HABILIDADE[m.hab]; if (!cena || !h) return;
   cena.acao(m.k, h.anim === 'golpe' ? 'ataque' : 'magia');
+  somHabilidade(h, m);
   cena.efeito({ forma: h.anim, de: m.k, alvos: m.alvos || [], acertos: m.acertos || [], centro: m.centro, raio: h.raio, cor: h.cor, estilo: ESTILO_DOM[h.dom] || 'luz', suprema: h.n === 4, nome: h.nome, apoio: h.t !== 'atq', cadeia: !!h.cadeia, falhou: !!m.falhou });
   await new Promise(r => setTimeout(r, h.n === 4 ? 1700 : 1100));
 }
+// sons da habilidade no ritmo da animação (efeitos.js): conjurar → lançar → impacto
+function somHabilidade(h, m) {
+  const estilo = ESTILO_DOM[h.dom] || 'luz', [som, tom] = somDoDom(h.dom, estilo), sup = h.n === 4, acertou = (m.acertos || []).length > 0;
+  const t = { projetil: 650, raio: 320, golpe: 330, explosao: 800, coluna: 420, onda: 350 }[h.anim];
+  tocarSom('conjurar', { tom: 1.2, vol: .45 });
+  if (h.anim === 'projetil') tocarSom('disparo', { tom, atraso: 250, vol: .6 });
+  if (h.anim === 'raio') tocarSom(h.cadeia || estilo === 'raio' ? 'raio' : 'feixe', { tom, atraso: 250 });
+  if (h.anim === 'golpe') tocarSom('corte', { atraso: 280 });
+  if (h.anim === 'onda') tocarSom('onda', { tom, atraso: 150 });
+  if (h.anim === 'aura') tocarSom(h.t === 'atq' ? som : 'cura', { tom: h.t === 'atq' ? tom : 1.25, atraso: 200 });
+  if (h.anim === 'escudo') tocarSom('escudo', { atraso: 250 });
+  if (h.anim === 'salto') tocarSom('teleporte', { tom: 1.1 });
+  if (h.anim === 'parede') tocarSom(som === 'acerto' ? 'pedra' : som, { tom: tom * .8, atraso: 300 });
+  if (t && acertou) tocarSom(som, { tom, atraso: t });
+  if (h.anim === 'explosao' || h.anim === 'coluna') tocarSom(sup ? 'explosao_grande' : 'explosao', { tom: sup ? .8 : 1, atraso: t, vol: .8 });
+  if (m.falhou) tocarSom('zunido', { tom: .6, atraso: 200 });
+}
 async function animarDados(m) {
   if (!cena) return;
+  // dados batendo na mesa
+  if (!m.oculta || souMestre()) [0, 230, 430].forEach((atraso, i) => tocarSom(i % 2 ? 'dado2' : 'dado1', { atraso, vol: .5 - i * .12, tom: 1.1 }));
   if (m.k && !/^dano/i.test(m.rotulo || '')) {
     const acao = m.dom ? 'magia' : /combate|pontaria|briga|ataque/i.test(m.rotulo || '') ? 'ataque' : 'usar';
     cena.acao(m.k, acao);
