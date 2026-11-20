@@ -145,6 +145,8 @@ $('voltar').onclick = () => { location.hash = ''; };
 function receber(m) {
   switch (m.tipo) {
     case 'estado': {
+      // espera os dados e o golpe terminarem para o Vigor não cair antes da hora
+      if (filaOcupada) { filaDados = filaDados.then(() => receber(m)).catch(() => {}); break; }
       tentativaWs = 0; $('modalSenha').hidden = true;
       const primeira = !voce;
       voce = m.voce; sala = m.sala; mapas = m.mapas || []; const trocouMapa = mesa?.id !== m.mesa?.id; mesa = m.mesa; if (trocouMapa) { desfazer.length = 0; refazer.length = 0; if (mira) cancelarMira(); } pcs = m.pcs || {}; npcs = m.npcs || {}; log = m.log || []; online = m.online || [];
@@ -167,7 +169,11 @@ function receber(m) {
       $('erroSenha').textContent = m.erro || '';
       $('modalSenha').hidden = false; $('senhaSala').value = ''; $('senhaSala').focus();
       break;
-    case 'dado': filaDados = filaDados.then(() => animarDados(m)).catch(() => {}); break;
+    case 'dado': case 'golpe': {
+      filaOcupada++;
+      filaDados = filaDados.then(() => m.tipo === 'golpe' ? animarGolpe(m) : animarDados(m)).catch(() => {}).finally(() => { filaOcupada--; });
+      break;
+    }
     case 'turno': anunciarTurno(m); break;
     case 'ping': mostrarPing(num(m.x), num(m.y), String(m.cor || '#e2b04a')); break;
     case 'aviso': avisar(m.texto, 4000); break;
@@ -533,17 +539,20 @@ function ajustar(k, campo, d) {
 }
 
 // ================= Dados (3D) =================
+// depois de todos os dados do ataque: animação de quem ataca, projétil ou golpe chegando
+async function animarGolpe(m) {
+  if (!cena) return;
+  cena.acao(m.k, m.dom ? 'magia' : 'ataque');
+  const cor = corDoDom(m.k);
+  for (const a of m.alvos || []) {
+    if (m.dom || m.distancia) cena.projetil(m.k, a, m.dom ? cor : null, !!m.dom);
+    else setTimeout(() => cena.impacto(a, m.k), 450);
+  }
+  await new Promise(r => setTimeout(r, 900));
+}
 async function animarDados(m) {
   if (!cena) return;
-  if (m.alvos?.length && !m.dano) {
-    // ataque com alvo: animação de quem ataca, projétil ou golpe chegando
-    cena.acao(m.k, m.dom ? 'magia' : 'ataque');
-    const cor = corDoDom(m.k);
-    for (const a of m.alvos) {
-      if (m.dom || m.distancia) cena.projetil(m.k, a, m.dom ? cor : null, !!m.dom);
-      else setTimeout(() => cena.impacto(a, m.k), 450);
-    }
-  } else if (m.k && !/^dano/i.test(m.rotulo || '')) {
+  if (m.k && !/^dano/i.test(m.rotulo || '')) {
     const acao = m.dom ? 'magia' : /combate|pontaria|briga|ataque/i.test(m.rotulo || '') ? 'ataque' : 'usar';
     cena.acao(m.k, acao);
     if ((m.tags || []).some(t => /Triunfo|Coroa/.test(t))) setTimeout(() => cena.acao(m.k, 'vitoria'), 1700);
@@ -784,7 +793,7 @@ function ligar() {
 }
 
 // ================= Combate: HUD, mira, alcance =================
-let mira = null, filaDados = Promise.resolve(), tirithHud = 'normal', menuTec = false;
+let mira = null, filaDados = Promise.resolve(), filaOcupada = 0, tirithHud = 'normal', menuTec = false;
 const corDoDom = k => { const [t, id] = partir(k); const f = t === 'pc' ? pcs[id]?.ficha : null; return f && ehAurethian(f) ? TODOS_DONS[f.dom]?.cor : '#9ad0ff'; };
 // quem o usuário controla agora: o NPC selecionado (Mestre) ou o próprio personagem
 function atorAtivo() {

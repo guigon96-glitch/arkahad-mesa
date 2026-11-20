@@ -625,7 +625,6 @@ export class Sala extends DurableObject {
         const res = rolarAtaque(msg.mod, msg.tirith, !!msg.dom);
         const coroa = res.kael === 20, olho = res.kael === 1;
         const acertos = [], tags = [];
-        if (msg.dom) tags.push(`Aranor ${res.aranor}: punição do Dom`); // shortcut: tabela de punição ainda não existe; ligar aqui quando o dono montar
         let critico = false;
         for (const [k, o] of alvos) {
           const def = num(o.defesa, 10) + Math.max(0, Math.min(5, Math.round(num(cob[k])))) + (o.guarda ? 2 : 0);
@@ -636,31 +635,28 @@ export class Sala extends DurableObject {
           tags.push(`${o.nome}: ${ok ? (crit ? 'crítico!' : 'acertou') : 'errou'}`);
         }
         const pele = (de.startsWith('pc:') ? autor.dados : null) || {};
-        const base = {
-          tipo: 'dado', nome: autor.nome, cor: autor.cor || '#e2b04a', kael: pele.kael || '#d9a23a', lyra: pele.lyra || '#3f78e0', material: pele.material || 'cristal',
-          t: Date.now(), k: de, dom: !!msg.dom, alvos: alvos.map(([k]) => k), distancia: !!msg.distancia,
-        };
-        const ev1 = { ...base, dados: res.dados, total: res.total, tags, grau: acertos.length ? (alvos.length > 1 ? `${acertos.length} de ${alvos.length} atingidos` : 'Acertou') : 'Errou', desc: res.desc, rotulo: texto(msg.rotulo, 60) };
-        this.enviarTodos(ev1);
-        this.registrar({ ...ev1, dados: undefined, tipo: undefined, k: undefined, dom: undefined, alvos: undefined, distancia: undefined });
+        // dados em sequência (acerto → dano → punição); o golpe e o dano aparecem só no fim ('golpe')
+        const base = { tipo: 'dado', nome: autor.nome, cor: autor.cor || '#e2b04a', kael: pele.kael || '#d9a23a', lyra: pele.lyra || '#3f78e0', material: pele.material || 'cristal' };
+        const rot = texto(msg.rotulo, 60);
+        const mandar = ev => { this.enviarTodos(ev); this.registrar({ ...ev, dados: undefined, tipo: undefined }); };
+        const dadoLyra = res.dados.find(d => d.c === 'lyra'), dadoAranor = res.dados.find(d => d.c === 'aranor');
+        mandar({ ...base, t: Date.now(), dados: res.dados.filter(d => d !== dadoLyra && d !== dadoAranor), total: res.total, tags, grau: acertos.length ? (alvos.length > 1 ? `${acertos.length} de ${alvos.length} atingidos` : 'Acertou') : 'Errou', desc: res.desc.split(' · ')[0], rotulo: rot });
         if (acertos.length) {
           // dano = Lyra + dano da arma/técnica com seus modificadores (vazio = só Lyra)
           const d = (msg.dano && rolarExpr(msg.dano)) || { dados: [], total: 0, desc: '' };
-          {
-            // crítico: Lyra conta como 20 e o alvo usa só metade da Proteção
-            const somaDano = res.lyra + d.total, somaCrit = 20 + d.total, tagsD = critico ? ['Crítico: Lyra 20, ½ Proteção'] : [];
-            d.desc = `Lyra ${res.lyra}${d.desc ? ' + ' + d.desc : ''}`;
-            for (const [, o, crit] of acertos) {
-              const prot = crit ? Math.floor(num(o.protecao) / 2) : num(o.protecao);
-              const sofre = Math.max(0, (crit ? somaCrit : somaDano) - prot);
-              o.vigor = Math.max(-99, num(o.vigor) - sofre);
-              tagsD.push(`${o.nome} −${sofre}${prot ? ` (Proteção ${prot})` : ''}`);
-            }
-            const ev2 = { ...base, alvos: acertos.map(([k]) => k), dados: d.dados, total: critico ? somaCrit : somaDano, tags: tagsD, grau: '', desc: d.desc, rotulo: 'Dano · ' + texto(msg.rotulo, 50), dano: true, t: Date.now() + 1 };
-            this.enviarTodos(ev2);
-            this.registrar({ ...ev2, dados: undefined, tipo: undefined, k: undefined, dom: undefined, alvos: undefined, distancia: undefined, dano: undefined });
+          // crítico: Lyra conta como 20 e o alvo usa só metade da Proteção
+          const somaDano = res.lyra + d.total, somaCrit = 20 + d.total, tagsD = critico ? ['Crítico: Lyra 20, ½ Proteção'] : [];
+          for (const [, o, crit] of acertos) {
+            const prot = crit ? Math.floor(num(o.protecao) / 2) : num(o.protecao);
+            const sofre = Math.max(0, (crit ? somaCrit : somaDano) - prot);
+            o.vigor = Math.max(-99, num(o.vigor) - sofre);
+            tagsD.push(`${o.nome} −${sofre}${prot ? ` (Proteção ${prot})` : ''}`);
           }
+          mandar({ ...base, t: Date.now() + 1, dados: [dadoLyra, ...d.dados], total: critico ? somaCrit : somaDano, tags: tagsD, grau: '', desc: `Lyra ${res.lyra}${d.desc ? ' + ' + d.desc : ''}`, rotulo: 'Dano · ' + texto(msg.rotulo, 50) });
+          // shortcut: tabela de punição ainda não existe; ligar aqui quando o dono montar
+          if (dadoAranor) mandar({ ...base, t: Date.now() + 2, dados: [dadoAranor], total: res.aranor, tags: [`Aranor ${res.aranor}: punição do Dom`], grau: '', desc: `Aranor ${res.aranor}`, rotulo: 'Punição · ' + texto(msg.rotulo, 46) });
         }
+        this.enviarTodos({ tipo: 'golpe', k: de, dom: !!msg.dom, alvos: alvos.map(([k]) => k), acertos: acertos.map(([k]) => k), distancia: !!msg.distancia });
         await this.gravar('pcs', 'npcs', 'log');
         break;
       }
