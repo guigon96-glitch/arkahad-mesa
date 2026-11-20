@@ -2,23 +2,26 @@
 import * as THREE from 'three';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { criarMiniatura } from './miniatura.js';
-import { carregarModelos, criarPersonagem, modelosProntos, MODELOS, ARMAS_3D, ESCUDOS_3D, CHAPEUS_3D } from './modelos.js';
+import { carregarModelos, criarPersonagem, modelosProntos, ARMAS_3D, SECUNDARIAS, CABELOS_3D, ROUPAS, ACESSORIOS, SEXOS, ESTILO_DOM } from './modelos.js';
 import {
   ATRIBUTOS, PERICIAS, RACAS, ORIGENS, ESTRATOS, FACANHAS, VOCACOES, DONS, DONS_ELITE, TODOS_DONS, RESSONANCIAS,
-  ARMAS_VISUAIS, CABELOS, MODELO_POR_VOCACAO, CUSTO_DOM, DANO_DOM, fichaVazia, aparenciaPadrao, pontosAtributo, atributosFinais,
+  CUSTO_DOM, fichaVazia, aparenciaPadrao, pontosAtributo, atributosFinais, ARVORES, TALENTO, pontosTalento, arvoresPermitidas, pontosNaArvore, bloqueioTalento,
+  ataqueArma, danoTecnica, ARMA_POR_VOCACAO, SECUNDARIA_POR_VOCACAO,
   pontosPericia, gradPericia, bonusPericia, ehAurethian, nivelDom, derivados, validar,
 } from './conteudo.js';
 
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-const PASSOS = ['Raça', 'Origem e estrato', 'Vocação', 'Dom', 'Atributos', 'Perícias', 'Aparência', 'Identidade'];
+const PASSOS = ['Raça', 'Origem e estrato', 'Vocação', 'Dom', 'Atributos', 'Perícias', 'Talentos', 'Aparência', 'Identidade'];
 const MATERIAIS = { cristal: 'Cristal', osso: 'Osso', ferro: 'Ferro Lunar', brasa: 'Brasa' };
 const sinal = n => (n > 0 ? '+' : '') + n;
 
 export function abrirCriador({ ficha, dadosCor, aoSalvar, aoFechar }) {
   const f = JSON.parse(JSON.stringify(ficha || fichaVazia()));
-  f.aparencia ||= aparenciaPadrao(f.raca, f.vocacao);
+  f.aparencia = { ...aparenciaPadrao(f.raca, f.vocacao, f.aparencia?.sexo), ...(f.aparencia?.sexo ? f.aparencia : { base: f.aparencia?.base || '#e2b04a' }) };
+  f.talentos ||= [];
+  let verImbuida = false, animPrevia = 'parado';
   const dc = { kael: '#d9a23a', lyra: '#3f78e0', material: 'cristal', ...(dadosCor || {}) };
-  let passo = ficha ? 7 : 0;
+  let passo = ficha ? 8 : 0;
 
   const raiz = document.createElement('div');
   raiz.className = 'criador';
@@ -26,7 +29,9 @@ export function abrirCriador({ ficha, dadosCor, aoSalvar, aoFechar }) {
     <header class="cr-topo"><h2>${ficha ? 'Editar personagem' : 'Criar personagem'}</h2><span class="cresce"></span><button data-acao="fechar" aria-label="Fechar">Fechar</button></header>
     <nav class="cr-passos" id="crPassos"></nav>
     <section class="cr-corpo" id="crCorpo"></section>
-    <aside class="cr-previa"><div class="cr-palco" id="crPalco"></div><div id="crResumo"></div></aside>
+    <aside class="cr-previa"><div class="cr-palco" id="crPalco"></div>
+      <div class="cr-anims" id="crAnims"><button data-anim="parado">Parado</button><button data-anim="andar">Andar</button><button data-anim="ataque">Atacar</button><button data-anim="magia">Dom</button><button data-anim="vitoria">Vitória</button><button data-acao="girar" aria-label="Girar">⟳</button></div>
+      <div id="crResumo"></div></aside>
     <footer class="cr-rodape"><button data-acao="voltar">Voltar</button><span class="cresce erro" id="crErro"></span><button class="pri" data-acao="avancar">Próximo</button></footer>
   </div>`;
   document.body.appendChild(raiz);
@@ -39,23 +44,27 @@ export function abrirCriador({ ficha, dadosCor, aoSalvar, aoFechar }) {
   rr.shadowMap.enabled = true;
   palco.appendChild(rr.domElement);
   const cena = new THREE.Scene();
-  const cam = new THREE.PerspectiveCamera(30, 1, .1, 50); cam.position.set(0, .75, 2.6); cam.lookAt(0, .48, 0);
+  const cam = new THREE.PerspectiveCamera(30, 1, .1, 50); cam.position.set(0, .82, 3.0); cam.lookAt(0, .55, 0);
   cena.add(new THREE.HemisphereLight('#fff4e0', '#3a2a1a', 1.1));
   const sol = new THREE.DirectionalLight('#ffd9a0', 2.4); sol.position.set(-2, 3, 2.5); sol.castShadow = true; cena.add(sol);
   const contra = new THREE.DirectionalLight('#7fa8ff', 1.4); contra.position.set(2, 1.5, -2); cena.add(contra);
   const disco = new THREE.Mesh(new THREE.CylinderGeometry(.7, .75, .06, 40), new THREE.MeshStandardMaterial({ color: '#2a1d12', roughness: .8 }));
   disco.position.y = -.03; disco.receiveShadow = true; cena.add(disco);
-  let mini = null, vivo = true;
+  let mini = null, vivo = true, girando = true;
   const ro = new ResizeObserver(() => { const w = palco.clientWidth, h = palco.clientHeight; if (w && h) { rr.setSize(w, h); cam.aspect = w / h; cam.updateProjectionMatrix(); } });
   ro.observe(palco);
   const relogio = new THREE.Clock();
-  (function laco() { if (!vivo) return; requestAnimationFrame(laco); const dt = relogio.getDelta(); if (mini) { mini.rotation.y += .006; mini.userData.personagem?.mixer.update(dt); } rr.render(cena, cam); })();
+  (function laco() { if (!vivo) return; requestAnimationFrame(laco); const dt = relogio.getDelta(); if (mini) { if (girando) mini.rotation.y += .006; const p = mini.userData.personagem; p?.atualizar ? p.atualizar(dt) : p?.mixer?.update(dt); } rr.render(cena, cam); })();
   const env = new THREE.PMREMGenerator(rr); cena.environment = env.fromScene(new RoomEnvironment(), .04).texture; cena.environmentIntensity = .5;
   function atualizarPrevia() {
-    if (mini) { cena.remove(mini); mini.traverse(o => o.geometry?.dispose()); }
+    const rot = mini ? mini.rotation.y : .5;
+    if (mini) cena.remove(mini);
     const dom = ehAurethian(f) ? TODOS_DONS[f.dom]?.cor : null;
-    mini = modelosProntos() ? criarPersonagem(f.aparencia, f.raca, { cristal: dom }) : criarMiniatura(f.aparencia, f.raca, { cristal: dom });
+    const imbuir = verImbuida && dom ? { cor: dom, estilo: ESTILO_DOM[f.dom] || 'luz' } : null;
+    mini = modelosProntos() ? criarPersonagem(f.aparencia, f.raca, { cristal: dom, imbuir }) : criarMiniatura(f.aparencia, f.raca, { cristal: dom });
+    mini.rotation.y = rot;
     cena.add(mini);
+    if (animPrevia !== 'parado') mini.userData.personagem?.tocar(animPrevia);
   }
 
   // ---------- resumo ----------
@@ -65,7 +74,8 @@ export function abrirCriador({ ficha, dadosCor, aoSalvar, aoFechar }) {
     $('#crResumo').innerHTML = `<div class="cr-nome">${esc(f.nome || 'Sem nome')}</div>
       <div class="cr-sub">${esc(r.nome)} ${esc(r.subs[f.sub]?.nome || '')} · ${esc(v.nome)}${dom ? ` · <span style="color:${dom.cor}">${esc(dom.nome)} N${nivelDom(f)}</span>` : ' · Vellunari'}</div>
       <div class="cr-attrs">${ATRIBUTOS.map(([k]) => `<span><b>${a[k]}</b>${k}</span>`).join('')}</div>
-      <div class="cr-der"><span>Vigor <b>${d.vigorMax}</b></span><span>Fôlego <b>${d.folegoMax}</b></span><span>Defesa <b>${d.defesa}</b></span><span>Proteção <b>${d.protecao}</b></span><span>Robustez <b>${d.robustez}</b></span><span>Determ. <b>${d.determinacao}</b></span><span>Limiar <b>${d.limiar}</b></span><span>Desl. <b>${d.desloc}</b></span></div>`;
+      <div class="cr-der"><span>Vigor <b>${d.vigorMax}</b></span><span>Fôlego <b>${d.folegoMax}</b></span><span>Defesa <b>${d.defesa}</b></span><span>Proteção <b>${d.protecao}</b></span><span>Robustez <b>${d.robustez}</b></span><span>Determ. <b>${d.determinacao}</b></span><span>Limiar <b>${d.limiar}</b></span><span>Desl. <b>${d.desloc}</b></span></div>
+      ${(() => { const at = ataqueArma(f, verImbuida); return `<div class="cr-sub" style="margin-top:6px">${esc(at.nome)}: ataque ${sinal(at.mod)} · dano ${esc(at.dano)}</div>`; })()}`;
   }
 
   // ---------- passos ----------
@@ -91,7 +101,7 @@ export function abrirCriador({ ficha, dadosCor, aoSalvar, aoFechar }) {
   function passoDom() {
     if (!ehAurethian(f)) return `<h3>Sem Dom</h3><p>Vellunari não têm Dom — e por isso recebem mais atributos, perícias, Fôlego e duas Façanhas. Mude o estrato no passo 2 se quiser um Aurethian.</p>`;
     const lista = f.estrato === 'elite' ? { ...DONS, ...DONS_ELITE } : DONS, n = nivelDom(f);
-    const tecs = d => d.tec.slice(0, n).map((t, i) => `<li><b>N${i + 1} ${esc(t)}</b> · ${CUSTO_DOM[i]} Fôlego · ${DANO_DOM[i]}</li>`).join('');
+    const tecs = d => d.tec.slice(0, n).map((t, i) => `<li><b>N${i + 1} ${esc(t)}</b> · ${CUSTO_DOM[i]} Fôlego · ${danoTecnica(f, i + 1)}</li>`).join('');
     const d1 = TODOS_DONS[f.dom];
     return `<h3>${f.estrato === 'dualista' ? 'Dom primário' : 'Dom'} (Nível ${n})</h3><div class="cr-grade quatro">${Object.entries(lista).map(([k, d]) => cartao(f.dom === k, 'dom', k, `<i class="ponto" style="background:${d.cor}"></i>${esc(d.nome)}${d.elite ? ' ✦' : ''}`, `<small>${esc(d.tema)} · ${d.chave}</small>`)).join('')}</div>
       ${d1 ? `<ul class="cr-tracos">${tecs(d1)}</ul>` : ''}
@@ -110,20 +120,47 @@ export function abrirCriador({ ficha, dadosCor, aoSalvar, aoFechar }) {
       <p class="cr-nota">Graduação máxima 3. Destacadas: perícias da vocação. Origem e vocação já dão alguns pontos grátis.</p>
       <div class="cr-lista">${PERICIAS.map(x => { const g = gradPericia(f, x.id), b = bonusPericia(f, x.id), tot = a[x.attr] + g + b; return `<div class="cr-linha ${voc.pericias.includes(x.id) ? 'voc' : ''}"><span class="cresce">${esc(x.nome)}${x.treinada ? ' †' : ''} <small>${x.attr}</small></span><button class="mini" data-acao="per" data-v="${x.id}" data-d="-1">−</button><b class="cr-num">${g}</b><button class="mini" data-acao="per" data-v="${x.id}" data-d="1">+</button><span class="cr-final">${sinal(tot)}${b ? ` <small>(+${b})</small>` : ''}</span></div>`; }).join('')}</div>`;
   }
+  function passoTalentos() {
+    const pt = pontosTalento(f), perm = arvoresPermitidas(f), aur = ehAurethian(f);
+    const arvore = ([k, arv]) => {
+      const ok = perm.includes(k);
+      const grau = g => arv.nos.filter(n => n.grau === g);
+      const no = n => {
+        const tem = f.talentos.includes(n.id), bloq = tem ? null : bloqueioTalento(f, n.id);
+        const semPonto = !tem && pt.gastos >= pt.total;
+        return `<button class="cr-talento ${tem ? 'sel' : ''}" data-acao="talento" data-v="${n.id}" ${(!tem && (bloq || semPonto)) ? 'disabled' : ''} title="${esc(bloq || '')}"><b>${esc(n.nome)}</b><small>${esc(n.desc)}</small>${!tem && bloq ? `<em>${esc(bloq)}</em>` : ''}</button>`;
+      };
+      return `<div class="cr-arvore ${ok ? '' : 'fechada'}" style="--cor:${arv.cor}"><h4>${esc(arv.nome)} <small>${pontosNaArvore(f, k)} pts</small></h4><p>${esc(arv.desc)}</p>
+        ${ok ? [1, 2, 3, 4, 5].filter(g => grau(g).length).map(g => `<div class="cr-grau"><span>G${g}</span><div>${grau(g).map(no).join('')}</div></div>`).join('') : `<p class="cr-nota">${arv.tipo === 'vellunari' ? 'Só para Vellunari.' : 'Só para Aurethians.'}</p>`}</div>`;
+    };
+    return `<h3>Talentos <span class="cr-pontos ${pt.gastos <= pt.total ? 'ok' : ''}">${pt.total - pt.gastos} de ${pt.total} pontos</span></h3>
+      <p class="cr-nota">${aur ? 'Aurethian: seus pontos vêm do sangue-estelar. Armas vão até o Grau 3, mas você tem as árvores do Dom e a <b>Arma Imbuída</b> — o Dom correndo pela lâmina ou pela flecha.' : 'Vellunari: sem Dom, mas com mais pontos, a Mestria (Graus 4 e 5) de todas as armas e a árvore do Sangue Comum. Ninguém luta melhor com aço.'} Cada nó custa 1 ponto; o Grau N exige N−1 pontos na mesma árvore. Ganha pontos a cada nível.</p>
+      <div class="cr-arvores">${Object.entries(ARVORES).sort(([a], [b]) => perm.includes(b) - perm.includes(a)).map(arvore).join('')}</div>`;
+  }
   function passoAparencia() {
     const a = f.aparencia, r = RACAS[f.raca];
     const cor = (campo, rot) => `<div><label>${rot}</label><input type="color" data-ap="${campo}" value="${esc(a[campo] || '#888888')}"></div>`;
-    const sel = (campo, rot, ops, desab = false) => `<div><label>${rot}</label><select data-ap="${campo}" ${desab ? 'disabled' : ''}>${Object.entries(ops).map(([k, n]) => `<option value="${k}" ${String(a[campo]) === k ? 'selected' : ''}>${typeof n === 'string' ? n : n.nome}</option>`).join('')}</select></div>`;
+    const sel = (campo, rot, ops, desab = false) => `<div><label>${rot}</label><select data-ap="${campo}" ${desab ? 'disabled' : ''}>${Object.entries(ops).map(([k, n]) => `<option value="${k}" ${String(a[campo]) === k ? 'selected' : ''}>${esc(typeof n === 'string' ? n : n.nome)}</option>`).join('')}</select></div>`;
     const chk = (campo, rot) => `<label class="cr-check"><input type="checkbox" data-apb="${campo}" ${a[campo] ? 'checked' : ''}> ${rot}</label>`;
-    const duas = ARMAS_3D[a.arma]?.duas || ARMAS_3D[a.arma]?.dupla;
-    return `<h3>Aparência <button class="mini" data-acao="aleatorio">Sortear cores</button></h3>
-      <label>Modelo</label><div class="cr-grade tres">${Object.entries(MODELOS).map(([k, m]) => cartao(a.modelo === k, 'modelo', k, m.nome, '')).join('')}</div>
-      <label>Tom de pele (${esc(r.nome)})</label><div class="cr-cores">${r.pele.map(c => `<button class="cr-cor ${a.pele === c ? 'sel' : ''}" data-acao="pele" data-v="${c}" style="background:${c}" aria-label="${c}"></button>`).join('')}<input type="color" data-ap="pele" value="${esc(a.pele)}"></div>
-      <div class="linha">${cor('corCabelo', 'Cabelo e barba')}${cor('roupa', 'Roupa')}${cor('corCapa', 'Capa / capuz')}${cor('corArmadura', 'Metal')}</div>
-      <div class="linha">${sel('arma', 'Arma', ARMAS_3D)}${sel('escudoTipo', duas ? 'Escudo (arma de duas mãos)' : 'Mão secundária', ESCUDOS_3D, duas)}${sel('chapeu', 'Cabeça', CHAPEUS_3D)}</div>
-      <div class="linha">${f.raca === 'sypheris' ? cor('brilho', 'Tatuagens luminosas') : ''}${cor('base', 'Base da miniatura')}</div>
-      <div class="cr-lista dois">${chk('capa', 'Capa')}${f.raca !== 'dvarith' ? chk('barba', 'Barba extra') : ''}</div>
-      <p class="cr-nota">Os traços da raça (chifres Draveth, crista Zarathim, barba Dvarith, olhos que brilham) são aplicados automaticamente.</p>
+    const faixa = (campo, rot, min, max) => `<div><label>${rot} <small>${Math.round((a[campo] || 1) * 100)}%</small></label><input type="range" data-apn="${campo}" min="${min}" max="${max}" step="0.01" value="${a[campo] || 1}"></div>`;
+    const arma = ARMAS_3D[a.arma] || {}, semSec = arma.duas || arma.besta;
+    const dom = ehAurethian(f) ? TODOS_DONS[f.dom] : null;
+    const grupo = (k, t) => Object.fromEntries(Object.entries(t).filter(([, v]) => v.grupo === k || !v.grupo));
+    return `<h3>Corpo <button class="mini" data-acao="aleatorio">Sortear visual</button></h3>
+      <div class="cr-grade dois">${Object.entries(SEXOS).map(([k, n]) => cartao(a.sexo === k, 'sexo', k, n, '')).join('')}</div>
+      <div class="linha">${faixa('altura', 'Altura', .9, 1.1)}${faixa('porte', 'Porte', .9, 1.15)}</div>
+      <label>Tom de pele (${esc(r.nome)})</label><div class="cr-cores">${r.pele.map(c => `<button class="cr-cor ${a.pele === c ? 'sel' : ''}" data-acao="pele" data-v="${c}" style="background:${c}" aria-label="${c}"></button>`).join('')}<input type="color" data-ap="pele" value="${esc(a.pele)}" aria-label="Outro tom"></div>
+      <div class="linha">${sel('cabelo', 'Cabelo', CABELOS_3D)}${cor('corCabelo', 'Cor do cabelo')}${cor('olhos', 'Olhos')}</div>
+      <div class="cr-lista dois">${chk('barba', 'Barba')}${chk('tatuagem', f.raca === 'sypheris' ? 'Tatuagens luminosas' : 'Tatuagens de runas')}</div>
+      ${a.tatuagem || f.raca === 'sypheris' ? `<div class="linha">${cor('corTatuagem', 'Cor das tatuagens')}</div>` : ''}
+      <h3>Roupas</h3>
+      <div class="linha">${sel('torso', 'Tronco', ROUPAS.torso)}${sel('pernas', 'Pernas', ROUPAS.pernas)}${sel('botas', 'Pés', ROUPAS.botas)}</div>
+      <div class="linha">${cor('corRoupa', 'Tecido')}${cor('corCouro', 'Couro e detalhes')}${cor('base', 'Base da miniatura')}</div>
+      <div class="cr-lista dois">${Object.entries(ACESSORIOS).map(([k, n]) => chk(k, n)).join('')}</div>
+      <h3>Armas</h3>
+      <div class="linha">${sel('arma', 'Mão principal', ARMAS_3D)}${sel('secundaria', semSec ? 'Outra mão (arma de duas mãos)' : 'Outra mão', SECUNDARIAS, semSec)}</div>
+      ${dom ? `<label class="cr-check"><input type="checkbox" data-acao-chk="imbuida" ${verImbuida ? 'checked' : ''}> Ver a arma imbuída com ${esc(dom.nome)}${f.talentos.includes('imb1') ? '' : ' (pegue “Imbuir Arma” nos Talentos para usar em jogo)'}</label>` : ''}
+      <p class="cr-nota">Chifres Draveth, crista e pele metálica Zarathim, escamas, olhos que brilham e tatuagens Sypheris vêm da raça. A arma da vocação é só a sugestão inicial — escolha a que quiser.</p>
       <h3>Seus dados</h3><div class="linha"><div><label>Dado de Kael</label><input type="color" data-dc="kael" value="${esc(dc.kael)}"></div><div><label>Dado de Lyra</label><input type="color" data-dc="lyra" value="${esc(dc.lyra)}"></div><div><label>Material</label><select data-dc="material">${Object.entries(MATERIAIS).map(([k, n]) => `<option value="${k}" ${dc.material === k ? 'selected' : ''}>${n}</option>`).join('')}</select></div></div>`;
   }
   function passoIdentidade() {
@@ -136,7 +173,7 @@ export function abrirCriador({ ficha, dadosCor, aoSalvar, aoFechar }) {
       <label>Juramento</label><input data-campo="juramento" maxlength="120" value="${esc(f.juramento)}" placeholder="A promessa que te move">
       ${erros.length ? `<div class="cr-erros"><b>Antes de salvar:</b><ul>${erros.map(e => `<li>${esc(e)}</li>`).join('')}</ul></div>` : '<p class="cr-ok">Tudo certo. Personagem equilibrado pelas regras.</p>'}`;
   }
-  const PAGINAS = [passoRaca, passoOrigem, passoVocacao, passoDom, passoAtributos, passoPericias, passoAparencia, passoIdentidade];
+  const PAGINAS = [passoRaca, passoOrigem, passoVocacao, passoDom, passoAtributos, passoPericias, passoTalentos, passoAparencia, passoIdentidade];
 
   function desenhar() {
     $('#crPassos').innerHTML = PASSOS.map((p, i) => `<button class="${i === passo ? 'sel' : ''}" data-acao="ir" data-v="${i}"><span>${i + 1}</span>${p}</button>`).join('');
@@ -149,8 +186,8 @@ export function abrirCriador({ ficha, dadosCor, aoSalvar, aoFechar }) {
   }
   function trocouRaca() {
     const r = RACAS[f.raca]; f.sub = Object.keys(r.subs)[0];
-    const pad = aparenciaPadrao(f.raca, f.vocacao);
-    Object.assign(f.aparencia, { pele: pad.pele, cabelo: pad.cabelo, corCabelo: pad.corCabelo, brilho: pad.brilho, barba: pad.barba });
+    const pad = aparenciaPadrao(f.raca, f.vocacao, f.aparencia.sexo);
+    Object.assign(f.aparencia, { pele: pad.pele, cabelo: pad.cabelo, corCabelo: pad.corCabelo, brilho: pad.brilho, barba: pad.barba, olhos: pad.olhos, tatuagem: pad.tatuagem, corTatuagem: pad.corTatuagem });
   }
 
   raiz.addEventListener('click', e => {
@@ -172,10 +209,10 @@ export function abrirCriador({ ficha, dadosCor, aoSalvar, aoFechar }) {
         if (!ehAurethian(f) && VOCACOES[f.vocacao].soAurethian) f.vocacao = 'lamina';
         if (DONS_ELITE[f.dom] && v !== 'elite') f.dom = 'kalthor';
         if (v !== 'vellunari') f.facanhas = [];
-        atualizarPrevia(); break;
+        podarTalentos(); atualizarPrevia(); break;
       case 'vocacao': {
-        f.vocacao = v; const voc = VOCACOES[v], arm = voc.armadura;
-        Object.assign(f.aparencia, { arma: voc.arma, escudo: !!voc.escudo, escudoTipo: voc.escudo ? 'redondo' : 'nenhum', armadura: arm === 'cota' ? 'media' : 'leve', modelo: MODELO_POR_VOCACAO[v] || f.aparencia.modelo });
+        f.vocacao = v;
+        Object.assign(f.aparencia, { arma: ARMA_POR_VOCACAO[v] || 'espada', secundaria: SECUNDARIA_POR_VOCACAO[v] || 'nenhuma' });
         atualizarPrevia(); break;
       }
       case 'dom': f.dom = v; if (f.dom2 === v) f.dom2 = Object.keys(DONS).find(k => k !== v); atualizarPrevia(); break;
@@ -195,11 +232,30 @@ export function abrirCriador({ ficha, dadosCor, aoSalvar, aoFechar }) {
         f.pericias[v] = atual + d; if (!f.pericias[v]) delete f.pericias[v]; break;
       }
       case 'pele': f.aparencia.pele = v; atualizarPrevia(); break;
-      case 'modelo': f.aparencia.modelo = v; atualizarPrevia(); break;
+      case 'sexo': {
+        f.aparencia.sexo = v;
+        if (v === 'f' && ['Hair_SimpleParted', 'Hair_Buzzed'].includes(f.aparencia.cabelo)) f.aparencia.cabelo = 'Hair_Long';
+        if (v === 'm' && f.aparencia.cabelo === 'Hair_Buns') f.aparencia.cabelo = 'Hair_SimpleParted';
+        if (v === 'f') f.aparencia.barba = false;
+        atualizarPrevia(); break;
+      }
+      case 'talento': {
+        const i = f.talentos.indexOf(v);
+        if (i >= 0) { f.talentos.splice(i, 1); podarTalentos(); }
+        else { if (bloqueioTalento(f, v) || pontosTalento(f).gastos >= pontosTalento(f).total) return; f.talentos.push(v); }
+        break;
+      }
+      case 'girar': girando = !girando; return;
       case 'aleatorio': {
         const r = RACAS[f.raca], s = arr => arr[Math.floor(Math.random() * arr.length)];
-        const hsl = () => '#' + new THREE.Color().setHSL(Math.random(), .45 + Math.random() * .3, .25 + Math.random() * .3).getHexString();
-        Object.assign(f.aparencia, { pele: s(r.pele), cabelo: s(Object.keys(CABELOS)), corCabelo: s(['#1b130d', '#3a2414', '#6a4a2a', '#b07a3a', '#d8c39a', '#dfe8f0', '#7a1f1f', '#2a2a2a']), roupa: hsl(), calca: hsl(), corCapa: hsl(), capa: Math.random() > .3 });
+        const hsl = (l = .3) => '#' + new THREE.Color().setHSL(Math.random(), .35 + Math.random() * .35, l + Math.random() * .2).getHexString();
+        const cab = Object.keys(CABELOS_3D).filter(k => f.aparencia.sexo === 'f' ? k !== 'Hair_Buzzed' : k !== 'Hair_Buns');
+        Object.assign(f.aparencia, {
+          pele: s(r.pele), cabelo: f.raca === 'zarathim' ? 'careca' : s(cab), corCabelo: s(['#1b130d', '#3a2414', '#6a4a2a', '#b07a3a', '#d8c39a', '#dfe8f0', '#7a1f1f', '#2a2a2a']),
+          corRoupa: hsl(.22), corCouro: hsl(.15), torso: s(Object.keys(ROUPAS.torso)), pernas: s(Object.keys(ROUPAS.pernas)), botas: s(Object.keys(ROUPAS.botas)),
+          capuz: Math.random() > .7, ombreira: Math.random() > .5, bracadeira: Math.random() > .4, cinto: Math.random() > .3,
+          altura: +(0.94 + Math.random() * .12).toFixed(2), porte: +(0.95 + Math.random() * .15).toFixed(2),
+        });
         atualizarPrevia(); break;
       }
       default: return;
@@ -209,8 +265,10 @@ export function abrirCriador({ ficha, dadosCor, aoSalvar, aoFechar }) {
   raiz.addEventListener('input', e => {
     const t = e.target;
     if (t.dataset.campo) { f[t.dataset.campo] = t.dataset.campo === 'nivel' ? Math.max(1, Math.min(10, Number(t.value) || 1)) : t.value; resumo(); if (t.dataset.campo === 'livre') desenhar(); return; }
-    if (t.dataset.ap) { f.aparencia[t.dataset.ap] = t.value; atualizarPrevia(); if (t.dataset.ap === 'arma') desenhar(); return; }
-    if (t.dataset.apb) { f.aparencia[t.dataset.apb] = t.checked; atualizarPrevia(); return; }
+    if (t.dataset.ap) { f.aparencia[t.dataset.ap] = t.value; atualizarPrevia(); if (t.dataset.ap === 'arma' || t.dataset.ap === 'secundaria') { desenhar(); } return; }
+    if (t.dataset.apb) { f.aparencia[t.dataset.apb] = t.checked; atualizarPrevia(); if (t.dataset.apb === 'tatuagem') desenhar(); return; }
+    if (t.dataset.apn) { f.aparencia[t.dataset.apn] = Number(t.value); t.previousElementSibling.querySelector('small').textContent = Math.round(t.value * 100) + '%'; clearTimeout(t._t); t._t = setTimeout(atualizarPrevia, 120); return; }
+    if (t.dataset.acaoChk === 'imbuida') { verImbuida = t.checked; atualizarPrevia(); resumo(); return; }
     if (t.dataset.dc) { dc[t.dataset.dc] = t.value; return; }
     if (t.dataset.facanha) {
       const s = new Set(f.facanhas || []); t.checked ? s.add(t.dataset.facanha) : s.delete(t.dataset.facanha);
@@ -219,6 +277,17 @@ export function abrirCriador({ ficha, dadosCor, aoSalvar, aoFechar }) {
   });
   raiz.addEventListener('change', e => { if (e.target.dataset.campo === 'nivel' || e.target.dataset.campo === 'nome') desenhar(); });
 
+  // tira talentos que deixaram de valer (ex.: mudou de estrato ou removeu um pré-requisito)
+  function podarTalentos() {
+    let mudou = true;
+    while (mudou) { mudou = false; for (const id of [...f.talentos]) if (bloqueioTalento(f, id)) { f.talentos.splice(f.talentos.indexOf(id), 1); mudou = true; } }
+    const pt = pontosTalento(f); if (f.talentos.length > pt.total) f.talentos.length = pt.total;
+  }
+  raiz.querySelector('#crAnims').addEventListener('click', e => {
+    const b = e.target.closest('[data-anim]'); if (!b || !mini) return;
+    animPrevia = ['parado', 'andar'].includes(b.dataset.anim) ? b.dataset.anim : 'parado';
+    mini.userData.personagem?.tocar(b.dataset.anim);
+  });
   function fechar() { vivo = false; ro.disconnect(); rr.dispose(); raiz.remove(); aoFechar?.(); }
   atualizarPrevia(); desenhar();
   if (!modelosProntos()) carregarModelos().then(() => { if (vivo) atualizarPrevia(); }).catch(() => {});

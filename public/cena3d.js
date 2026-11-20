@@ -4,7 +4,7 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { TERRENOS } from './regras.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { criarMiniatura, criarDado, rotulo } from './miniatura.js';
-import { carregarModelos, criarPersonagem, pecaCenario, temCenario, modelosProntos } from './modelos.js';
+import { carregarModelos, criarPersonagem, criarCriatura3D, CRIATURAS_3D, pecaCenario, temCenario, modelosProntos } from './modelos.js';
 
 // ---------- configuração fácil de editar ----------
 const ALTURA = { '.': .12, '_': .16, ',': .1, '"': .14, '~': .04, '=': .17, '+': .16, 'v': .12, '#': 1.35, 'T': .14, '^': .12, '*': .12, b: .12, c: .12, s: .12, n: .14, a: .16, o: .14, w: .12 };
@@ -271,8 +271,11 @@ export function criarCena(el, cb = {}) {
       if (!tk || tk.chave !== chave) {
         if (tk) { grupoTokens.remove(tk.g); limpar(tk.g); }
         const g = new THREE.Group(); g.userData.k = t.k;
-        const usar3d = modelosProntos() && t.raca !== 'criatura';
-        const mini = usar3d ? criarPersonagem(t.aparencia || {}, t.raca || 'sarthani', { cristal: t.cristal, tamanho: tam }) : criarMiniatura(t.aparencia || {}, t.raca || 'sarthani', { cristal: t.cristal, tamanho: tam });
+        const criatura3d = t.raca === 'criatura' && CRIATURAS_3D[t.aparencia?.criatura];
+        const usar3d = modelosProntos() && (t.raca !== 'criatura' || criatura3d);
+        const mini = !usar3d ? criarMiniatura(t.aparencia || {}, t.raca || 'sarthani', { cristal: t.cristal, tamanho: tam })
+          : criatura3d ? criarCriatura3D(t.aparencia.criatura, { tamanho: tam, base: t.aparencia.base })
+          : criarPersonagem(t.aparencia || {}, t.raca || 'sarthani', { cristal: t.cristal, tamanho: tam });
         if (t.oculto) mini.traverse(o => { if (o.material) { o.material = o.material.clone(); o.material.transparent = true; o.material.opacity = .4; } });
         g.add(mini);
         const nome = rotulo(t.nome || '?', t.corNome || '#ffe9b8', 'rgba(10,8,6,.75)', .27 * Math.sqrt(tam));
@@ -281,8 +284,12 @@ export function criarCena(el, cb = {}) {
         tk = { g, chave, mini, pers: mini.userData.personagem || null, alturaMini: mini.userData.altura, fr: null, barra: null, anim: null, x: t.x, y: t.y, vigor: t.vigor };
         if (tk.pers && t.mostrarVida && t.vigorMax && t.vigor <= 0) tk.pers.tocar('caido');
         tokens.set(t.k, tk); grupoTokens.add(g);
+        tk.imb = null;
         g.position.set(t.x + tam / 2, alturaEm(t.x, t.y), t.y + tam / 2);
       }
+      // Dom na arma
+      const imb = t.imbuir ? t.imbuir.cor + t.imbuir.estilo : null;
+      if (tk.pers?.imbuir && imb !== tk.imb) { tk.pers.imbuir(t.imbuir?.cor, t.imbuir?.estilo); tk.imb = imb; }
       // vida
       const fr = t.mostrarVida && t.vigorMax ? t.vigor / t.vigorMax : null;
       if (tk.pers && t.vigor !== tk.vigor && tk.vigor !== undefined && t.vigorMax) {
@@ -387,8 +394,9 @@ export function criarCena(el, cb = {}) {
     ndc.set(((ev.clientX - r.left) / r.width) * 2 - 1, -((ev.clientY - r.top) / r.height) * 2 + 1);
     ray.setFromCamera(ndc, camera);
     let k = null;
-    const hit = ray.intersectObjects(grupoTokens.children, true).find(h => h.object.userData.k);
-    if (hit) k = hit.object.userData.k;
+    const dono = o => { while (o && !o.userData.k) o = o.parent; return o?.userData.k; };
+    const hit = ray.intersectObjects(grupoTokens.children, true).find(h => dono(h.object));
+    if (hit) k = dono(hit.object);
     ray.ray.intersectPlane(plano, ponto);
     return { k, x: Math.floor(ponto.x), y: Math.floor(ponto.z) };
   }
@@ -439,7 +447,7 @@ export function criarCena(el, cb = {}) {
         if (p >= 1) { tk.anim = null; if (tk.pers && (tk.vigor === undefined || tk.vigor > 0)) tk.pers.tocar('parado'); }
       }
       const cr = tk.mini.getObjectByName('cristal'); if (cr) cr.rotation.y = t * 2;
-      if (tk.pers) tk.pers.mixer.update(dt);
+      if (tk.pers) tk.pers.atualizar ? tk.pers.atualizar(dt) : tk.pers.mixer?.update(dt);
     }
     if (selecaoAnel?.parent) { selecaoAnel.rotation.z = t; selecaoAnel.scale.setScalar(1 + Math.sin(t * 4) * .04); }
     for (let i = pings.length - 1; i >= 0; i--) { const p = pings[i], a = (agora - p.t0) / 1400; p.m.scale.setScalar(1 + a * 3); p.m.material.opacity = 1 - a; if (a >= 1) { grupoEfeitos.remove(p.m); p.m.geometry.dispose(); pings.splice(i, 1); } }

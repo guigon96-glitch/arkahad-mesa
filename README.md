@@ -52,8 +52,9 @@ Abra <http://localhost:8787>.
 | Quero mudar… | Arquivo |
 | --- | --- |
 | Terrenos, custos de movimento, regras dos dados | `public/regras.js` |
-| Raças, vocações, Dons e cálculo da ficha | `public/conteudo.js` |
-| Miniaturas e dados 3D | `public/miniatura.js` |
+| Raças, vocações, Dons, armas, **árvores de talentos** e cálculo da ficha | `public/conteudo.js` |
+| Personagens 3D (corpo, roupas, cabelos, armas, Dom na arma, criaturas) | `public/modelos.js` |
+| Miniaturas simples (reserva) e dados 3D | `public/miniatura.js` |
 | Cenário 3D, luzes e texturas | `public/cena3d.js` |
 | Criador de personagem | `public/criacao.js` |
 | Visual do mapa, luzes, cores dos dados | `public/app.js` (topo do arquivo) |
@@ -70,4 +71,4 @@ Abra <http://localhost:8787>.
 
 ## Créditos
 
-Modelos 3D: **KayKit Adventurers Character Pack** e **KayKit Medieval Hexagon Pack**, de Kay Lousberg ([kaylousberg.com](https://www.kaylousberg.com)), licença CC0 1.0. Bibliotecas: three.js (MIT). Fontes: Cinzel e Alegreya Sans (OFL). Lista completa em `public/creditos.html` (também no site, em /creditos.html), e os textos das licenças em `public/modelos/`.
+Modelos 3D: personagens, roupas, cabelos, animações, armas e criaturas de **Quaternius** ([quaternius.com](https://quaternius.com)) — Universal Base Characters, Modular Character Outfits, Universal Animation Library, Modular Weapons, Ultimate Monsters; armas, esqueletos e cenário do **KayKit** de Kay Lousberg ([kaylousberg.com](https://www.kaylousberg.com)). Tudo licença CC0 1.0. Bibliotecas: three.js (MIT). Fontes: Cinzel e Alegreya Sans (OFL). Lista completa em `public/creditos.html` (também no site, em /creditos.html), e os textos das licenças em `public/modelos/`.

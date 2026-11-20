@@ -1,0 +1,25 @@
+Modelos 3D por Quaternius (https://quaternius.com) — licença CC0 1.0 Universal (domínio público)
+https://creativecommons.org/publicdomain/zero/1.0/
+
+Pacotes usados:
+- Universal Base Characters (corpos, olhos, sobrancelhas)
+- Modular Character Outfits - Fantasy (roupas de camponês e patrulheiro)
+- Universal Animation Library (animações)
+- Cabelos do ecossistema Universal (Hair_*)
+- Modular Weapons Pack (armas e escudos)
+- Ultimate Monsters e Animated Animals (criaturas)
+
+Também incluído: KayKit - Character Pack: Skeletons, por Kay Lousberg (https://kaylousberg.com), CC0 1.0.
+
+Origem dos arquivos: https://github.com/Dallolz/moorfall-assets (redistribuição CC0 dos pacotes originais).
+Texto da licença daquele repositório:
+---
+# Licences
+
+Tous les modèles 3D de ce dépôt sont sous licence **CC0 1.0 Universal** (domaine public) :
+https://creativecommons.org/publicdomain/zero/1.0/
+
+- `animations/`, `characters/` — modèles et animations par **Quaternius** (https://quaternius.com).
+  Universal Animation Library, Universal Base Characters, Modular Character Outfits.
+  Soutenez-le : https://www.patreon.com/quaternius
+- `weapons/` — Modular Weapons Pack par **Quaternius** (CC0 1.0), convertis OBJ→GLB.

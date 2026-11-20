@@ -201,7 +201,7 @@ export class Saguao extends DurableObject {
 // Sala: uma mesa de jogo (estado + WebSockets)
 // =====================================================================
 const COMBATE_VAZIO = { ativo: false, ordem: [], turno: 0, rodada: 1 };
-const CAMPOS_PC = ['nome', 'sigla', 'cor', 'vigor', 'vigorMax', 'folego', 'folegoMax', 'tensao', 'limiar', 'defesa', 'desloc', 'ini', 'dados', 'robustez', 'determinacao', 'protecao', 'limiarFer', 'ficha', 'aparencia'];
+const CAMPOS_PC = ['nome', 'sigla', 'cor', 'vigor', 'vigorMax', 'folego', 'folegoMax', 'tensao', 'limiar', 'defesa', 'desloc', 'ini', 'dados', 'robustez', 'determinacao', 'protecao', 'limiarFer', 'ficha', 'aparencia', 'imbuido'];
 const CAMPOS_NPC = ['nome', 'sigla', 'cor', 'tipo', 'vigor', 'vigorMax', 'defesa', 'ini', 'desloc', 'tamanho', 'visivel', 'descricao', 'falas', 'notas', 'x', 'y', 'raca', 'aparencia'];
 const RACAS_OK = ['sarthani', 'zarathim', 'veloryn', 'draveth', 'sypheris', 'dvarith', 'criatura'];
 function objetoLimitado(v, max) {
@@ -218,6 +218,7 @@ function limparPc(d) {
   for (const k of ['vigor', 'vigorMax', 'folego', 'folegoMax', 'tensao', 'limiar', 'defesa', 'desloc', 'ini', 'robustez', 'determinacao', 'protecao', 'limiarFer']) if (k in o) o[k] = Math.max(-99, Math.min(999, Math.round(num(o[k]))));
   if ('ficha' in o) { o.ficha = objetoLimitado(o.ficha, 16000); if (!o.ficha) delete o.ficha; }
   if ('aparencia' in o) { o.aparencia = objetoLimitado(o.aparencia, 3000); if (!o.aparencia) delete o.aparencia; }
+  if ('imbuido' in o) o.imbuido = !!o.imbuido;
   if ('dados' in o) {
     const dd = o.dados || {};
     o.dados = { kael: cor(dd.kael), lyra: cor(dd.lyra), material: ['cristal', 'osso', 'ferro', 'brasa'].includes(dd.material) ? dd.material : 'cristal' };

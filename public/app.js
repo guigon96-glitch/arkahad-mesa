@@ -1,9 +1,10 @@
 import { TERRENOS, LUZES as NOMES_LUZ, LUAS, num, dijkstra } from './regras.js';
 import { criarCena } from './cena3d.js';
-import { MODELOS } from './modelos.js';
+import { CRIATURAS_3D, ARMAS_3D, SECUNDARIAS, SEXOS, ESTILO_DOM } from './modelos.js';
 import { abrirCriador } from './criacao.js';
 import {
-  ATRIBUTOS, PERICIAS, RACAS, VOCACOES, TODOS_DONS, DONS, CUSTO_DOM, DANO_DOM, ARMAS_VISUAIS, RESSONANCIAS, ORIGENS, ESTRATOS,
+  ATRIBUTOS, PERICIAS, RACAS, VOCACOES, TODOS_DONS, DONS, CUSTO_DOM, RESSONANCIAS, ORIGENS, ESTRATOS,
+  ataqueArma, danoTecnica, bonusTesteDom, temImbuir, TALENTO, ARVORES, pontosTalento,
   aparenciaPadrao, atributosFinais, gradPericia, bonusPericia, ehAurethian, nivelDom, derivados,
 } from './conteudo.js';
 
@@ -203,10 +204,11 @@ function visualDe(t) {
     const f = t.ficha;
     const aparencia = t.aparencia || f?.aparencia || { ...aparenciaPadrao('sarthani', 'lamina'), base: t.cor || '#e2b04a', roupa: t.cor || '#7a3b2e' };
     const cristal = f && ehAurethian(f) ? TODOS_DONS[f.dom]?.cor : null;
-    return { aparencia: { ...aparencia, base: t.cor || aparencia.base }, raca: f?.raca || 'sarthani', cristal };
+    const imbuir = t.imbuido && f && temImbuir(f) ? { cor: cristal, estilo: ESTILO_DOM[f.dom] || 'luz' } : null;
+    return { aparencia: { ...aparencia, base: t.cor || aparencia.base }, raca: f?.raca || 'sarthani', cristal, imbuir };
   }
   const raca = t.raca || (t.tipo === 'monstro' ? 'criatura' : 'sarthani');
-  const aparencia = t.aparencia || { ...aparenciaPadrao(raca === 'criatura' ? 'sarthani' : raca, 'lamina'), roupa: t.cor || '#8c7a63', base: t.cor || '#8c7a63', capa: false };
+  const aparencia = t.aparencia || { ...aparenciaPadrao(raca === 'criatura' ? 'sarthani' : raca, 'lamina'), corRoupa: t.cor || '#8c7a63', base: t.cor || '#8c7a63' };
   return { aparencia: { ...aparencia, base: t.cor || aparencia.base }, raca, cristal: t.cristal || null };
 }
 function render() {
@@ -357,8 +359,8 @@ function ajustar(k, campo, d) {
 // ================= Dados (3D) =================
 async function animarDados(m) {
   if (!cena) return;
-  if (m.k) {
-    const acao = m.dom ? 'magia' : /dano|combate|pontaria|briga|ataque/i.test(m.rotulo || '') ? 'ataque' : 'usar';
+  if (m.k && !/^dano/i.test(m.rotulo || '')) {
+    const acao = m.dom ? 'magia' : /combate|pontaria|briga|ataque/i.test(m.rotulo || '') ? 'ataque' : 'usar';
     cena.acao(m.k, acao);
     if ((m.tags || []).some(t => /Triunfo|Coroa/.test(t))) setTimeout(() => cena.acao(m.k, 'vitoria'), 1700);
   }
@@ -385,7 +387,7 @@ function usarTecnica(nivel, nome) {
   folego = Math.max(0, folego - custo); tensao += falta + (nivel >= 4 ? 1 : 0);
   pcs[eu()] = { ...p, folego, tensao }; painel(); render();
   enviar({ tipo: 'pc', dados: { folego, tensao } });
-  rolarTeste(`${nome} (N${nivel})`, a[dom.chave] + gradPericia(f, 'canalizacao'), true);
+  rolarTeste(`${nome} (N${nivel})`, a[dom.chave] + gradPericia(f, 'canalizacao') + bonusTesteDom(f), true);
   if (tensao > num(p.limiar)) avisar('Tensão acima do Limiar: faça o Teste de Colapso!', 5000);
   else if (falta || nivel >= 4) avisar(`+${falta + (nivel >= 4 ? 1 : 0)} Tensão (Zona 2: role um Sintoma).`, 4000);
 }
@@ -397,13 +399,20 @@ function htmlFichaCompleta(p) {
   const destaques = pers.filter(x => x.g > 0 || x.b > 0).sort((x, y) => y.tot - x.tot);
   const outras = pers.filter(x => !(x.g > 0 || x.b > 0));
   const linhaPer = x => `<button class="per" data-rolar="${esc(x.nome)}" data-mod="${x.tot}" ${x.treinada && !x.g ? 'disabled title="Exige treino"' : ''}><span>${esc(x.nome)} <small>${x.attr}${x.g ? ' · ' + x.g : ''}</small></span><b>${sinal(x.tot)}</b></button>`;
-  const tecnicas = (dd, nn) => dd.tec.slice(0, nn).map((t, i) => `<button class="tec" data-tec="${i + 1}" data-nome="${esc(t)}" ${dd !== dom ? 'data-sec="1"' : ''}><span><b>N${i + 1}</b> ${esc(t)}</span><small>${CUSTO_DOM[i]} Fôlego · ${DANO_DOM[i]}</small></button>`).join('');
+  const tecnicas = (dd, nn) => dd.tec.slice(0, nn).map((t, i) => `<button class="tec" data-tec="${i + 1}" data-nome="${esc(t)}" ${dd !== dom ? 'data-sec="1"' : ''}><span><b>N${i + 1}</b> ${esc(t)}</span><small>${CUSTO_DOM[i]} Fôlego · ${danoTecnica(f, i + 1)}</small></button>`).join('');
+  const at = ataqueArma(f, !!p.imbuido);
+  const tals = (f.talentos || []).map(id => TALENTO[id]).filter(Boolean);
+  const blocoCombate = `<div class="bloco"><h3>Combate · ${esc(at.nome)}</h3>
+    <div class="linha"><button class="pri" data-rolar="Ataque com ${esc(at.nome)}" data-mod="${at.mod}">Atacar ${sinal(at.mod)}</button><button data-dano="${esc(at.dano)}" data-nome="${esc(at.nome)}">Dano ${esc(at.dano)}</button></div>
+    ${temImbuir(f) ? `<button class="imbuir ${p.imbuido ? 'on' : ''}" id="imbuir" style="width:100%;margin-top:8px;--cor:${dom.cor}">${p.imbuido ? `Arma imbuída com ${esc(dom.nome)} — desfazer` : `Imbuir a arma com ${esc(dom.nome)} (${(f.talentos || []).includes('imb4') ? 'grátis' : '1 Fôlego'})`}</button>` : ''}
+    ${tals.length ? `<div class="talentos-ficha">${tals.map(t => `<span style="--cor:${ARVORES[t.arvore].cor}" title="${esc(t.desc)}">${esc(t.nome)}</span>`).join('')}</div><p class="cr-nota" style="margin:6px 0 0">Passe o mouse num talento para ver o efeito.</p>` : ''}</div>`;
   return `<div class="bloco"><h3>${esc(p.nome)}</h3><div style="color:var(--mudo);font-size:14px">${linhaClasse(p)}</div>
     ${medidor('Vigor', 'vigor', 'vigorMax', '#5d9a4a', { ...p, k: 'pc:' + eu() }, true)}${medidor('Fôlego', 'folego', 'folegoMax', '#5f92f0', { ...p, k: 'pc:' + eu() }, true)}${medidor('Tensão', 'tensao', 'limiar', '#c0392f', { ...p, k: 'pc:' + eu() }, true)}
     <div class="ficha-attrs">${ATRIBUTOS.map(([k]) => `<button data-rolar="${k}" data-mod="${a[k]}"><b>${a[k]}</b>${k}</button>`).join('')}</div>
     <div class="ficha-der"><span>Defesa <b>${d.defesa}</b></span><span>Robustez <b>${d.robustez}</b></span><span>Determ. <b>${d.determinacao}</b></span><span>Proteção <b>${d.protecao}</b></span><span>Lim. Ferim. <b>${d.limiarFer}</b></span><span>Desl. <b>${d.desloc}</b></span></div>
     <div class="linha" style="margin-top:8px"><div><label for="fichaDif">DIF</label><input id="fichaDif" type="number" placeholder="—"></div><div><label for="fichaTirith">Dado de Tirith</label><select id="fichaTirith"><option value="normal">Normal</option><option value="vantagem">Vantagem</option><option value="desvantagem">Desvantagem</option></select></div></div>
     <p class="cr-nota" style="margin:6px 0 0">Clique num atributo, perícia ou técnica para rolar.</p></div>
+    ${blocoCombate}
     ${dom ? `<div class="bloco"><h3 style="color:${dom.cor}">${esc(dom.nome)} — ${esc(dom.tema)}</h3><div style="font-size:13px;color:var(--mudo);margin-bottom:6px">Chave ${dom.chave} · Canalização ${gradPericia(f, 'canalizacao')} · Cristal ${esc(RESSONANCIAS[f.ressonancia]?.nome || '')}</div>${tecnicas(dom, n)}
       ${dom2 ? `<h3 style="color:${dom2.cor};margin-top:10px">${esc(dom2.nome)} (secundário)</h3>${tecnicas(dom2, Math.max(1, n - 1))}` : ''}</div>` : ''}
     <div class="bloco"><h3>Perícias</h3><div class="pers">${destaques.map(linhaPer).join('')}</div>
@@ -496,9 +505,12 @@ function editorNpc(id) {
     ${f('nome', 'Nome', 'text')}<div class="linha">${f('sigla', 'Sigla', 'text')}<div><label for="n_cor">Cor da base</label><input id="n_cor" type="color" value="${esc(n.cor || '#8c7a63')}"></div></div>
     <label for="n_tipo">Tipo</label><select id="n_tipo">${[['npc', 'Personagem'], ['monstro', 'Criatura hostil'], ['aliado', 'Aliado']].map(([k, t]) => `<option value="${k}" ${n.tipo === k ? 'selected' : ''}>${t}</option>`).join('')}</select>
     <div class="linha"><div><label for="n_raca">Miniatura</label><select id="n_raca">${Object.entries(RACAS_NPC).map(([k, t]) => `<option value="${k}" ${vis.raca === k ? 'selected' : ''}>${t}</option>`).join('')}</select></div>
-    <div><label for="n_modelo">Modelo</label><select id="n_modelo">${Object.entries(MODELOS).map(([k, m]) => `<option value="${k}" ${vis.aparencia.modelo === k ? 'selected' : ''}>${m.nome}</option>`).join('')}</select></div>
-    <div><label for="n_arma">Arma</label><select id="n_arma">${Object.entries(ARMAS_VISUAIS).map(([k, t]) => `<option value="${k}" ${vis.aparencia.arma === k ? 'selected' : ''}>${t}</option>`).join('')}</select></div>
-    <div><label for="n_roupa">Roupa / corpo</label><input id="n_roupa" type="color" value="${esc(vis.aparencia.roupa || '#8c7a63')}"></div></div>
+    <div><label for="n_criatura">Criatura 3D</label><select id="n_criatura"><option value="">Miniatura simples</option>${Object.entries(CRIATURAS_3D).map(([k, c]) => `<option value="${k}" ${vis.aparencia.criatura === k ? 'selected' : ''}>${esc(c.nome)}</option>`).join('')}</select></div></div>
+    <div class="linha"><div><label for="n_sexo">Corpo</label><select id="n_sexo">${Object.entries(SEXOS).map(([k, t]) => `<option value="${k}" ${vis.aparencia.sexo === k ? 'selected' : ''}>${t}</option>`).join('')}</select></div>
+    <div><label for="n_arma">Arma</label><select id="n_arma">${Object.entries(ARMAS_3D).map(([k, a]) => `<option value="${k}" ${vis.aparencia.arma === k ? 'selected' : ''}>${esc(a.nome)}</option>`).join('')}</select></div>
+    <div><label for="n_sec">Outra mão</label><select id="n_sec">${Object.entries(SECUNDARIAS).map(([k, a]) => `<option value="${k}" ${vis.aparencia.secundaria === k ? 'selected' : ''}>${esc(a.nome)}</option>`).join('')}</select></div>
+    <div><label for="n_roupa">Roupa</label><input id="n_roupa" type="color" value="${esc(vis.aparencia.corRoupa || vis.aparencia.roupa || '#8c7a63')}"></div></div>
+    <p class="cr-nota" style="margin:2px 0 0">Para monstros escolha Miniatura “Criatura” e o modelo em “Criatura 3D”. Para pessoas, a raça define pele e traços.</p>
     <div class="linha">${f('vigor', 'Vigor')}${f('vigorMax', 'Vigor máx.')}${f('defesa', 'Defesa')}</div>
     <div class="linha">${f('ini', 'Bônus inic.')}${f('desloc', 'Desloc.')}${f('tamanho', 'Tamanho (casas)')}</div>
     <label style="display:flex;gap:8px;align-items:center;font-size:15px;color:var(--ink)"><input id="n_visivel" type="checkbox" style="width:auto" ${n.visivel !== false ? 'checked' : ''}> Visível para os jogadores</label>
@@ -510,9 +522,9 @@ function editorNpc(id) {
   $('fechaCartao').onclick = () => { c.hidden = true; };
   $('formNpc').onsubmit = e => {
     e.preventDefault(); const v = k => $('n_' + k).value;
-    const raca = v('raca'), base = raca === 'criatura' ? {} : aparenciaPadrao(raca, 'lamina');
-    const pele = RACAS[raca]?.pele;
-    const aparencia = { ...base, ...(n.aparencia || {}), roupa: v('roupa'), arma: v('arma'), modelo: v('modelo'), base: v('cor'), ...(n.raca !== raca && pele ? { pele: pele[Math.floor(Math.random() * pele.length)], capa: false } : {}) };
+    const raca = v('raca'), sexo = v('sexo'), base = raca === 'criatura' ? {} : aparenciaPadrao(raca, 'lamina', sexo);
+    const pele = RACAS[raca]?.pele, trocou = n.raca !== raca || (n.aparencia?.sexo || 'm') !== sexo;
+    const aparencia = { ...base, ...(trocou ? {} : n.aparencia || {}), sexo, corRoupa: v('roupa'), arma: v('arma'), secundaria: v('sec'), criatura: v('criatura'), base: v('cor'), ...(trocou && pele ? { pele: pele[Math.floor(Math.random() * pele.length)] } : {}) };
     const dados = { nome: v('nome'), sigla: v('sigla'), cor: v('cor'), tipo: v('tipo'), raca, aparencia, vigor: num(v('vigor')), vigorMax: num(v('vigorMax')), defesa: num(v('defesa')), ini: num(v('ini')), desloc: num(v('desloc'), 6), tamanho: num(v('tamanho'), 1), visivel: $('n_visivel').checked, descricao: v('descricao'), falas: v('falas').split('\n').map(s => s.trim()).filter(Boolean), notas: v('notas') };
     npcs[id] = { ...npcs[id], ...dados }; enviar({ tipo: 'npc', id, dados });
     selecionar('npc:' + id);
@@ -524,6 +536,15 @@ function ligar() {
   document.querySelectorAll('#conteudo [data-mv]').forEach(b => b.onclick = () => ajustar(b.dataset.k, b.dataset.mv, num(b.dataset.d)));
   document.querySelectorAll('#conteudo [data-rolar]').forEach(b => b.onclick = () => rolarTeste(b.dataset.rolar, num(b.dataset.mod)));
   document.querySelectorAll('#conteudo [data-tec]').forEach(b => b.onclick = () => usarTecnica(num(b.dataset.tec), b.dataset.nome));
+  document.querySelectorAll('#conteudo [data-dano]').forEach(b => b.onclick = () => enviar({ tipo: 'rolar', modo: 'expr', expr: b.dataset.dano, rotulo: 'Dano · ' + b.dataset.nome }));
+  if (q('#imbuir')) q('#imbuir').onclick = () => {
+    const p = pcs[eu()]; if (!p?.ficha) return;
+    const liga = !p.imbuido, gratis = (p.ficha.talentos || []).includes('imb4');
+    const dados = { imbuido: liga };
+    if (liga && !gratis) { if (num(p.folego) < 1) { avisar('Sem Fôlego para imbuir a arma.', 2500); return; } dados.folego = num(p.folego) - 1; }
+    pcs[eu()] = { ...p, ...dados }; painel(); render(); enviar({ tipo: 'pc', dados });
+    if (liga) cena?.acao('pc:' + eu(), 'magia');
+  };
   document.querySelectorAll('[data-pip]').forEach(b => b.onclick = () => {
     const usadas = num(b.dataset.pip) < acoesUsadas() ? acoesUsadas() - 1 : acoesUsadas() + 1;
     pcs[eu()] = { ...pcs[eu()], acoes: { chave: chaveTurno(), usadas } }; painel(); enviar({ tipo: 'acoes', usadas });
