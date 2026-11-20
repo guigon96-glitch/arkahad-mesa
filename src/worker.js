@@ -201,7 +201,7 @@ export class Saguao extends DurableObject {
 // Sala: uma mesa de jogo (estado + WebSockets)
 // =====================================================================
 const COMBATE_VAZIO = { ativo: false, ordem: [], turno: 0, rodada: 1 };
-const CAMPOS_PC = ['nome', 'sigla', 'cor', 'vigor', 'vigorMax', 'folego', 'folegoMax', 'tensao', 'limiar', 'defesa', 'desloc', 'ini', 'dados', 'robustez', 'determinacao', 'protecao', 'limiarFer', 'ficha', 'aparencia', 'imbuido', 'itens', 'moedas'];
+const CAMPOS_PC = ['nome', 'sigla', 'cor', 'vigor', 'vigorMax', 'folego', 'folegoMax', 'tensao', 'limiar', 'defesa', 'desloc', 'ini', 'dados', 'robustez', 'determinacao', 'protecao', 'limiarFer', 'ficha', 'aparencia', 'imbuido', 'itens', 'moedas', 'barra'];
 const CAMPOS_NPC = ['nome', 'sigla', 'cor', 'tipo', 'vigor', 'vigorMax', 'defesa', 'ini', 'desloc', 'tamanho', 'visivel', 'descricao', 'falas', 'notas', 'x', 'y', 'raca', 'aparencia', 'ataque', 'dano', 'alcance', 'protecao'];
 const RACAS_OK = ['sarthani', 'zarathim', 'veloryn', 'draveth', 'sypheris', 'dvarith', 'criatura'];
 function objetoLimitado(v, max) {
@@ -220,6 +220,7 @@ function limparPc(d) {
   if ('aparencia' in o) { o.aparencia = objetoLimitado(o.aparencia, 3000); if (!o.aparencia) delete o.aparencia; }
   if ('imbuido' in o) o.imbuido = !!o.imbuido;
   if ('itens' in o) o.itens = (Array.isArray(o.itens) ? o.itens : []).slice(0, 80).map(it => ({ n: texto(it?.n, 60), q: Math.max(1, Math.min(999, Math.round(num(it?.q, 1)))) })).filter(it => it.n);
+  if ('barra' in o) o.barra = (Array.isArray(o.barra) ? o.barra : []).slice(0, 10).map(x => { const v = texto(x, 70); return /^(arma|defender|imbuir|tec:[1-5]|item:.{1,60})$/.test(v) ? v : ''; });
   if ('moedas' in o) { const m = o.moedas || {}; o.moedas = Object.fromEntries(['k', 'l', 't'].map(c => [c, Math.max(0, Math.min(999999, Math.round(num(m[c]))))])); }
   if ('dados' in o) {
     const dd = o.dados || {};
@@ -603,6 +604,24 @@ export class Sala extends DurableObject {
         }
         pc.guarda = true;
         this.enviarTodos({ tipo: 'aviso', texto: `${pc.nome} assume a guarda (+2 Defesa até o próximo turno).` });
+        await this.gravar('pcs');
+        break;
+      }
+      case 'usarItem': {
+        const pc = s.pcs[att.id], cb = s.mapas[this.idMapa(pc)]?.combate;
+        if (!pc) return;
+        const i = (Array.isArray(pc.itens) ? pc.itens : []).findIndex(it => it.n === texto(msg.n, 60));
+        if (i < 0) return erro('Esse item não está na Bolsa.');
+        if (cb?.ativo) {
+          if (cb.ordem[cb.turno]?.k !== 'pc:' + att.id) return erro('Aguarde o seu turno.');
+          const chave = `${cb.rodada}:${cb.turno}`, usadas = pc.acoes?.chave === chave ? num(pc.acoes.usadas) : 0;
+          if (usadas >= 3) return erro('Você já usou as 3 ações.');
+          pc.acoes = { chave, usadas: usadas + 1 };
+        }
+        const it = pc.itens[i];
+        it.q = num(it.q, 1) - 1;
+        if (it.q <= 0) pc.itens.splice(i, 1);
+        this.enviarTodos({ tipo: 'aviso', texto: `${pc.nome} usa ${it.n}${it.q > 0 ? ` (restam ${it.q})` : ''}.` });
         await this.gravar('pcs');
         break;
       }

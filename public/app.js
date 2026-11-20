@@ -2,6 +2,7 @@ import { TERRENOS, LUZES as NOMES_LUZ, LUAS, NIVEIS, num, dijkstra, nivelEm, efe
 import { criarCena } from './cena3d.js';
 import { CRIATURAS_3D, ARMAS_3D, SECUNDARIAS, SEXOS, ESTILO_DOM } from './modelos.js';
 import { abrirCriador } from './criacao.js';
+import { retratoDe } from './retrato.js';
 import {
   ATRIBUTOS, PERICIAS, RACAS, VOCACOES, TODOS_DONS, DONS, CUSTO_DOM, notasDom, RESSONANCIAS, ORIGENS, ESTRATOS,
   ataqueArma, danoTecnica, bonusTesteDom, temImbuir, TALENTO, ARVORES, pontosTalento, alcanceTecnica,
@@ -861,10 +862,10 @@ function hud() {
   const cb = mesa.combate || {}, arma = armaDoAtor(t), f = t.tipo === 'pc' ? t.ficha : null;
   const dom = f && ehAurethian(f) ? TODOS_DONS[f.dom] : null, n = f ? nivelDom(f) : 0;
   const resta = acoesDe(t), minha = vezDe(t.k), pode = podeAgir(t);
-  const tecs = dom ? dom.tec.slice(0, n).map((nome, i) => { const al = alcanceTecnica(f, i + 1); return { nome, nivel: i + 1, custo: CUSTO_DOM[i], inf: dom.inf[i], dano: danoTecnica(f, i + 1), ...al }; }) : [];
+  const ops = opcoesBarra(t), barra = barraDe(t, ops);
   const barraHud = (rot, v, m, cls) => `<div class="hb ${cls}" title="${rot} ${num(v)}/${num(m)}"><span>${rot}</span><i><b style="width:${Math.max(0, Math.min(100, num(v) / Math.max(1, num(m)) * 100))}%"></b></i><em>${num(v)}/${num(m)}</em></div>`;
   const ehMeu = t.k === 'pc:' + eu(), mo = moedasDe(t);
-  const retrato = `<div class="hud-retrato"><span class="hud-sigla" style="--cor:${esc(t.cor || '#e2b04a')}">${esc(t.sigla || String(t.nome || '?')[0])}</span><div class="hud-rec">${barraHud('Vigor', t.vigor, t.vigorMax, 'vigor')}${t.tipo === 'pc' ? barraHud('Fôlego', t.folego, t.folegoMax, 'folego') + barraHud('Tensão', t.tensao, t.limiar, 'tensao') : ''}</div></div>`;
+  const retrato = `<div class="hud-retrato"><span class="hud-sigla" style="--cor:${esc(t.cor || '#e2b04a')}">${(() => { const r = t.tipo === 'pc' ? retratoDe(t.ficha, hud) : null; return r ? `<img src="${r}" alt="">` : esc(t.sigla || String(t.nome || '?')[0]); })()}</span><div class="hud-rec">${barraHud('Vigor', t.vigor, t.vigorMax, 'vigor')}${t.tipo === 'pc' ? barraHud('Fôlego', t.folego, t.folegoMax, 'folego') + barraHud('Tensão', t.tensao, t.limiar, 'tensao') : ''}</div></div>`;
   const bolsa = ehMeu ? `<button class="hud-b hud-bolsa ${aba === 'itens' ? 'on' : ''}" data-hud="bolsa" title="Abrir a Bolsa"><span class="ic">👜</span><span>Bolsa</span><small><b class="m-k">${mo.k}</b> <b class="m-l">${mo.l}</b> <b class="m-t">${mo.t}</b></small></button>` : '';
   let topoHud = '';
   if (cb.ativo) {
@@ -875,27 +876,81 @@ function hud() {
   } else topoHud = `<span class="hud-sub">Fora de combate · ações livres</span>`;
   el.innerHTML = `<div class="hud-linha">${retrato}<div class="hud-meio"><div class="hud-topo"><b class="hud-nome">${esc(t.nome)}</b>${topoHud}</div>
     <div class="hud-acoes">
-      <button class="hud-b ${mira?.tipo === 'arma' ? 'on' : ''}" data-hud="arma" ${pode ? '' : 'disabled'} title="${esc(arma.nome)} · ${arma.tipo === 'distancia' ? `alcance ${arma.alcance} (até ${arma.longo} com −3)` : `alcance ${arma.alcance}`}"><span class="ic">⚔</span><span>Atacar</span><small>${esc(arma.nome)} · ${sinal(arma.mod)}</small></button>
-      ${dom ? `<div class="hud-grupo"><button class="hud-b ${menuTec || mira?.tipo === 'tec' ? 'on' : ''}" data-hud="tecs" ${pode ? '' : 'disabled'} style="--cor:${dom.cor}"><span class="ic" style="color:${dom.cor}">✦</span><span>Técnicas</span><small>${esc(dom.nome)} · Fôlego ${num(t.folego)}</small></button>
-        ${menuTec ? `<div class="hud-menu">${tecs.map(x => `<button data-tec-hud="${x.nivel}"><b>N${x.nivel} ${esc(x.nome)}</b><small>${esc(x.inf.alc)} — ${esc(x.inf.ef)}</small><small>${esc(x.inf.acao)} · ${x.raio ? `área ${x.raio * 2 + 1}×${x.raio * 2 + 1}` : 'um alvo'} · alcance ${x.alcance} · ${esc(x.dano)}</small></button>`).join('')}</div>` : ''}</div>` : ''}
-      ${f && temImbuir(f) ? `<button class="hud-b ${t.imbuido ? 'on' : ''}" data-hud="imbuir" style="--cor:${dom.cor}"><span class="ic" style="color:${dom.cor}">🜂</span><span>${t.imbuido ? 'Imbuída' : 'Imbuir'}</span><small>${f.talentos.includes('imb4') ? 'grátis' : '1 Fôlego'}</small></button>` : ''}
-      ${t.tipo === 'pc' ? `<button class="hud-b ${t.guarda ? 'on' : ''}" data-hud="defender" ${pode && !t.guarda ? '' : 'disabled'}><span class="ic">⛨</span><span>Defender</span><small>+2 Defesa até seu turno</small></button>` : ''}
-      <label class="hud-tirith" title="Dado de Tirith"><select id="hudTirith"><option value="normal">Normal</option><option value="vantagem">Vantagem</option><option value="desvantagem">Desvant.</option></select></label>
-      ${cb.ativo && (minha || (souMestre() && vezDe(t.k))) ? `<button class="hud-b fim" data-hud="fim"><span class="ic">⏭</span><span>Fim do turno</span><small>passa a vez</small></button>` : ''}
-      ${souMestre() && cb.ativo && !(vezDe(t.k)) ? `<button class="hud-b fim" data-hud="fim"><span class="ic">⏭</span><span>Próximo</span><small>turno</small></button>` : ''}
+      <div class="atalhos ${editandoBarra ? 'editando' : ''}" role="toolbar" aria-label="Atalhos 1 a 0">${barra.map((id, i) => {
+        const op = ops.find(o => o.id === id), ativo = op && ((id === 'arma' && mira?.tipo === 'arma') || (id.startsWith('tec:') && mira?.tipo === 'tec' && mira.nivel === num(id.slice(4))) || op.on);
+        const livre = op && (id === 'imbuir' || (id === 'defender' ? pode && !t.guarda : pode));
+        return `<button class="slot ${op ? '' : 'vazio'} ${ativo ? 'on' : ''} ${editandoBarra && slotEditado === i ? 'sel' : ''}" data-slot="${i}" ${!editandoBarra && op && !livre ? 'disabled' : ''} title="${op ? esc(`${op.nome} — ${op.sub}`) : editandoBarra ? 'Escolher atalho' : 'Vazio'}"${op?.cor ? ` style="--cor:${op.cor}"` : ''}><kbd>${(i + 1) % 10}</kbd><span class="ic">${op ? op.ic : ''}</span><small>${op ? esc(op.nome) : ''}</small></button>`;
+      }).join('')}</div>
+      <div class="hud-lado">
+        <label class="hud-tirith" title="Dado de Tirith"><select id="hudTirith"><option value="normal">Normal</option><option value="vantagem">Vantagem</option><option value="desvantagem">Desvant.</option></select></label>
+        ${t.k === 'pc:' + eu() ? `<button class="mini hud-editar ${editandoBarra ? 'ativo' : ''}" data-hud="editar" title="Organizar os atalhos">${editandoBarra ? 'Pronto' : '✎ Atalhos'}</button>` : ''}
+        ${cb.ativo && (minha || (souMestre() && vezDe(t.k))) ? `<button class="hud-b fim" data-hud="fim"><span class="ic">⏭</span><span>Fim do turno</span><small>passa a vez</small></button>` : ''}
+        ${souMestre() && cb.ativo && !(vezDe(t.k)) ? `<button class="hud-b fim" data-hud="fim"><span class="ic">⏭</span><span>Próximo</span><small>turno</small></button>` : ''}
+      </div>
+    </div>
+    ${editandoBarra && slotEditado >= 0 ? `<div class="hud-menu escolha-atalho"><b>Atalho ${(slotEditado + 1) % 10}</b>${ops.map((o, j) => `<button data-escolha="${j}"${o.cor ? ` style="--cor:${o.cor}"` : ''}><span class="ic">${o.ic}</span><span><b>${esc(o.nome)}</b><small>${esc(o.sub)}</small></span></button>`).join('')}<button data-escolha="-1"><span class="ic">∅</span><span><b>Deixar vazio</b></span></button></div>` : ''}
     </div></div>${bolsa}</div>
     ${mira ? `<div class="hud-mira">${esc(mira.titulo)} — clique no alvo · <button class="mini" data-hud="cancelar">Cancelar (Esc)</button></div>` : ''}`;
   el.hidden = false;
   $('hudTirith').value = tirithHud;
   $('hudTirith').onchange = e => { tirithHud = e.target.value; };
   el.querySelectorAll('[data-hud]').forEach(b => b.onclick = () => acaoHud(b.dataset.hud, t));
-  el.querySelectorAll('[data-tec-hud]').forEach(b => b.onclick = () => { menuTec = false; const x = tecs.find(q => q.nivel === num(b.dataset.tecHud)); iniciarMira(t, { tipo: 'tec', ...x }); });
+  el.querySelectorAll('[data-slot]').forEach(b => b.onclick = () => usarSlot(num(b.dataset.slot)));
+  el.querySelectorAll('[data-escolha]').forEach(b => b.onclick = () => { const j = num(b.dataset.escolha), nova = [...barra]; nova[slotEditado] = j < 0 ? '' : ops[j].id; slotEditado = -1; salvarBarra(nova); });
 }
+// ===== barra de atalhos 1–0 (cada jogador organiza a sua; fica salva no personagem) =====
+let editandoBarra = false, slotEditado = -1;
+function tecDe(f, dom, nivel) { return { nome: dom.tec[nivel - 1], nivel, custo: CUSTO_DOM[nivel - 1], inf: dom.inf[nivel - 1], dano: danoTecnica(f, nivel), ...alcanceTecnica(f, nivel) }; }
+function opcoesBarra(t) {
+  const f = t.tipo === 'pc' ? t.ficha : null, dom = f && ehAurethian(f) ? TODOS_DONS[f.dom] : null, n = f ? nivelDom(f) : 0;
+  const ops = [{ id: 'arma', ic: '⚔', nome: 'Atacar', sub: armaDoAtor(t).nome }];
+  if (dom) for (let i = 1; i <= n; i++) ops.push({ id: 'tec:' + i, ic: '✦', cor: dom.cor, nome: dom.tec[i - 1], sub: `${dom.nome} N${i} · ${CUSTO_DOM[i - 1]} Fôlego` });
+  if (f && temImbuir(f)) ops.push({ id: 'imbuir', ic: '🜂', cor: dom?.cor, nome: t.imbuido ? 'Imbuída' : 'Imbuir', sub: f.talentos.includes('imb4') ? 'grátis' : '1 Fôlego', on: !!t.imbuido });
+  if (t.tipo === 'pc') ops.push({ id: 'defender', ic: '⛨', nome: 'Defender', sub: '+2 Defesa até seu turno', on: !!t.guarda });
+  if (t.k === 'pc:' + eu()) for (const it of (Array.isArray(t.itens) ? t.itens : [])) ops.push({ id: 'item:' + it.n, ic: '🧪', nome: it.n, sub: `Item · ${num(it.q, 1)} na Bolsa` });
+  return ops;
+}
+function barraDe(t, ops) {
+  if (t.k === 'pc:' + eu() && Array.isArray(t.barra)) return Array.from({ length: 10 }, (_, i) => t.barra[i] || '');
+  const ids = ops.filter(o => !o.id.startsWith('item:')).map(o => o.id);
+  return Array.from({ length: 10 }, (_, i) => ids[i] || '');
+}
+function salvarBarra(barra) {
+  const p = pcs[eu()]; if (!p) return;
+  pcs[eu()] = { ...p, barra }; hud();
+  enviar({ tipo: 'pc', dados: { barra } });
+}
+function usarSlot(i) {
+  const t = atorAtivo(); if (!t || !mesa) return;
+  if (editandoBarra) { slotEditado = slotEditado === i ? -1 : i; hud(); return; }
+  const ops = opcoesBarra(t), id = barraDe(t, ops)[i]; if (!id) return;
+  const op = ops.find(o => o.id === id);
+  if (!op) return avisar(id.startsWith('item:') ? 'Esse item não está mais na Bolsa.' : 'Atalho indisponível para este personagem.', 2200);
+  if (id.startsWith('item:')) {
+    if (!podeAgir(t)) return avisar('Não é a sua vez (ou acabaram as ações).', 2500);
+    return enviar({ tipo: 'usarItem', n: op.nome });
+  }
+  if (id.startsWith('tec:')) {
+    const f = t.ficha, nivel = num(id.slice(4)); menuTec = false;
+    if (mira?.tipo === 'tec' && mira.nivel === nivel) return cancelarMira();
+    iniciarMira(t, { tipo: 'tec', ...tecDe(f, TODOS_DONS[f.dom], nivel) });
+  } else acaoHud(id, t);
+  // alvo já selecionado no mapa: a habilidade sai direto nele
+  const alvo = mira && selecionado && selecionado !== t.k ? tokenPorK(selecionado) : null;
+  if (alvo && mira.casas?.has(num(alvo.x) + ',' + num(alvo.y))) dispararMira({ x: num(alvo.x), y: num(alvo.y), k: alvo.k });
+  else if (alvo && mira) avisar(`${alvo.nome} está fora do alcance. Escolha outro alvo.`, 2200);
+}
+document.addEventListener('keydown', e => {
+  if (!/^[0-9]$/.test(e.key) || e.ctrlKey || e.metaKey || e.altKey || e.repeat) return;
+  if ($('telaMesa').hidden || document.querySelector('.criador') || e.target.closest?.('input,textarea,select,[contenteditable]')) return;
+  e.preventDefault(); usarSlot(e.key === '0' ? 9 : num(e.key) - 1);
+});
 function acaoHud(a, t) {
   if (a === 'arma') { menuTec = false; if (mira?.tipo === 'arma') return cancelarMira(); iniciarMira(t, { tipo: 'arma' }); }
   else if (a === 'tecs') { menuTec = !menuTec; if (mira) cancelarMira(); else hud(); }
   else if (a === 'imbuir') $('imbuir') ? $('imbuir').click() : alternarImbuir();
   else if (a === 'defender') enviar({ tipo: 'defender' });
+  else if (a === 'editar') { editandoBarra = !editandoBarra; slotEditado = -1; hud(); }
   else if (a === 'bolsa') { aba = 'itens'; painel(); hud(); if (matchMedia('(max-width:900px)').matches) $('abas').scrollIntoView({ behavior: 'smooth' }); }
   else if (a === 'fim') { cancelarMira(); enviar({ tipo: 'combate', acao: 'proximo' }); }
   else if (a === 'cancelar') cancelarMira();
