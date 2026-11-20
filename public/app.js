@@ -486,6 +486,23 @@ function baixarMapa() {
   const a = document.createElement('a'); a.href = url; a.download = (mesa.nome || 'mapa').replace(/[^\p{L}\p{N}]+/gu, '-').toLowerCase() + '.arkahad.json';
   document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 2000);
 }
+// Arena de teste: um NPC aliado de cada Dom com as 4 habilidades, bonecos de treino, muros e rochas (para derrubar)
+function criarArena() {
+  const cols = 30, rows = 22, grid = Array.from({ length: rows }, () => '.'.repeat(cols).split(''));
+  for (let x = 4; x <= 9; x++) grid[9][x] = '#';
+  for (const [x, y] of [[20, 9], [22, 9], [24, 9]]) grid[y][x] = '^';
+  for (let x = 12; x <= 17; x++) grid[18][x] = '"';
+  const racas = Object.keys(RACAS), npcsArena = Object.entries(TODOS_DONS).map(([id, d], i) => ({
+    nome: d.nome, sigla: d.nome.slice(0, 2), cor: d.cor, tipo: 'aliado', raca: racas[i % racas.length], aparencia: aparenciaPadrao(racas[i % racas.length], 'canalizador', i % 2 ? 'f' : 'm'),
+    x: 2 + (i % 12) * 2, y: 1 + Math.floor(i / 12) * 2, vigor: 30, vigorMax: 30, defesa: 13, ataque: 6, dano: '1d6', desloc: 6, dom: id, habs: [1, 2, 3, 4].map(n => `hab_${id}_${n}`),
+    descricao: `Teste do Dom ${d.nome}: selecione e use as habilidades pela barra.`,
+  }));
+  const bonecos = [[8, 12], [11, 13], [14, 12], [17, 13], [20, 12], [10, 15], [15, 15], [19, 16]].map(([x, y], i) => ({
+    nome: 'Boneco ' + (i + 1), sigla: 'B' + (i + 1), cor: '#8a5a2a', tipo: 'monstro', raca: 'sarthani', x, y, vigor: 200, vigorMax: 200, defesa: 10, ataque: 2, dano: '1d4', desloc: 4, xp: 0,
+  }));
+  enviar({ tipo: 'mapa', acao: 'importar', dados: { mapa: { nome: 'Arena dos Dons', cols, rows, grid: grid.map(l => l.join('')), luz: 'dia' }, npcs: [...npcsArena, ...bonecos] } });
+  avisar('Arena criada: selecione um Dom e use as habilidades nos bonecos (200 de Vigor).', 5000);
+}
 function carregarArquivoMapa(arquivo) {
   if (!arquivo) return;
   if (arquivo.size > 400000) { avisar('Arquivo grande demais para um mapa.', 3000); return; }
@@ -844,6 +861,7 @@ function htmlMestre() {
     <div class="bloco"><h3>Mapas da sessão</h3>
       <div class="mapas">${mapas.map(m => `<div class="mapa-it ${m.id === mesa.id ? 'atual' : ''}"><span class="cresce">${esc(m.nome)}${m.id === sala?.mapaInicial ? ' <small title="Onde os personagens novos aparecem">★ inicial</small>' : ''}<small>${m.cols}×${m.rows} · ${Object.values(pcs).filter(p => p.mapa === m.id).length} jogador(es)</small></span>${m.id === mesa.id ? '<b class="aqui">aqui</b>' : `<button class="mini" data-ir="${esc(m.id)}">Ver</button>`}</div>`).join('')}</div>
       <div class="linha" style="margin-top:8px"><button id="m_novo">+ Novo mapa</button><button id="m_baixar" title="Salva este mapa num arquivo">⬇ Baixar mapa</button><label class="botao-arquivo" title="Carrega um mapa salvo como mapa novo">⬆ Carregar mapa<input type="file" id="m_arquivo" accept=".json,application/json" hidden></label></div>
+      <button id="m_arena" style="width:100%;margin-top:6px" title="Mapa novo com um NPC de cada Dom (todas as habilidades) e bonecos de treino">⚗ Arena de teste dos Dons</button>
       <div class="linha" style="margin-top:8px"><button id="m_trazer">Trazer jogadores para cá</button><button id="m_inicial" ${mesa.id === sala?.mapaInicial ? 'disabled' : ''}>Tornar inicial</button>${mapas.length > 1 ? '<button id="m_apagarMapa">Apagar este mapa</button>' : ''}</div></div>
     <div class="bloco"><h3>Céu deste mapa</h3><label for="m_luz">Luz</label><select id="m_luz">${Object.entries(NOMES_LUZ).map(([k, n]) => `<option value="${k}" ${mesa.luz === k ? 'selected' : ''}>${n}</option>`).join('')}</select>
     <label for="m_lua">Lua dominante</label><select id="m_lua">${Object.entries(LUAS).map(([k, n]) => `<option value="${k}" ${mesa.lua === k ? 'selected' : ''}>${n}</option>`).join('')}</select></div>
@@ -960,6 +978,7 @@ function ligar() {
   if (q('#m_novo')) q('#m_novo').onclick = () => { const nome = prompt('Nome do novo mapa:', 'Novo mapa'); if (nome) enviar({ tipo: 'mapa', acao: 'criar', nome, cols: mesa.cols, rows: mesa.rows }); };
   if (q('#m_baixar')) q('#m_baixar').onclick = baixarMapa;
   if (q('#m_arquivo')) q('#m_arquivo').onchange = e => { carregarArquivoMapa(e.target.files[0]); e.target.value = ''; };
+  if (q('#m_arena')) q('#m_arena').onclick = criarArena;
   if (q('#m_trazer')) confirmar(q('#m_trazer'), () => enviar({ tipo: 'mapa', acao: 'trazer' }));
   if (q('#m_inicial')) q('#m_inicial').onclick = () => enviar({ tipo: 'mapa', acao: 'inicial' });
   if (q('#m_apagarMapa')) confirmar(q('#m_apagarMapa'), () => enviar({ tipo: 'mapa', acao: 'apagar', id: mesa.id }));
