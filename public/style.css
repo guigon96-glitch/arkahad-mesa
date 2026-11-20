@@ -487,3 +487,45 @@ details summary{color:var(--mudo)}
 @keyframes pulsa{50%{box-shadow:0 0 0 1px var(--ouro),0 0 20px rgba(251,191,36,.45)}}
 *{scrollbar-color:#3a3a42 transparent}
 @media (prefers-reduced-transparency:reduce){.topo,.lado,.cartao,.hud,.hud-menu,.mira-dica,.aviso,.ini,.caixa,.cr-caixa,.zoom button{background:#121216}}
+/* ===== dock em linha única: [retrato + recursos][Bolsa] [topo / atalhos 1–0] [Tirith · Atalhos · Fim] =====
+   Só reorganiza; nenhuma classe nova. A Bolsa vem logo após o retrato via order. */
+.hud{width:max-content;max-width:calc(100% - 24px);--alt-slot:56px}
+.hud-linha{flex-wrap:nowrap;align-items:center;gap:12px}
+.hud-retrato{order:0;flex:none}
+.hud-bolsa{order:1;flex:none;align-self:center;height:var(--alt-slot);padding:6px 10px}
+.hud-meio{order:2;flex:1 1 auto;min-width:0;display:flex;flex-direction:column;justify-content:center}
+.hud-topo{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.hud-acoes{flex-wrap:nowrap;justify-content:space-between;align-items:center;gap:12px;min-width:0}
+.atalhos{flex:0 1 auto;min-width:0;margin:0 auto;grid-template-columns:none;grid-auto-flow:column;grid-auto-columns:52px;overflow-x:auto;overscroll-behavior-x:contain;scroll-snap-type:x proximity}
+.slot{height:var(--alt-slot);scroll-snap-align:start}
+.hud-lado{flex:none;flex-wrap:nowrap;align-items:center;gap:6px}
+.hud-lado>*{height:var(--alt-slot);min-height:0;margin:0}
+.hud-tirith{display:flex}
+.hud-tirith select{height:100%;width:auto;min-height:0}
+.hud-editar{white-space:nowrap;padding:0 12px}
+.hud-b.fim{height:var(--alt-slot);white-space:nowrap;align-content:center}
+@media(min-width:901px){
+  .hud{max-width:calc(100% - var(--lado) - 48px)}
+  .zoom{bottom:130px}
+}
+@media(max-width:1300px) and (min-width:801px){
+  .hud{--alt-slot:50px}
+  .atalhos{grid-auto-columns:46px}
+  .hud-rec{width:140px}
+  .hud-b.fim small,.hud-bolsa>span:not(.ic){display:none}
+}
+/* celular: retrato e Bolsa em cima; atalhos (com rolagem lateral) e botões embaixo, cada faixa sem quebrar */
+@media(max-width:800px){
+  .hud{--alt-slot:44px;--tx:0;left:8px;right:8px;width:auto;max-width:none;transform:none}
+  .hud-linha{flex-wrap:wrap;row-gap:6px}
+  .hud-retrato{flex:1 1 0;min-width:0;flex-basis:auto;border:0;padding:0}
+  .hud-meio{flex-basis:100%}
+  .hud-acoes{flex-direction:row;flex-wrap:nowrap;align-items:center;gap:6px}
+  .atalhos{flex:1 1 auto;margin:0;grid-auto-columns:44px;gap:3px}
+  .slot{padding:2px}
+  .hud-lado{gap:4px}
+  .hud-tirith select{font-size:12px;padding:2px 4px}
+  .hud-editar{padding:0 8px;font-size:12px}
+  .hud-b.fim{padding:0 10px}
+  .hud-b.fim span:not(.ic),.hud-b.fim small{display:none}
+}
