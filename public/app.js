@@ -150,6 +150,7 @@ function receber(m) {
       if (filaOcupada) { filaDados = filaDados.then(() => receber(m)).catch(() => {}); break; }
       tentativaWs = 0; $('modalSenha').hidden = true;
       const primeira = !voce;
+      const recAntes = recursosDe(pcs?.[m.voce?.id]);
       voce = m.voce; sala = m.sala; mapas = m.mapas || []; const trocouMapa = mesa?.id !== m.mesa?.id; mesa = m.mesa; if (trocouMapa) { desfazer.length = 0; refazer.length = 0; if (mira) cancelarMira(); } pcs = m.pcs || {}; npcs = m.npcs || {}; log = m.log || []; online = m.online || [];
       if (primeira) avisar('');
       $('abaMestre').hidden = !souMestre();
@@ -158,7 +159,7 @@ function receber(m) {
       if (selecionado && !t) { selecionado = null; alcance = null; $('cartao').hidden = true; }
       else if (t) calcAlcance(t);
       if (!edicao) render();
-      if (aba !== 'dados' || primeira) painel();
+      if (aba !== 'dados' || primeira || recAntes !== recursosDe(pcs[eu()])) painel();
       atualizarOnline();
       if (t && !$('cartao').hidden && !$('formNpc')) cartao(t);
       if (npcParaEditar && npcs[npcParaEditar]) { const id = npcParaEditar; npcParaEditar = null; editorNpc(id); }
@@ -530,12 +531,17 @@ function cartao(t) {
   if ($('expulsar')) confirmar($('expulsar'), () => { enviar({ tipo: 'expulsar', id: t.id }); c.hidden = true; });
 }
 function confirmar(b, acao) { b.onclick = () => { if (!b.dataset.ok) { b.dataset.ok = 1; b.textContent = 'Confirmar?'; return; } acao(); }; }
+// Vigor, Fôlego ou Tensão mudaram: atualiza mapa, dock, gaveta e cartão aberto de uma vez
+function recursosDe(p) { return p ? [p.vigor, p.vigorMax, p.folego, p.folegoMax, p.tensao, p.limiar].join() : ''; }
+function refletirRecursos(k) {
+  render(); painel();
+  if (!$('cartao').hidden && selecionado === k && !$('formNpc')) cartao(tokenPorK(k));
+}
 function ajustar(k, campo, d) {
   const [tipo, id] = partir(k); const base = tipo === 'pc' ? pcs : npcs;
   if (!base[id]) return;
   const v = num(base[id][campo]) + d;
-  base[id] = { ...base[id], [campo]: v }; render(); painel();
-  if (!$('cartao').hidden && selecionado === k) cartao(tokenPorK(k));
+  base[id] = { ...base[id], [campo]: v }; refletirRecursos(k);
   enviar({ tipo: tipo === 'pc' ? 'pc' : 'npc', id, dados: { [campo]: v } });
 }
 
@@ -579,7 +585,7 @@ function usarTecnica(nivel, nome) {
   let folego = num(p.folego), tensao = num(p.tensao);
   const falta = Math.max(0, custo - folego);
   folego = Math.max(0, folego - custo); tensao += falta + (nivel >= 4 ? 1 : 0);
-  pcs[eu()] = { ...p, folego, tensao }; painel(); render();
+  pcs[eu()] = { ...p, folego, tensao }; refletirRecursos('pc:' + eu());
   enviar({ tipo: 'pc', dados: { folego, tensao } });
   rolarTeste(`${nome} (N${nivel})`, a[dom.chave] + gradPericia(f, 'canalizacao') + bonusTesteDom(f), true);
   if (tensao > num(p.limiar)) avisar('Tensão acima do Limiar: faça o Teste de Colapso!', 5000);
@@ -789,7 +795,7 @@ function ligar() {
     const liga = !p.imbuido, gratis = (p.ficha.talentos || []).includes('imb4');
     const dados = { imbuido: liga };
     if (liga && !gratis) { if (num(p.folego) < 1) { avisar('Sem Fôlego para imbuir a arma.', 2500); return; } dados.folego = num(p.folego) - 1; }
-    pcs[eu()] = { ...p, ...dados }; painel(); render(); enviar({ tipo: 'pc', dados });
+    pcs[eu()] = { ...p, ...dados }; refletirRecursos('pc:' + eu()); enviar({ tipo: 'pc', dados });
     if (liga) cena?.acao('pc:' + eu(), 'magia');
   };
   document.querySelectorAll('[data-pip]').forEach(b => b.onclick = () => {
@@ -959,7 +965,7 @@ function alternarImbuir() {
   const p = pcs[eu()]; if (!p?.ficha) return;
   const liga = !p.imbuido, gratis = (p.ficha.talentos || []).includes('imb4'), dados = { imbuido: liga };
   if (liga && !gratis) { if (num(p.folego) < 1) { avisar('Sem Fôlego para imbuir a arma.', 2500); return; } dados.folego = num(p.folego) - 1; }
-  pcs[eu()] = { ...p, ...dados }; painel(); render(); enviar({ tipo: 'pc', dados });
+  pcs[eu()] = { ...p, ...dados }; refletirRecursos('pc:' + eu()); enviar({ tipo: 'pc', dados });
   if (liga) cena?.acao('pc:' + eu(), 'magia');
 }
 // alcance da ação a partir do ator
@@ -1042,7 +1048,7 @@ function atacarAlvos(ator, cfg0, ks, centro) {
     // custo de Fôlego e Tensão
     const p = pcs[eu()]; let folego = num(p.folego), tensao = num(p.tensao); const falta = Math.max(0, cfg.custo - folego);
     folego = Math.max(0, folego - cfg.custo); tensao += falta + (cfg.nivel >= 4 ? 1 : 0);
-    pcs[eu()] = { ...p, folego, tensao }; enviar({ tipo: 'pc', dados: { folego, tensao } });
+    pcs[eu()] = { ...p, folego, tensao }; refletirRecursos('pc:' + eu()); enviar({ tipo: 'pc', dados: { folego, tensao } });
     if (tensao > num(p.limiar)) avisar('Tensão acima do Limiar: faça o Teste de Colapso!', 5000);
     else if (falta || cfg.nivel >= 4) avisar(`+${falta + (cfg.nivel >= 4 ? 1 : 0)} Tensão (Zona 2: role um Sintoma).`, 4000);
   }
