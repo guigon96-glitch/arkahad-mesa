@@ -1,0 +1,25 @@
+# Livro de Regras — índice
+
+Cópia do Claude Doc "Arkahad RPG — Livro de Regras: Sangue e Cristal" (https://claude.ai/artifact/Xob4VW8dGQ9jG1EkXY8dag), dividida por capítulo. Leia só o capítulo que a tarefa precisa. Se o Doc mudar, peça para exportar de novo.
+
+- `00-abertura.md` — abertura (1 mil caracteres)
+- `01-0-introduco.md` — 0. Introdução (1 mil caracteres)
+- `02-1-regra-central-o-teste-de-conjunco.md` — 1. Regra Central: o Teste de Conjunção (3 mil caracteres)
+- `03-2-criaco-de-personagem.md` — 2. Criação de Personagem (3 mil caracteres)
+- `04-3-as-seis-racas.md` — 3. As Seis Raças (4 mil caracteres)
+- `05-4-origem-e-estrato-social.md` — 4. Origem e Estrato Social (3 mil caracteres)
+- `06-5-percias.md` — 5. Perícias (2 mil caracteres)
+- `07-6-vocaces.md` — 6. Vocações (7 mil caracteres)
+- `08-7-regras-dos-dons.md` — 7. Regras dos Dons (7 mil caracteres)
+- `09-8-cdice-dos-dons-comuns.md` — 8. Códice dos Dons Comuns (24 mil caracteres)
+- `10-9-dons-de-elite-dualistas-anomalias-e-ar.md` — 9. Dons de Elite, Dualistas, Anomalias e Artefatos Ancestrais (8 mil caracteres)
+- `11-10-combate-ttico.md` — 10. Combate Tático (7 mil caracteres)
+- `12-11-equipamento-e-economia.md` — 11. Equipamento e Economia (6 mil caracteres)
+- `13-12-alquimia-ervas-e-venenos.md` — 12. Alquimia, Ervas e Venenos (3 mil caracteres)
+- `14-13-o-cu-e-a-terra.md` — 13. O Céu e a Terra (4 mil caracteres)
+- `15-14-bestirio-de-arkahad.md` — 14. Bestiário de Arkahad (4 mil caracteres)
+- `16-15-intriga-facces-e-reputaco.md` — 15. Intriga, Facções e Reputação (5 mil caracteres)
+- `17-16-progresso.md` — 16. Progressão (3 mil caracteres)
+- `18-17-ferramentas-do-mestre.md` — 17. Ferramentas do Mestre (4 mil caracteres)
+- `19-apndice-a-ficha-de-personagem.md` — Apêndice A — Ficha de Personagem (1 mil caracteres)
+- `20-apndice-b-requisitos-para-a-plataforma-d.md` — Apêndice B — Requisitos para a Plataforma Digital (2 mil caracteres)

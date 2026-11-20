@@ -2,6 +2,14 @@
 
 Mesa virtual 3D para o RPG de Arkahad (sistema próprio, 2d10 Kael/Lyra). Até 6 jogadores + Mestre, login Google, sessões com senha, vários mapas por sessão ligados por portais. Tudo em português (interface, código, nomes de variáveis).
 
+## Economia de tokens (siga sempre)
+- Leia só o que a tarefa precisa. Use `grep -n` para achar a função e leia com offset/limit; nunca leia `app.js`, `cena3d.js` ou `worker.js` inteiros.
+- Não abra: `public/vendor/`, `node_modules/`, `package-lock.json`, `*.glb`, `*.hdr`, `public/texturas/`, `public/ceus/`, imagens. (Bloqueados em `.claude/settings.json`.)
+- Regras do jogo: veja `docs/regras/INDICE.md` e abra só o capítulo necessário.
+- Não tire screenshots nem rode playwright a menos que o dono peça; ele testa no navegador e descreve o problema.
+- Respostas curtas: diga o que mudou e como testar. Não cole código grande na resposta.
+- Uma tarefa por sessão. Ao terminar: commit + push, e sugira `/clear`.
+
 ## Rodar e publicar
 - `npm install` uma vez; `npm run dev` (wrangler dev) → http://localhost:8787. Para testar multiplayer: uma aba como Mestre, outra como jogador (login por apelido funciona porque `PERMITIR_APELIDO = "1"`).
 - Publicar = `git push` na `main`. A Cloudflare (Workers Builds) publica sozinha. Não rode `wrangler deploy` à mão sem o dono pedir.
@@ -22,7 +30,9 @@ Mesa virtual 3D para o RPG de Arkahad (sistema próprio, 2d10 Kael/Lyra). Até 6
 | Estilos | `public/style.css` |
 | Créditos e licenças (obrigatório atualizar ao adicionar asset de terceiros) | `public/creditos.html`, `public/modelos/LICENCA-*.txt`, `README.md` |
 
-O livro de regras completo está num Claude Doc do dono (não no repositório). As regras implementadas valem como referência: `conteudo.js` + `regras.js`.
+O livro de regras completo está em `docs/regras/` (um arquivo por capítulo, índice em `INDICE.md`; cópia do Claude Doc do dono). O que vale no jogo é o implementado em `conteudo.js` + `regras.js`.
+
+Comandos do projeto: `/tarefa <pedido>`, `/regra <pergunta>`, `/modelo3d <arquivo>`, `/publicar`.
 
 ## Modelo de dados (Durable Object `Sala`)
 - Armazenamento: `meta` (nome, códigos, senha PBKDF2, `mapaInicial`, `vendo` = mapa que o Mestre está vendo), `mapas` (id → mapa), `pcs` (id do usuário → personagem), `npcs`, `log`. Sessões antigas com a chave `mesa` são migradas para `mapas.m1` em `carregar()`.

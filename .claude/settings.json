@@ -1,0 +1,26 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(node --check:*)",
+      "Bash(npm run dev)",
+      "Bash(git status)",
+      "Bash(git diff:*)",
+      "Bash(git log:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(grep:*)"
+    ],
+    "deny": [
+      "Read(./public/vendor/**)",
+      "Read(./node_modules/**)",
+      "Read(./package-lock.json)",
+      "Read(./public/modelos/**/*.glb)",
+      "Read(./public/modelos/**/*.png)",
+      "Read(./public/texturas/**)",
+      "Read(./public/ceus/**)",
+      "Read(./.wrangler/**)",
+      "Bash(wrangler deploy:*)",
+      "Bash(npx wrangler deploy:*)"
+    ]
+  }
+}

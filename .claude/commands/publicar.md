@@ -1,0 +1,1 @@
+Publique o que está pronto: `git status`, `node --check` nos JS alterados, commit em português descrevendo o que muda para o jogador ($ARGUMENTS se eu passar uma descrição) e `git push` na main. A Cloudflare publica sozinha. Responda só com o resumo do commit.
