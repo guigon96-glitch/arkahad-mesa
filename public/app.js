@@ -1,4 +1,4 @@
-import { TERRENOS, LUZES as NOMES_LUZ, LUAS, NIVEIS, num, dijkstra, XP_NIVEL, nivelPorXp, GANHOS_NIVEL, FONTES_XP, nivelEm, efeitoAltura, linhaDeVisao, distanciaCasas } from './regras.js';
+import { TERRENOS, LUZES as NOMES_LUZ, LUAS, NIVEIS, num, dijkstra, XP_NIVEL, nivelPorXp, GANHOS_NIVEL, FONTES_XP, nivelEm, efeitoAltura, linhaDeVisao, distanciaCasas, CONDICOES } from './regras.js';
 import { criarCena } from './cena3d.js';
 import { CRIATURAS_3D, ARMAS_3D, SECUNDARIAS, SEXOS, ESTILO_DOM } from './modelos.js';
 import { abrirCriador } from './criacao.js';
@@ -6,6 +6,7 @@ import { retratoDe } from './retrato.js';
 import {
   ATRIBUTOS, PERICIAS, RACAS, VOCACOES, TODOS_DONS, DONS, CUSTO_DOM, notasDom, RESSONANCIAS, ORIGENS, ESTRATOS,
   ataqueArma, danoTecnica, bonusTesteDom, temImbuir, TALENTO, ARVORES, pontosTalento, alcanceTecnica,
+  HABILIDADE, habilidadesDe, pontosNaArvore,
   aparenciaPadrao, atributosFinais, gradPericia, habilidadesVocacao, HAB_VOCACAO, bonusPericia, ehAurethian, nivelDom, derivados,
 } from './conteudo.js';
 
@@ -173,9 +174,10 @@ function receber(m) {
       $('erroSenha').textContent = m.erro || '';
       $('modalSenha').hidden = false; $('senhaSala').value = ''; $('senhaSala').focus();
       break;
-    case 'dado': case 'golpe': {
+    case 'condicao': cena?.pulso(m.k, m.dano ? '#ff5a3a' : '#5fd05a'); break;
+    case 'dado': case 'golpe': case 'habilidade': {
       filaOcupada++;
-      filaDados = filaDados.then(() => m.tipo === 'golpe' ? animarGolpe(m) : animarDados(m)).catch(() => {}).finally(() => { filaOcupada--; });
+      filaDados = filaDados.then(() => m.tipo === 'golpe' ? animarGolpe(m) : m.tipo === 'habilidade' ? animarHabilidade(m) : animarDados(m)).catch(() => {}).finally(() => { filaOcupada--; });
       break;
     }
     case 'turno': anunciarTurno(m); break;
@@ -231,6 +233,7 @@ function render() {
     tokens: tokensTodos().map(t => ({
       k: t.k, x: num(t.x), y: num(t.y), tamanho: num(t.tamanho, 1), nome: t.nome, ...visualDe(t),
       vigor: num(t.vigor), vigorMax: num(t.vigorMax), mostrarVida: souMestre() || t.tipo === 'pc', oculto: t.visivel === false,
+      cond: Object.keys(t.cond || {}).filter(c => CONDICOES[c]).map(c => CONDICOES[c].ic).join(''),
       corNome: t.tipo === 'pc' ? '#ffe9b8' : t.tipo === 'monstro' ? '#ff9a8a' : '#e6dccb',
     })),
     selecionado, alcance,
@@ -587,6 +590,12 @@ async function animarGolpe(m) {
   }
   await new Promise(r => setTimeout(r, 900));
 }
+async function animarHabilidade(m) {
+  const h = HABILIDADE[m.hab]; if (!cena || !h) return;
+  cena.acao(m.k, h.anim === 'golpe' ? 'ataque' : 'magia');
+  cena.efeito({ forma: h.anim, de: m.k, alvos: m.alvos || [], acertos: m.acertos || [], centro: m.centro, raio: h.raio, cor: h.cor, estilo: ESTILO_DOM[h.dom] || 'luz', suprema: h.n === 4, nome: h.nome, apoio: h.t !== 'atq' });
+  await new Promise(r => setTimeout(r, h.n === 4 ? 1700 : 1100));
+}
 async function animarDados(m) {
   if (!cena) return;
   if (m.k && !/^dano/i.test(m.rotulo || '')) {
@@ -646,6 +655,7 @@ function htmlFichaCompleta(p) {
     <p class="cr-nota" style="margin:6px 0 0">${souMestre() ? 'Clique num atributo, perícia ou técnica para rolar.' : 'Clique num atributo ou perícia para pedir o teste ao Mestre. Técnicas rolam direto.'}</p>
     ${pedidos.length && !souMestre() ? `<p style="margin:6px 0 0;color:var(--ouro)">Aguardando o Mestre: ${pedidos.map(x => esc(x.rotulo)).join(', ')}</p>` : ''}</div>
     ${blocoCombate}
+    ${blocoHabilidades(p, f)}
     ${dom ? `<div class="bloco"><h3 style="color:${dom.cor}">${esc(dom.nome)} — ${esc(dom.tema)}</h3><div style="font-size:13px;color:var(--mudo);margin-bottom:6px">Chave ${dom.chave} · Canalização ${gradPericia(f, 'canalizacao')} · Cristal ${esc(RESSONANCIAS[f.ressonancia]?.nome || '')}</div><div class="dom-notas">${notasDom(dom).map(esc).join('<br>')}</div>${tecnicas(dom, n)}
       ${dom2 ? `<h3 style="color:${dom2.cor};margin-top:10px">${esc(dom2.nome)} (secundário)</h3>${tecnicas(dom2, Math.max(1, n - 1))}` : ''}</div>` : ''}
     <div class="bloco"><h3>Perícias</h3><div class="pers">${destaques.map(linhaPer).join('')}</div>
@@ -656,6 +666,23 @@ function htmlFichaCompleta(p) {
     ${p.notasJogador || p.ajuda ? `<div class="bloco"><h3>Do Mestre</h3>${p.ajuda ? `<p style="margin:0 0 6px;color:var(--ouro)">Ajuda: +${num(p.ajuda)} no seu próximo teste aprovado.</p>` : ''}${p.notasJogador ? `<p style="margin:0;white-space:pre-wrap">${esc(p.notasJogador)}</p>` : ''}</div>` : ''}
     ${blocoXp(p, f)}
     <button class="pri" id="abrirCriador" style="width:100%">Editar personagem</button>`;
+}
+// árvore de habilidades do Dom: G1 → (G2a | G2b) → G3 suprema; aprende em "Editar personagem" → Talentos
+function blocoHabilidades(p, f) {
+  if (!ehAurethian(f)) return '';
+  const arvs = [f.dom, f.estrato === 'dualista' && f.dom2].filter(d => d && ARVORES['hab_' + d]);
+  const conds = Object.entries(p.cond || {}).filter(([c]) => CONDICOES[c]);
+  return `<div class="bloco habs"><h3>Habilidades do Dom</h3>
+    ${conds.length ? `<div class="conds">${conds.map(([c, n]) => `<span style="--cor:${CONDICOES[c].cor}" title="${esc(CONDICOES[c].desc)}">${CONDICOES[c].ic} ${esc(CONDICOES[c].nome)} <small>${n}</small></span>`).join('')}</div>` : ''}
+    ${arvs.map(d => {
+      const arv = ARVORES['hab_' + d], nos = arv.nos, tem = id => (f.talentos || []).includes(id);
+      const no = n => { const h = HABILIDADE[n.id], ok = tem(n.id);
+        return `<div class="hab-no ${ok ? 'tem' : ''} ${h.n === 4 ? 'suprema' : ''}" style="--cor:${arv.cor}"><b>${h.t === 'atq' ? '✸' : h.t === 'si' ? '◈' : '✚'} ${esc(h.nome)}</b><small>${esc(n.desc)}</small>
+          ${ok ? `<button class="mini" data-hab="${n.id}">Usar</button>` : `<em>${n.nivelMin ? `🔒 nível ${n.nivelMin} · ` : '🔒 '}G${n.grau}</em>`}</div>`; };
+      return `<div class="hab-arvore" style="--cor:${arv.cor}"><h4>${esc(TODOS_DONS[d].nome)} <small>${pontosNaArvore(f, 'hab_' + d)}/4</small></h4>
+        <div class="hab-g">${no(nos[0])}</div><div class="hab-g dois">${no(nos[1])}${no(nos[2])}</div><div class="hab-g">${no(nos[3])}</div></div>`;
+    }).join('')}
+    <p class="cr-nota" style="margin:6px 0 0">Aprenda com Pontos de Talento em <b>Editar personagem → Talentos</b>. Use pela barra de atalhos (✎ Atalhos) ou aqui. Condições duram turnos de quem as carrega.</p></div>`;
 }
 function blocoXp(p, f) {
   const xp = num(p.xp), n = num(f.nivel, 1), pode = nivelPorXp(xp), prox = XP_NIVEL[n], base = XP_NIVEL[n - 1] || 0;
@@ -889,6 +916,7 @@ function ligar() {
   document.querySelectorAll('#conteudo [data-mv]').forEach(b => b.onclick = () => ajustar(b.dataset.k, b.dataset.mv, num(b.dataset.d)));
   document.querySelectorAll('#conteudo [data-rolar]').forEach(b => b.onclick = () => rolarTeste(b.dataset.rolar, num(b.dataset.mod)));
   document.querySelectorAll('#conteudo [data-tec]').forEach(b => b.onclick = () => usarTecnica(num(b.dataset.tec), b.dataset.nome));
+  document.querySelectorAll('#conteudo [data-hab]').forEach(b => b.onclick = () => { const t = tokenPorK('pc:' + eu()); if (t) usarHabilidade(t, b.dataset.hab); });
   document.querySelectorAll('#conteudo [data-dano]').forEach(b => b.onclick = () => enviar({ tipo: 'rolar', modo: 'expr', expr: b.dataset.dano, rotulo: 'Dano · ' + b.dataset.nome }));
   if (q('#imbuir')) q('#imbuir').onclick = () => {
     const p = pcs[eu()]; if (!p?.ficha) return;
@@ -983,7 +1011,7 @@ function hud() {
   el.innerHTML = `<div class="hud-linha">${retrato}<div class="hud-meio"><div class="hud-topo"><b class="hud-nome">${esc(t.nome)}</b>${topoHud}</div>
     <div class="hud-acoes">
       <div class="atalhos ${editandoBarra ? 'editando' : ''}" role="toolbar" aria-label="Atalhos 1 a 0">${barra.map((id, i) => {
-        const op = ops.find(o => o.id === id), ativo = op && ((id === 'arma' && mira?.tipo === 'arma') || (id.startsWith('tec:') && mira?.tipo === 'tec' && mira.nivel === num(id.slice(4))) || op.on);
+        const op = ops.find(o => o.id === id), ativo = op && ((id === 'arma' && mira?.tipo === 'arma') || (id.startsWith('tec:') && mira?.tipo === 'tec' && mira.nivel === num(id.slice(4))) || (id.startsWith('hab:') && mira?.hab === id.slice(4)) || op.on);
         const livre = op && (id === 'imbuir' || (id === 'defender' ? pode && !t.guarda : pode));
         return `<button class="slot ${op ? '' : 'vazio'} ${ativo ? 'on' : ''} ${editandoBarra && slotEditado === i ? 'sel' : ''}" data-slot="${i}" ${!editandoBarra && op && !livre ? 'disabled' : ''} title="${op ? esc(`${op.nome} — ${op.sub}`) : editandoBarra ? 'Escolher atalho' : 'Vazio'}"${op?.cor ? ` style="--cor:${op.cor}"` : ''}><kbd>${(i + 1) % 10}</kbd><span class="ic">${op ? op.ic : ''}</span><small>${op ? esc(op.nome) : ''}</small></button>`;
       }).join('')}</div>
@@ -1013,6 +1041,7 @@ function opcoesBarra(t) {
   const ops = [{ id: 'arma', ic: '⚔', nome: 'Atacar', sub: armaDoAtor(t).nome }];
   if (t.k === 'pc:' + eu()) { const r = restoMov(t); ops.push({ id: 'mover', ic: '👣', nome: 'Mover', sub: r ? `${r} casas restantes neste turno` : `1 ação · até ${num(t.desloc, 6)} casas no turno`, on: movendo }); }
   if (dom) for (let i = 1; i <= n; i++) ops.push({ id: 'tec:' + i, ic: '✦', cor: dom.cor, nome: dom.tec[i - 1], sub: `${dom.nome} N${i} · ${CUSTO_DOM[i - 1]} Fôlego` });
+  if (f) for (const h of habilidadesDe(f)) ops.push({ id: 'hab:' + h.id, ic: h.t === 'atq' ? '✸' : h.t === 'si' ? '◈' : '✚', cor: h.cor, nome: h.nome, sub: `${TALENTO[h.id].desc}` });
   if (f && temImbuir(f)) ops.push({ id: 'imbuir', ic: '🜂', cor: dom?.cor, nome: t.imbuido ? 'Imbuída' : 'Imbuir', sub: f.talentos.includes('imb4') ? 'grátis' : '1 Fôlego', on: !!t.imbuido });
   if (t.tipo === 'pc') ops.push({ id: 'defender', ic: '⛨', nome: 'Defender', sub: '+2 Defesa até seu turno', on: !!t.guarda });
   if (t.k === 'pc:' + eu()) for (const it of (Array.isArray(t.itens) ? t.itens : [])) ops.push({ id: 'item:' + it.n, ic: '🧪', nome: it.n, sub: `Item · ${num(it.q, 1)} no Inventário` });
@@ -1044,7 +1073,8 @@ function usarSlot(i) {
     if (!podeAgir(t)) return avisar('Não é a sua vez (ou acabaram as ações).', 2500);
     return enviar({ tipo: 'usarItem', n: op.nome });
   }
-  if (id.startsWith('tec:')) {
+  if (id.startsWith('hab:')) { if (!usarHabilidade(t, id.slice(4))) return; }
+  else if (id.startsWith('tec:')) {
     const f = t.ficha, nivel = num(id.slice(4)); menuTec = false;
     if (mira?.tipo === 'tec' && mira.nivel === nivel) return cancelarMira();
     iniciarMira(t, { tipo: 'tec', ...tecDe(f, TODOS_DONS[f.dom], nivel) });
@@ -1110,7 +1140,7 @@ function tokensEm(x, y, raio) {
 function avaliar(ator, cfg, alvo) {
   const o = { x: num(ator.x), y: num(ator.y) }, d = { x: num(alvo.x), y: num(alvo.y) };
   const dist = distanciaCasas(o, d), ef = efeitoAltura(mesa, o, d, cfg.distancia), notas = [...ef.notas];
-  let mod = (cfg.tipo === 'tec' ? cfg.modTec : cfg.mod) + ef.mod, cob = 0, ok = true;
+  let mod = (cfg.tipo === 'tec' || cfg.tipo === 'hab' ? cfg.modTec : cfg.mod) + ef.mod, cob = 0, ok = true;
   if (!cfg.distancia) {
     if (dist > cfg.alcance) { ok = false; notas.push(`Fora do alcance corpo a corpo (${dist} casas)`); }
     if (!ef.podeCorpo) ok = false;
@@ -1126,13 +1156,33 @@ function avaliar(ator, cfg, alvo) {
   if (alvo.guarda) notas.push('Alvo em guarda (+2 Defesa)');
   return { ok, mod, cob, dist, notas };
 }
+// apoio mira aliados (e pode incluir quem usa); ataque mira os outros
+function alvosMira(ator, i) {
+  const l = mira.raio ? tokensEm(i.x, i.y, mira.raio) : (i.k ? [tokenPorK(i.k)] : tokensEm(i.x, i.y, 0));
+  return l.filter(t => t && (mira.apoio ? t.tipo === 'pc' || t.tipo === 'aliado' : t.k !== ator.k));
+}
+// habilidade do Dom: em si sai na hora; as outras abrem a mira
+function usarHabilidade(t, id) {
+  const h = HABILIDADE[id], f = t.ficha; if (!h || !f) return false;
+  menuTec = false;
+  if (mira?.hab === id) { cancelarMira(); return false; }
+  const cfg = { tipo: 'hab', hab: id, nome: h.nome, alcance: Math.max(1, h.alc), raio: h.raio, custo: h.custo, tensao: h.tensao, apoio: h.t !== 'atq' };
+  if (h.t === 'si') {
+    if (!podeAgir(t)) { avisar('Não é a sua vez (ou acabaram as ações).', 2500); return false; }
+    atacarAlvos(t, cfgMira(t, cfg), [t.k], { x: num(t.x), y: num(t.y) });
+    return false;
+  }
+  iniciarMira(t, cfg);
+  if (mira && h.alc <= 1 && h.t === 'apoio') mira.casas.set(num(t.x) + ',' + num(t.y), .85); // toque: pode ser em si
+  return true;
+}
 function mirarEm(i, e) {
   if (!dentro(i.x, i.y)) return;
   const ator = tokenPorK(mira.de); if (!ator) return cancelarMira();
   const area = new Map();
   for (let y = i.y - mira.raio; y <= i.y + mira.raio; y++) for (let x = i.x - mira.raio; x <= i.x + mira.raio; x++) area.set(x + ',' + y, 1);
   cena?.marcar(2, area, true);
-  const alvos = mira.raio ? tokensEm(i.x, i.y, mira.raio).filter(t => t.k !== ator.k) : (i.k ? [tokenPorK(i.k)] : tokensEm(i.x, i.y, 0)).filter(t => t && t.k !== ator.k);
+  const alvos = alvosMira(ator, i);
   const dica = $('miraDica');
   const noAlcance = mira.casas.has(i.x + ',' + i.y);
   let h = `<b>${esc(mira.nome)}</b>`;
@@ -1144,10 +1194,10 @@ function mirarEm(i, e) {
 }
 function dispararMira(i) {
   const ator = tokenPorK(mira.de); if (!ator) return cancelarMira();
-  const alvos = mira.raio ? tokensEm(i.x, i.y, mira.raio).filter(t => t.k !== ator.k) : (i.k ? [tokenPorK(i.k)] : tokensEm(i.x, i.y, 0)).filter(t => t && t.k !== ator.k);
+  const alvos = alvosMira(ator, i);
   if (mira.raio ? !mira.casas.has(i.x + ',' + i.y) : !alvos.length) { avisar(mira.raio ? 'Fora do alcance.' : 'Clique numa miniatura.', 1800); return; }
   const cfg = mira; cancelarMira();
-  atacarAlvos(ator, cfg, alvos.map(t => t.k), i);
+  atacarAlvos(ator, cfg, alvos.map(t => t.k), { x: i.x, y: i.y });
 }
 // resolve no servidor: rolagem, Defesa de cada alvo e dano
 function atacarAlvos(ator, cfg0, ks, centro) {
@@ -1162,6 +1212,7 @@ function atacarAlvos(ator, cfg0, ks, centro) {
     else if (falta || cfg.nivel >= 4) avisar(`+${falta + (cfg.nivel >= 4 ? 1 : 0)} Tensão (Zona 2: role um Sintoma).`, 4000);
   }
   const alvos = ks.map(tokenPorK).filter(Boolean);
+  if (cfg.tipo === 'hab') return usarHabNoServidor(ator, cfg, alvos, centro);
   if (!alvos.length) {
     // técnica numa área vazia: só o teste
     if (cfg.tipo === 'tec') rolarTeste(`${cfg.nome} (N${cfg.nivel})`, cfg.modTec, true);
@@ -1175,6 +1226,25 @@ function atacarAlvos(ator, cfg0, ks, centro) {
   const cob = Object.fromEntries(validos.map(a => [a.k, av[alvos.indexOf(a)].cob]));
   const rotulo = cfg.tipo === 'tec' ? `${cfg.nome} (N${cfg.nivel})` : `${cfg.nome} em ${validos.length > 1 ? validos.length + ' alvos' : validos[0].nome}`;
   enviar({ tipo: 'ataque', de: ator.k, alvos: validos.map(a => a.k), mod, cob, tirith: tirithHud, dano: cfg.dano, rotulo, dom: cfg.tipo === 'tec' || (cfg.tipo === 'arma' && !!ator.imbuido && !!f && temImbuir(f)), distancia: !!cfg.distancia });
+}
+function usarHabNoServidor(ator, cfg, alvos, centro) {
+  if (!alvos.length) { avisar(cfg.apoio ? 'Nenhum aliado ali.' : 'Nenhum alvo ali.', 2000); return; }
+  const self = alvos.length === 1 && alvos[0].k === ator.k;
+  const av = alvos.map(a => self ? { ok: true, mod: cfg.modTec, cob: 0, notas: [] } : avaliar(ator, cfg, a));
+  const validos = alvos.filter((a, i) => av[i].ok || cfg.raio || (cfg.apoio && a.k === ator.k));
+  if (!validos.length) { avisar(av[0].notas.join(' · ') || 'Alvo inválido.', 3000); return; }
+  // Fôlego e Tensão (como nas técnicas): o que faltar de Fôlego vira Tensão
+  const p = pcs[eu()];
+  if (p && ator.k === 'pc:' + eu()) {
+    let folego = num(p.folego), tensao = num(p.tensao); const falta = Math.max(0, cfg.custo - folego);
+    folego = Math.max(0, folego - cfg.custo); tensao += falta + cfg.tensao;
+    pcs[eu()] = { ...p, folego, tensao }; refletirRecursos('pc:' + eu()); enviar({ tipo: 'pc', dados: { folego, tensao } });
+    if (tensao > num(p.limiar)) avisar('Tensão acima do Limiar: faça o Teste de Colapso!', 5000);
+    else if (falta + cfg.tensao) avisar(`+${falta + cfg.tensao} Tensão.`, 3000);
+  }
+  const mod = Math.min(...validos.map(a => av[alvos.indexOf(a)].mod));
+  const cob = Object.fromEntries(validos.map(a => [a.k, av[alvos.indexOf(a)].cob]));
+  enviar({ tipo: 'ataque', de: ator.k, alvos: validos.map(a => a.k), mod, cob, tirith: tirithHud, hab: cfg.hab, centro, rotulo: cfg.nome, dom: true, distancia: true });
 }
 function anunciarTurno(m) {
   const b = $('banner'); if (!b) return;
@@ -1195,7 +1265,7 @@ function trilha() {
     const vis = souMestre() || t.tipo === 'pc', v = num(t.vigor), m = num(t.vigorMax);
     const caido = m && v <= 0, resta = i === cb.turno ? acoesDe(t) : null;
     return `<button class="ini ${i === cb.turno ? 'vez' : ''} ${caido ? 'caido' : ''}" data-ini="${esc(o.k)}"><i style="background:${esc(t.cor || '#8c7a63')}"></i><span class="ini-n">${esc(t.nome)}</span><small>${num(o.ini)}</small>
-      ${vis && m ? `<span class="ini-v"><b style="width:${Math.max(0, Math.min(100, v / m * 100))}%"></b></span>` : ''}${resta !== null && t.tipo === 'pc' ? `<span class="ini-a">${'●'.repeat(Math.max(0, resta))}${'○'.repeat(3 - Math.max(0, resta))}</span>` : ''}${t.guarda ? '<span title="Em guarda">⛨</span>' : ''}</button>`;
+      ${vis && m ? `<span class="ini-v"><b style="width:${Math.max(0, Math.min(100, v / m * 100))}%"></b></span>` : ''}${resta !== null && t.tipo === 'pc' ? `<span class="ini-a">${'●'.repeat(Math.max(0, resta))}${'○'.repeat(3 - Math.max(0, resta))}</span>` : ''}${t.guarda ? '<span title="Em guarda">⛨</span>' : ''}${Object.entries(t.cond || {}).filter(([c]) => CONDICOES[c]).map(([c, n]) => `<span class="ini-c" title="${esc(CONDICOES[c].nome)} (${n}) — ${esc(CONDICOES[c].desc)}">${CONDICOES[c].ic}</span>`).join('')}</button>`;
   }).join('');
   el.hidden = false;
   el.querySelectorAll('[data-ini]').forEach(b => b.onclick = () => { selecionar(b.dataset.ini); const t = tokenPorK(b.dataset.ini); if (t) cena?.focar(num(t.x), num(t.y)); });

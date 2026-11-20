@@ -12,6 +12,7 @@ import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { construirSolo, carregarTexturasSolo, pontosDaMargem, NIVEL_H as NIVEL_SOLO } from './terreno.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { criarMiniatura, criarDado, rotulo } from './miniatura.js';
+import { criarEfeitos } from './efeitos.js';
 import { carregarModelos, carregarNatureza, criarPersonagem, criarCriatura3D, CRIATURAS_3D, pecaCenario, pecaNatureza, temCenario, temNatureza, modelosProntos, TEMPO } from './modelos.js';
 // celular/tablet: céus 1k e chão 512 (memória de vídeo menor)
 const TELA_FINA = matchMedia('(pointer: coarse)').matches;
@@ -127,6 +128,7 @@ export function criarCena(el, cb = {}) {
   const tex = fazerTexturas();
   const grupoTerreno = new THREE.Group(), grupoTokens = new THREE.Group(), grupoEfeitos = new THREE.Group(), grupoDados = new THREE.Group();
   cena.add(grupoTerreno, grupoTokens, grupoEfeitos, grupoDados);
+  const efx = criarEfeitos(grupoEfeitos);
 
   // luzes
   const hemi = new THREE.HemisphereLight('#fff', '#333', 1); cena.add(hemi);
@@ -459,6 +461,12 @@ export function criarCena(el, cb = {}) {
       // Dom na arma
       const imb = t.imbuir ? t.imbuir.cor + t.imbuir.estilo : null;
       if (tk.pers?.imbuir && imb !== tk.imb) { tk.pers.imbuir(t.imbuir?.cor, t.imbuir?.estilo); tk.imb = imb; }
+      // condições (ícones acima do nome)
+      if ((t.cond || '') !== (tk.cond || '')) {
+        if (tk.condSpr) { tk.g.remove(tk.condSpr); tk.condSpr.material.map.dispose(); tk.condSpr.material.dispose(); tk.condSpr = null; }
+        if (t.cond) { tk.condSpr = rotulo(t.cond, '#ffffff', 'rgba(10,8,6,.5)', .2); tk.condSpr.position.y = tk.alturaMini + .5; tk.g.add(tk.condSpr); }
+        tk.cond = t.cond || '';
+      }
       // vida
       const fr = t.mostrarVida && t.vigorMax ? t.vigor / t.vigorMax : null;
       if (tk.pers && t.vigor !== tk.vigor && tk.vigor !== undefined && t.vigorMax) {
@@ -628,6 +636,7 @@ export function criarCena(el, cb = {}) {
     if (selecaoAnel?.parent) { selecaoAnel.rotation.z = t; selecaoAnel.scale.setScalar(1 + Math.sin(t * 4) * .04); }
     for (let i = pings.length - 1; i >= 0; i--) { const p = pings[i], a = (agora - p.t0) / 1400; p.m.scale.setScalar(1 + a * 3); p.m.material.opacity = 1 - a; if (a >= 1) { grupoEfeitos.remove(p.m); p.m.geometry.dispose(); pings.splice(i, 1); } }
     simularDados(dt, agora);
+    efx.atualizar(agora, dt);
     for (let i = projeteis.length - 1; i >= 0; i--) {
       const p = projeteis[i], k = (agora - p.t0) / p.dur;
       if (k < 0) { p.m.visible = false; continue; }
@@ -691,6 +700,18 @@ export function criarCena(el, cb = {}) {
       grupoEfeitos.add(m);
       projeteis.push({ m, p0, p1, t0: performance.now() + 380, dur: Math.max(260, p0.distanceTo(p1) * 70), magia, cor: corP, para });
     },
+    // habilidade do Dom (ver efeitos.js)
+    efeito(s) {
+      const a = tokens.get(s.de); if (!a) return;
+      const meio = tk => tk.g.position.clone().add(new THREE.Vector3(0, tk.alturaMini * .55, 0));
+      const centro = s.centro && mesa ? new THREE.Vector3(s.centro.x + .5, alturaEm(s.centro.x, s.centro.y) + .02, s.centro.y + .5) : null;
+      const alvos = (s.alvos || []).map(k => tokens.get(k) && { k, p: meio(tokens.get(k)), chao: tokens.get(k).g.position.clone(), acertou: (s.acertos || []).includes(k) }).filter(Boolean);
+      const mira = centro || alvos[0]?.chao;
+      if (mira && s.forma !== 'aura') a.mini.rotation.y = Math.atan2(mira.x - a.g.position.x, mira.z - a.g.position.z) || a.mini.rotation.y;
+      const bater = (k, t) => setTimeout(() => { const b = tokens.get(k); if (!b) return; let dx = b.g.position.x - a.g.position.x, dz = b.g.position.z - a.g.position.z; const n = Math.hypot(dx, dz) || 1; b.tremor = { amp: s.suprema ? .2 : .13, dx: dx / n, dz: dz / n, t0: performance.now(), f: 22 }; }, t);
+      efx.tocar(s, { p0: meio(a), chao0: a.g.position.clone(), alvos, centro }, bater, (p, f, t) => setTimeout(() => tremer(p, f), t));
+    },
+    pulso(k, cor) { const tk = tokens.get(k); if (tk) efx.pulso(tk.g.position.clone(), cor); },
     projetar(v) { const p = v.clone().project(camera), r = dom.getBoundingClientRect(); return { x: (p.x + 1) / 2 * r.width, y: (1 - p.y) / 2 * r.height }; },
     girar(ang) { const off = camera.position.clone().sub(controles.target); off.applyAxisAngle(new THREE.Vector3(0, 1, 0), ang); camera.position.copy(controles.target).add(off); },
     zoom(f) { const off = camera.position.clone().sub(controles.target).multiplyScalar(f); if (off.length() > 3 && off.length() < 70) camera.position.copy(controles.target).add(off); },

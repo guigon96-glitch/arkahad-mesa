@@ -210,3 +210,26 @@ export const XP_NIVEL = [0, 10, 25, 45, 70, 100, 135, 175, 220, 270];
 export const nivelPorXp = xp => XP_NIVEL.filter(x => num(xp) >= x).length || 1;
 export const GANHOS_NIVEL = ['Criação · habilidade de Vocação N1', '+1 Talento', 'Habilidade de Vocação N3', '+1 atributo, +1 Talento', 'Habilidade de Vocação N5 · perícias até 4', '+1 Talento', 'Habilidade de Vocação N7', '+1 atributo, +1 Talento', 'Perícias até 5', '+1 Talento · habilidade de Vocação N10'];
 export const FONTES_XP = [['Comparecer à sessão', 2], ['Objetivo da aventura', 3], ['Cumprir o Juramento', 3], ['Interpretar o Fardo', 1], ['Segredo do mundo', 1], ['Encontro Mortal', 2]];
+
+// ---------- Condições (habilidades do Dom) ----------
+// Duram N turnos de quem as carrega; no começo do turno: dano/cura por turno e conta −1.
+// def/atq somam na Defesa/ataque; imovel bloqueia o Mover; acoes = ações perdidas; desl = casas a mais (meio = metade).
+export const CONDICOES = {
+  queimando: { nome: 'Queimando', ic: '🔥', cor: '#ff7a1e', dot: '1d6', desc: '1d6 de dano no começo do turno.' },
+  envenenado: { nome: 'Envenenado', ic: '☠', cor: '#9be04a', dot: '1d4', atq: -1, desc: '1d4 de dano no começo do turno; −1 nos ataques.' },
+  congelado: { nome: 'Congelado', ic: '❄', cor: '#8fe3ff', imovel: true, def: -2, desc: 'Não se move; −2 Defesa.' },
+  preso: { nome: 'Preso', ic: '⛓', cor: '#7ac06a', imovel: true, desc: 'Não se move.' },
+  atordoado: { nome: 'Atordoado', ic: '💫', cor: '#ffe94a', acoes: 1, desc: 'Perde 1 ação no turno.' },
+  cego: { nome: 'Cego', ic: '◌', cor: '#9a9aa8', atq: -3, desc: '−3 nos ataques.' },
+  lento: { nome: 'Lento', ic: '🐌', cor: '#a08a6a', meio: true, def: -1, desc: 'Metade do Deslocamento; −1 Defesa.' },
+  marcado: { nome: 'Marcado', ic: '🎯', cor: '#ff5a5a', def: -2, desc: '−2 Defesa.' },
+  amedrontado: { nome: 'Amedrontado', ic: '😱', cor: '#c080ff', atq: -2, desc: '−2 nos ataques.' },
+  protegido: { nome: 'Protegido', ic: '🛡', cor: '#6aa8ff', def: 3, bom: true, desc: '+3 Defesa.' },
+  regenerando: { nome: 'Regenerando', ic: '✚', cor: '#5fd05a', cura: '1d6', bom: true, desc: 'Cura 1d6 no começo do turno.' },
+  fortalecido: { nome: 'Fortalecido', ic: '✦', cor: '#ffb347', atq: 2, bom: true, desc: '+2 nos ataques.' },
+  veloz: { nome: 'Veloz', ic: '➶', cor: '#d8f3ff', desl: 3, bom: true, desc: '+3 de Deslocamento.' },
+};
+// soma de um campo numérico (def, atq, acoes, desl) nas condições ativas
+export function modCond(o, campo) { let s = 0; for (const c of Object.keys(o?.cond || {})) s += num(CONDICOES[c]?.[campo]); return s; }
+export function temCond(o, flag) { return Object.keys(o?.cond || {}).some(c => CONDICOES[c]?.[flag]); }
+export function deslocCom(o, base) { const d = base + modCond(o, 'desl'); return temCond(o, 'meio') ? Math.floor(d / 2) : d; }

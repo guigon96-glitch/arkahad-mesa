@@ -135,7 +135,7 @@ export function abrirCriador({ ficha, dadosCor, aoSalvar, aoFechar }) {
     };
     return `<h3>Talentos <span class="cr-pontos ${pt.gastos <= pt.total ? 'ok' : ''}">${pt.total - pt.gastos} de ${pt.total} pontos</span></h3>
       <p class="cr-nota">${aur ? 'Aurethian: seus pontos vêm do sangue-estelar. Armas vão até o Grau 3, mas você tem as árvores do Dom e a <b>Arma Imbuída</b> — o Dom correndo pela lâmina ou pela flecha.' : 'Vellunari: sem Dom, mas com mais pontos, a Mestria (Graus 4 e 5) de todas as armas e a árvore do Sangue Comum. Ninguém luta melhor com aço.'} Cada nó custa 1 ponto; o Grau N exige N−1 pontos na mesma árvore. Ganha pontos a cada nível.</p>
-      <div class="cr-arvores">${Object.entries(ARVORES).sort(([a], [b]) => perm.includes(b) - perm.includes(a)).map(arvore).join('')}</div>`;
+      <div class="cr-arvores">${Object.entries(ARVORES).filter(([k, a]) => a.tipo !== 'habilidade' || perm.includes(k)).sort(([a], [b]) => perm.includes(b) - perm.includes(a) || (ARVORES[b].tipo === 'habilidade') - (ARVORES[a].tipo === 'habilidade')).map(arvore).join('')}</div>`;
   }
   function passoAparencia() {
     const a = f.aparencia, r = RACAS[f.raca];

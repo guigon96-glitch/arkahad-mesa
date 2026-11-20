@@ -1,5 +1,6 @@
 import { DurableObject } from 'cloudflare:workers';
-import { TERRENOS, LUZES, LUAS, r, num, custoCel, dijkstra, rolar2d10, rolarAtaque, rolarExpr, nivelPorXp } from '../public/regras.js';
+import { TERRENOS, LUZES, LUAS, r, num, custoCel, dijkstra, rolar2d10, rolarAtaque, rolarExpr, nivelPorXp, CONDICOES, modCond, temCond, deslocCom } from '../public/regras.js';
+import { HABILIDADE, danoHabilidade } from '../public/conteudo.js';
 
 const MAX_JOGADORES = 6;
 const SESSAO_DIAS = 30;
@@ -220,7 +221,7 @@ function limparPc(d) {
   if ('aparencia' in o) { o.aparencia = objetoLimitado(o.aparencia, 3000); if (!o.aparencia) delete o.aparencia; }
   if ('imbuido' in o) o.imbuido = !!o.imbuido;
   if ('itens' in o) o.itens = (Array.isArray(o.itens) ? o.itens : []).slice(0, 80).map(it => ({ n: texto(it?.n, 60), q: Math.max(1, Math.min(999, Math.round(num(it?.q, 1)))) })).filter(it => it.n);
-  if ('barra' in o) o.barra = (Array.isArray(o.barra) ? o.barra : []).slice(0, 10).map(x => { const v = texto(x, 70); return /^(arma|mover|defender|imbuir|tec:[1-5]|item:.{1,60})$/.test(v) ? v : ''; });
+  if ('barra' in o) o.barra = (Array.isArray(o.barra) ? o.barra : []).slice(0, 10).map(x => { const v = texto(x, 70); return /^(arma|mover|defender|imbuir|tec:[1-5]|hab:hab_[a-z_]+_[1-4]|item:.{1,60})$/.test(v) ? v : ''; });
   if ('moedas' in o) { const m = o.moedas || {}; o.moedas = Object.fromEntries(['k', 'l', 't'].map(c => [c, Math.max(0, Math.min(999999, Math.round(num(m[c]))))])); }
   if ('dados' in o) {
     const dd = o.dados || {};
@@ -558,7 +559,8 @@ export class Sala extends DurableObject {
           } else {
             // Mover: 1 ação dá o Deslocamento inteiro, que pode ser dividido entre outras ações no mesmo turno
             if (cb.ordem[cb.turno]?.k !== 'pc:' + id) return erro('Aguarde o seu turno.');
-            const chave = `${cb.rodada}:${cb.turno}`, desloc = num(obj.desloc, 6);
+            if (temCond(obj, 'imovel')) return erro(`${obj.nome} está ${Object.keys(obj.cond).filter(c => CONDICOES[c]?.imovel).map(c => CONDICOES[c].nome.toLowerCase()).join(' e ')} e não pode se mover.`);
+            const chave = `${cb.rodada}:${cb.turno}`, desloc = deslocCom(obj, num(obj.desloc, 6));
             const usadas = obj.acoes?.chave === chave ? num(obj.acoes.usadas) : 0;
             const resta = obj.mov?.chave === chave ? num(obj.mov.resta) : 0;
             const d = dijkstra(mesa, this.ocupadas('pc:' + id, mesa.id), num(obj.x), num(obj.y), Math.max(resta, usadas < 3 ? desloc : 0));
@@ -611,9 +613,12 @@ export class Sala extends DurableObject {
           if (vez) delete vez.guarda;   // a Defesa extra dura até o próximo turno de quem defendeu
           const nomeVez = vez?.nome || '—';
           this.enviarTodos({ tipo: 'turno', k: cb.ordem[turno]?.k, nome: nomeVez, rodada });
+          if (vez?.cond) this.tickCondicoes(vez, cb.ordem[turno].k, `${rodada}:${turno}`);
           await this.gravar('pcs', 'npcs');
         } else if (msg.acao === 'encerrar') {
           mesa.combate = { ...COMBATE_VAZIO };
+          for (const o of [...Object.values(s.pcs), ...Object.values(s.npcs)]) if (o.cond && this.idMapa(o) === mesa.id) delete o.cond;
+          await this.gravar('pcs', 'npcs');
         }
         await this.gravar('mapas', 'log');
         break;
@@ -666,14 +671,23 @@ export class Sala extends DurableObject {
           }
         }
         const alvos = [...new Set((Array.isArray(msg.alvos) ? msg.alvos : []).map(String))].slice(0, 16).map(k => [k, this.objetoDe(k)]).filter(([, o]) => o);
+        // habilidade do Dom: dados, condições e efeitos vêm da tabela, não do cliente
+        const hab = msg.hab ? HABILIDADE[String(msg.hab)] : null;
+        if (msg.hab && (!hab || !de.startsWith('pc:') || !(autor.ficha?.talentos || []).includes(hab.id))) return erro('Habilidade não aprendida.');
+        if (hab && hab.t !== 'atq') {
+          const ok = hab.t === 'si' ? [[de, autor]] : alvos;
+          if (!ok.length) return erro('Escolha um aliado.');
+          await this.habilidadeApoio(autor, de, hab, ok, msg);
+          break;
+        }
         if (!alvos.length) return erro('Escolha um alvo.');
         const cob = msg.cob && typeof msg.cob === 'object' ? msg.cob : {};
-        const res = rolarAtaque(msg.mod, msg.tirith, !!msg.dom);
+        const res = rolarAtaque(num(msg.mod) + modCond(autor, 'atq'), msg.tirith, !!msg.dom || !!hab);
         const coroa = res.kael === 20, olho = res.kael === 1;
         const acertos = [], tags = [];
         let critico = false;
         for (const [k, o] of alvos) {
-          const def = num(o.defesa, 10) + Math.max(0, Math.min(5, Math.round(num(cob[k])))) + (o.guarda ? 2 : 0);
+          const def = num(o.defesa, 10) + Math.max(0, Math.min(5, Math.round(num(cob[k])))) + (o.guarda ? 2 : 0) + modCond(o, 'def');
           const ok = coroa || (!olho && res.total >= def);
           const crit = ok && (coroa || res.kael === res.lyra);
           if (ok) acertos.push([k, o, crit]);
@@ -687,13 +701,20 @@ export class Sala extends DurableObject {
         const mandar = ev => { this.enviarTodos(ev); this.registrar({ ...ev, dados: undefined, tipo: undefined }); };
         const dadoLyra = res.dados.find(d => d.c === 'lyra'), dadoAranor = res.dados.find(d => d.c === 'aranor');
         mandar({ ...base, t: Date.now(), dados: res.dados.filter(d => d !== dadoLyra && d !== dadoAranor), total: res.total, tags, grau: acertos.length ? (alvos.length > 1 ? `${acertos.length} de ${alvos.length} atingidos` : 'Acertou') : 'Errou', desc: res.desc.split(' · ')[0], rotulo: rot });
-        if (acertos.length) {
+        if (hab) {
+          for (const [, o] of acertos) this.aplicarCond(o, hab);
+          this.enviarTodos({ tipo: 'habilidade', k: de, hab: hab.id, alvos: alvos.map(([k]) => k), acertos: acertos.map(([k]) => k), centro: this.centroDe(msg, alvos) });
+          if (acertos.length && Object.keys(hab.cond).length) this.enviarTodos({ tipo: 'aviso', texto: `${hab.nome}: ${acertos.map(([, o]) => o.nome).join(', ')} — ${Object.keys(hab.cond).map(c => CONDICOES[c].ic + ' ' + CONDICOES[c].nome).join(', ')}.` });
+        }
+        // habilidade de controle (sem dano) só põe as condições
+        if (acertos.length && hab?.dados !== '-') {
           // dano = Lyra + dano da arma/técnica com seus modificadores (vazio = só Lyra)
-          const d = (msg.dano && rolarExpr(msg.dano)) || { dados: [], total: 0, desc: '' };
+          const exprDano = hab ? danoHabilidade(autor.ficha, hab) : msg.dano;
+          const d = (exprDano && rolarExpr(exprDano)) || { dados: [], total: 0, desc: '' };
           // crítico: Lyra conta como 20 e o alvo usa só metade da Proteção
           const somaDano = res.lyra + d.total, somaCrit = 20 + d.total, tagsD = critico ? ['Crítico: Lyra 20, ½ Proteção'] : [], abatidos = [];
           for (const [, o, crit] of acertos) {
-            const prot = crit ? Math.floor(num(o.protecao) / 2) : num(o.protecao);
+            const prot = hab?.perfura ? 0 : crit ? Math.floor(num(o.protecao) / 2) : num(o.protecao);
             const sofre = Math.max(0, (crit ? somaCrit : somaDano) - prot);
             const antes = num(o.vigor);
             o.vigor = Math.max(-99, antes - sofre);
@@ -703,7 +724,7 @@ export class Sala extends DurableObject {
           mandar({ ...base, t: Date.now() + 1, dados: [dadoLyra, ...d.dados], total: critico ? somaCrit : somaDano, tags: tagsD, grau: '', desc: `Lyra ${res.lyra}${d.desc ? ' + ' + d.desc : ''}`, rotulo: 'Dano · ' + texto(msg.rotulo, 50) });
           // shortcut: tabela de punição ainda não existe; ligar aqui quando o dono montar
           if (dadoAranor) mandar({ ...base, t: Date.now() + 2, dados: [dadoAranor], total: res.aranor, tags: [`Aranor ${res.aranor}: punição do Dom`], grau: '', desc: `Aranor ${res.aranor}`, rotulo: 'Punição · ' + texto(msg.rotulo, 46) });
-          this.enviarTodos({ tipo: 'golpe', k: de, dom: !!msg.dom, alvos: acertos.map(([k]) => k), distancia: !!msg.distancia });
+          if (!hab) this.enviarTodos({ tipo: 'golpe', k: de, dom: !!msg.dom, alvos: acertos.map(([k]) => k), distancia: !!msg.distancia });
           for (const o of abatidos) this.xpAbate(o, de);
         }
         await this.gravar('pcs', 'npcs', 'log');
@@ -826,6 +847,49 @@ export class Sala extends DurableObject {
     await this.difundir();
   }
 
+  centroDe(msg, alvos) {
+    const c = msg.centro && typeof msg.centro === 'object' ? msg.centro : null;
+    if (c) return { x: Math.round(num(c.x)), y: Math.round(num(c.y)) };
+    const o = alvos[0]?.[1]; return o ? { x: num(o.x), y: num(o.y) } : null;
+  }
+  // põe as condições da habilidade (fica a maior duração) e aplica limpa/dissipa
+  aplicarCond(o, hab) {
+    if (hab.limpa && o.cond) for (const c of Object.keys(o.cond)) if (!CONDICOES[c]?.bom) delete o.cond[c];
+    if (hab.dissipa && o.cond) for (const c of Object.keys(o.cond)) if (CONDICOES[c]?.bom) delete o.cond[c];
+    for (const [c, n] of Object.entries(hab.cond)) { o.cond ||= {}; o.cond[c] = Math.max(num(o.cond[c]), n); }
+    if (o.cond && !Object.keys(o.cond).length) delete o.cond;
+  }
+  // habilidade em aliados ou em si: não rola contra Defesa; Kael 1 (Olho de Aranor) falha
+  async habilidadeApoio(autor, de, hab, alvos, msg) {
+    const res = rolarAtaque(num(msg.mod), msg.tirith, true), falha = res.kael === 1;
+    const pele = autor.dados || {}, tags = [];
+    const base = { tipo: 'dado', nome: autor.nome, cor: autor.cor || '#e2b04a', kael: pele.kael || '#d9a23a', lyra: pele.lyra || '#3f78e0', material: pele.material || 'cristal' };
+    const cura = !falha && hab.dados ? rolarExpr(danoHabilidade(autor.ficha, hab)) : null;
+    if (!falha) for (const [, o] of alvos) {
+      if (cura) { const antes = num(o.vigor), max = num(o.vigorMax, antes); o.vigor = Math.min(Math.max(max, antes), antes + cura.total); tags.push(`${o.nome} +${o.vigor - antes} Vigor`); }
+      this.aplicarCond(o, hab);
+    }
+    if (!falha && Object.keys(hab.cond).length) tags.push(Object.keys(hab.cond).map(c => CONDICOES[c].ic + ' ' + CONDICOES[c].nome).join(', ') + ' em ' + alvos.map(([, o]) => o.nome).join(', '));
+    const ev = { ...base, t: Date.now(), dados: [...res.dados, ...(cura?.dados || [])], total: cura ? cura.total : res.kael, tags: falha ? ['Olho de Aranor: a habilidade falha'] : tags, grau: falha ? 'Falhou' : 'Sucesso', desc: res.desc + (cura ? ` · cura ${cura.desc}` : ''), rotulo: hab.nome };
+    this.enviarTodos(ev); this.registrar({ ...ev, dados: undefined, tipo: undefined });
+    this.enviarTodos({ tipo: 'habilidade', k: de, hab: hab.id, alvos: alvos.map(([k]) => k), acertos: falha ? [] : alvos.map(([k]) => k), centro: this.centroDe(msg, alvos) });
+    await this.gravar('pcs', 'npcs', 'log');
+  }
+  // começo do turno: dano/cura das condições, ação perdida e −1 na duração
+  tickCondicoes(o, k, chave) {
+    const linhas = [];
+    for (const [c, n] of Object.entries(o.cond)) {
+      const def = CONDICOES[c]; if (!def) { delete o.cond[c]; continue; }
+      if (def.dot) { const v = rolarExpr(def.dot).total; o.vigor = Math.max(-99, num(o.vigor) - v); linhas.push(`${def.ic} −${v} (${def.nome})`); }
+      if (def.cura) { const v = rolarExpr(def.cura).total, antes = num(o.vigor), max = num(o.vigorMax, antes); o.vigor = Math.min(Math.max(max, antes), antes + v); linhas.push(`${def.ic} +${o.vigor - antes} (${def.nome})`); }
+      if (def.acoes && k.startsWith('pc:')) { o.acoes = { chave, usadas: Math.min(3, def.acoes) }; linhas.push(`${def.ic} perde 1 ação`); }
+      else if (def.acoes) linhas.push(`${def.ic} ${def.nome}: perde 1 ação`);
+      if (n <= 1) delete o.cond[c]; else o.cond[c] = n - 1;
+    }
+    if (!Object.keys(o.cond).length) delete o.cond;
+    if (linhas.length) this.enviarTodos({ tipo: 'aviso', texto: `${o.nome}: ${linhas.join(' · ')}` });
+    this.enviarTodos({ tipo: 'condicao', k, dano: linhas.some(l => l.includes('−')), cura: linhas.some(l => l.includes('+')) });
+  }
   objetoDe(k) {
     k = String(k || ''); const i = k.indexOf(':'), t = k.slice(0, i), id = k.slice(i + 1);
     return t === 'pc' ? this.s.pcs[id] : t === 'npc' ? this.s.npcs[id] : null;

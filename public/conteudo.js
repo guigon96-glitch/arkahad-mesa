@@ -1,3 +1,4 @@
+import { CONDICOES } from './regras.js';
 // Conteúdo do Livro de Regras "Sangue e Cristal" usado pelo criador de personagem.
 // Edite aqui para ajustar raças, vocações, Dons e o cálculo dos valores derivados.
 
@@ -501,6 +502,74 @@ export const ARVORES = {
     N('imb5', 5, 'Avatar Elemental', '1×/cena, por 3 rodadas: cada acerto com a arma aplica de graça uma técnica de Nível 2.', { exigeDom: true }),
   ] },
 };
+
+// ================= Habilidades do Dom (árvore de cada Dom, só Aurethian) =================
+// 4 por Dom: G1 básica → G2 (duas, escolha uma ou as duas) → G3 suprema (nível 5, +1 Tensão).
+// S(nome, tipo, alcance, raio, dados, condições, animação, extras)
+//   tipo: atq = rola Kael contra a Defesa, dano = Lyra + dados ('-' = sem dano); apoio = aliado (dados = cura); si = em si mesmo.
+//   condições 'nome:turnos,...' (CONDICOES em regras.js); animação: projetil, raio, explosao, coluna, aura, onda, escudo, golpe.
+//   extras: perfura (ignora Proteção), limpa (tira condições ruins), dissipa (tira condições boas do alvo).
+const S = (nome, t, alc, raio, dados, cond, anim, ex = {}) => ({ nome, t, alc, raio, dados, cond: Object.fromEntries((cond || '').split(',').filter(Boolean).map(c => { const [k, v] = c.split(':'); return [k, +v || 1]; })), anim, ...ex });
+const HAB_DOM = {
+  kalthor: [S('Dardo Ígneo', 'atq', 8, 0, '1d8', 'queimando:1', 'projetil'), S('Anel de Brasas', 'atq', 6, 1, '1d6', 'queimando:2', 'explosao'), S('Manto de Calor', 'si', 0, 0, '', 'protegido:2', 'aura'), S('Coração do Vulcão', 'atq', 10, 2, '3d8', 'queimando:3', 'coluna')],
+  cryon: [S('Lança de Gelo', 'atq', 8, 0, '1d8', 'lento:1', 'projetil'), S('Prisão Glacial', 'atq', 6, 0, '1d6', 'congelado:1', 'coluna'), S('Armadura de Geada', 'apoio', 4, 0, '', 'protegido:2', 'escudo'), S('Zero Absoluto', 'atq', 8, 2, '3d6', 'congelado:2', 'explosao')],
+  verdis: [S('Cipó Agarrador', 'atq', 6, 0, '1d6', 'preso:1', 'coluna'), S('Chuva de Espinhos', 'atq', 8, 1, '1d8', 'envenenado:2', 'explosao'), S('Seiva Curativa', 'apoio', 4, 0, '2d6', 'regenerando:2', 'aura'), S('Floresta Viva', 'atq', 8, 2, '2d8', 'preso:2', 'coluna')],
+  vithar: [S('Toque Vital', 'apoio', 1, 0, '1d8+2', '', 'aura'), S('Pulso Restaurador', 'apoio', 6, 1, '1d6', 'regenerando:1', 'onda'), S('Murchar', 'atq', 6, 0, '1d8', 'lento:2', 'raio'), S('Florescer da Vida', 'apoio', 6, 2, '2d8', 'regenerando:3', 'coluna', { limpa: true })],
+  phasma: [S('Miragem Ofuscante', 'atq', 8, 0, '-', 'cego:1', 'raio'), S('Duplos Ilusórios', 'si', 0, 0, '', 'protegido:2', 'aura'), S('Pesadelo Vivo', 'atq', 8, 0, '1d6', 'amedrontado:2', 'explosao'), S('Labirinto de Espelhos', 'atq', 10, 2, '-', 'atordoado:1,cego:1', 'explosao')],
+  zephyr: [S('Lâmina de Vento', 'atq', 8, 0, '1d8', '', 'projetil'), S('Rajada Repulsora', 'atq', 4, 1, '1d6', 'atordoado:1', 'onda'), S('Passo do Vento', 'si', 0, 0, '', 'veloz:2,fortalecido:1', 'aura'), S('Olho do Furacão', 'atq', 8, 2, '2d8', 'lento:2', 'coluna')],
+  toxys: [S('Dardo Tóxico', 'atq', 8, 0, '1d4', 'envenenado:2', 'projetil'), S('Nuvem Nauseante', 'atq', 8, 1, '1d4', 'envenenado:2,atordoado:1', 'explosao'), S('Antídoto Sintético', 'apoio', 4, 0, '1d6', '', 'aura', { limpa: true }), S('Praga Escarlate', 'atq', 8, 2, '2d6', 'envenenado:3,lento:2', 'explosao')],
+  voltri: [S('Faísca', 'atq', 8, 0, '1d8', '', 'raio'), S('Corrente em Cadeia', 'atq', 8, 1, '1d8', 'atordoado:1', 'raio'), S('Reflexos Elétricos', 'si', 0, 0, '', 'fortalecido:2,veloz:2', 'aura'), S('Juízo do Trovão', 'atq', 12, 1, '4d6', 'atordoado:1', 'coluna')],
+  umbra: [S('Garra Sombria', 'atq', 6, 0, '1d8', 'cego:1', 'projetil'), S('Manto da Noite', 'si', 0, 0, '', 'protegido:2', 'aura'), S('Correntes de Sombra', 'atq', 6, 0, '1d6', 'preso:1', 'coluna'), S('Eclipse', 'atq', 8, 2, '2d6', 'cego:2,amedrontado:1', 'explosao')],
+  sonara: [S('Grito Cortante', 'atq', 6, 0, '1d8', '', 'onda'), S('Nota Atordoante', 'atq', 6, 0, '1d4', 'atordoado:1', 'onda'), S('Canção de Bravura', 'apoio', 6, 1, '', 'fortalecido:2', 'aura'), S('Ressonância Destruidora', 'atq', 6, 2, '3d6', 'atordoado:1', 'onda')],
+  aquilon: [S('Jato de Água', 'atq', 8, 0, '1d8', '', 'projetil'), S('Bolha Protetora', 'apoio', 4, 0, '', 'protegido:2', 'escudo'), S('Correnteza', 'atq', 6, 1, '1d6', 'lento:2', 'onda'), S('Maremoto', 'atq', 8, 2, '3d6', 'atordoado:1,lento:1', 'coluna')],
+  lumora: [S('Raio Solar', 'atq', 10, 0, '1d8', '', 'raio'), S('Clarão', 'atq', 6, 1, '-', 'cego:1', 'explosao'), S('Luz Restauradora', 'apoio', 6, 0, '1d8', '', 'aura'), S('Lança do Amanhecer', 'atq', 12, 1, '4d6', 'cego:1', 'coluna')],
+  morphis: [S('Garras da Fera', 'atq', 1, 0, '2d6', 'marcado:1', 'golpe'), S('Pele de Urso', 'si', 0, 0, '', 'protegido:2', 'aura'), S('Rugido Primal', 'atq', 4, 1, '-', 'amedrontado:2', 'onda'), S('Forma Ancestral', 'si', 0, 0, '', 'fortalecido:3,protegido:3,regenerando:3', 'aura')],
+  specula: [S('Reflexo Cortante', 'atq', 8, 0, '1d8', '', 'raio'), S('Espelho Defletor', 'apoio', 4, 0, '', 'protegido:2', 'escudo'), S('Prisma Cegante', 'atq', 8, 1, '1d4', 'cego:1', 'explosao'), S('Sala dos Espelhos', 'atq', 8, 2, '2d8', 'atordoado:1,marcado:2', 'explosao')],
+  cristalis: [S('Estilhaço', 'atq', 8, 0, '1d8', '', 'projetil'), S('Casulo de Cristal', 'apoio', 4, 0, '', 'protegido:2', 'escudo'), S('Espinhos de Cristal', 'atq', 6, 1, '1d8', 'preso:1', 'coluna'), S('Catedral Vaeloryn', 'atq', 8, 2, '3d6', 'marcado:2', 'coluna')],
+  gravitio: [S('Peso Esmagador', 'atq', 8, 0, '1d8', 'lento:1', 'coluna'), S('Âncora', 'atq', 6, 0, '-', 'preso:2', 'coluna'), S('Leveza', 'apoio', 6, 0, '', 'veloz:2,protegido:1', 'aura'), S('Singularidade', 'atq', 8, 2, '3d8', 'preso:1,atordoado:1', 'explosao')],
+  chronos: [S('Instante Roubado', 'atq', 8, 0, '-', 'lento:2', 'raio'), S('Passo Adiante', 'si', 0, 0, '', 'veloz:2,fortalecido:1', 'aura'), S('Eco do Golpe', 'atq', 6, 0, '2d6', 'marcado:1', 'projetil'), S('Parar o Tempo', 'atq', 10, 2, '-', 'atordoado:2', 'onda')],
+  psyka: [S('Lança Mental', 'atq', 8, 0, '1d8', 'amedrontado:1', 'raio'), S('Sugestão', 'atq', 8, 0, '-', 'atordoado:1', 'onda'), S('Elo Mental', 'apoio', 8, 1, '', 'fortalecido:2', 'aura'), S('Tempestade Psíquica', 'atq', 8, 2, '3d6', 'amedrontado:2,atordoado:1', 'explosao')],
+  biomor: [S('Ferrão Ósseo', 'atq', 6, 0, '1d8', 'envenenado:1', 'projetil'), S('Carne Adaptável', 'si', 0, 0, '', 'regenerando:3,protegido:1', 'aura'), S('Toque Debilitante', 'atq', 1, 0, '1d6', 'lento:2', 'golpe'), S('Metamorfose Total', 'si', 0, 0, '', 'fortalecido:3,veloz:3,regenerando:2', 'aura')],
+  aether: [S('Pulso de Força', 'atq', 8, 0, '1d8', '', 'projetil'), S('Barreira Cinética', 'apoio', 6, 1, '', 'protegido:2', 'escudo'), S('Campo Repulsor', 'atq', 4, 1, '1d6', 'atordoado:1', 'onda'), S('Colapso de Campo', 'atq', 10, 2, '4d6', 'marcado:1', 'explosao')],
+  spectra: [S('Toque Espectral', 'atq', 6, 0, '1d8', '', 'raio', { perfura: true }), S('Forma Etérea', 'si', 0, 0, '', 'protegido:2', 'aura'), S('Grito do Além', 'atq', 6, 1, '1d6', 'amedrontado:2', 'onda'), S('Legião Espectral', 'atq', 8, 2, '3d6', 'amedrontado:1', 'coluna', { perfura: true })],
+  visora: [S('Prever Golpe', 'si', 0, 0, '', 'protegido:2', 'aura'), S('Ponto Fraco', 'atq', 10, 0, '-', 'marcado:3', 'raio'), S('Visão Compartilhada', 'apoio', 8, 1, '', 'fortalecido:2', 'aura'), S('Destino Selado', 'atq', 10, 0, '3d8', 'marcado:2', 'coluna', { perfura: true })],
+  geo: [S('Pedrada', 'atq', 8, 0, '1d8', '', 'projetil'), S('Pele de Pedra', 'apoio', 1, 0, '', 'protegido:3', 'escudo'), S('Fissura', 'atq', 6, 1, '1d8', 'lento:2', 'coluna'), S('Terremoto', 'atq', 6, 2, '3d8', 'atordoado:1', 'onda')],
+  ferrar: [S('Agulhas de Ferro', 'atq', 8, 0, '1d8', '', 'projetil'), S('Magnetizar', 'atq', 6, 0, '-', 'preso:2', 'coluna'), S('Escudo de Limalha', 'apoio', 4, 0, '', 'protegido:2', 'escudo'), S('Tempestade de Lâminas', 'atq', 8, 2, '3d8', 'marcado:1', 'explosao')],
+  nebulon: [S('Vapor Escaldante', 'atq', 6, 0, '1d8', 'queimando:1', 'projetil'), S('Névoa Densa', 'atq', 8, 1, '-', 'cego:2', 'explosao'), S('Véu de Bruma', 'apoio', 6, 1, '', 'protegido:1', 'aura'), S('Neblina Sufocante', 'atq', 8, 2, '2d6', 'cego:2,envenenado:2', 'explosao')],
+  somnis: [S('Bocejo', 'atq', 8, 0, '-', 'lento:2', 'onda'), S('Sono Profundo', 'atq', 6, 0, '-', 'atordoado:2', 'coluna'), S('Sonho Reparador', 'apoio', 4, 0, '1d8', 'regenerando:2', 'aura'), S('Pesadelo Coletivo', 'atq', 8, 2, '2d6', 'amedrontado:2,atordoado:1', 'explosao')],
+  chama_abismo: [S('Brasa Abissal', 'atq', 8, 0, '1d10', 'queimando:2', 'projetil'), S('Muralha Voraz', 'atq', 6, 1, '2d6', 'queimando:2', 'coluna'), S('Pele do Abismo', 'si', 0, 0, '', 'protegido:2', 'aura'), S('Inferno Azul', 'atq', 10, 2, '4d8', 'queimando:3', 'coluna', { perfura: true })],
+  eco_estelar: [S('Ler Intenções', 'atq', 10, 0, '-', 'marcado:2', 'raio'), S('Coordenar', 'apoio', 8, 2, '', 'fortalecido:2', 'aura'), S('Desmascarar', 'atq', 8, 1, '-', 'marcado:1', 'onda', { dissipa: true }), S('Percepção Absoluta', 'apoio', 8, 2, '', 'protegido:2,fortalecido:2', 'onda')],
+  veu_caos: [S('Distorção', 'atq', 8, 0, '-', 'atordoado:1', 'raio'), S('Apagar Sentido', 'atq', 8, 0, '-', 'cego:2', 'projetil'), S('Invisibilidade Seletiva', 'si', 0, 0, '', 'protegido:3', 'aura'), S('Exército Falso', 'atq', 8, 2, '2d8', 'amedrontado:3', 'explosao')],
+  dissolucao: [S('Toque Dissolvente', 'atq', 1, 0, '2d6', '', 'golpe', { perfura: true }), S('Corroer Armadura', 'atq', 6, 0, '1d6', 'marcado:3', 'raio'), S('Poeira Fina', 'atq', 6, 1, '1d6', 'cego:1', 'explosao'), S('Desintegrar', 'atq', 8, 0, '5d6', '', 'raio', { perfura: true })],
+  entropia: [S('Agitação Molecular', 'atq', 8, 0, '1d8', 'queimando:1', 'raio'), S('Caos Interno', 'atq', 6, 0, '1d6', 'envenenado:2', 'projetil'), S('Desordem', 'atq', 8, 1, '-', 'atordoado:1', 'explosao'), S('Ruína Entrópica', 'atq', 10, 2, '4d6', 'lento:2', 'explosao', { perfura: true })],
+  caosmora: [S('Dobra do Espaço', 'atq', 8, 0, '1d8', 'marcado:1', 'projetil'), S('Distorção em Massa', 'atq', 8, 1, '1d6', 'lento:2', 'onda'), S('Realidade Instável', 'si', 0, 0, '', 'protegido:2,veloz:2', 'aura'), S('Colapso do Real', 'atq', 10, 2, '3d8', 'atordoado:1,amedrontado:2', 'coluna')],
+  eterna: [S('Sangue Eterno', 'si', 0, 0, '', 'regenerando:3', 'aura'), S('Transfusão', 'apoio', 4, 0, '2d6', '', 'aura'), S('Corpo Imortal', 'si', 0, 0, '', 'protegido:2,regenerando:2', 'aura', { limpa: true }), S('Renascer', 'apoio', 6, 1, '3d8', 'regenerando:3', 'coluna', { limpa: true })],
+  intuara: [S('Análise', 'atq', 10, 0, '-', 'marcado:2', 'raio'), S('Brecha Calculada', 'apoio', 6, 0, '', 'fortalecido:3', 'aura'), S('Contra-Estratégia', 'atq', 8, 1, '-', 'lento:2', 'onda'), S('Solução Perfeita', 'atq', 10, 0, '3d8', 'marcado:2', 'raio', { perfura: true })],
+};
+export const CUSTO_HAB = [1, 2, 2, 4];
+const GRAU_HAB = [1, 2, 2, 3];
+// texto da habilidade gerado dos dados (assim o que se lê é o que o servidor faz)
+export function descHabilidade(h) {
+  const cs = Object.entries(h.cond).map(([c, n]) => `${CONDICOES[c].nome} (${n} turno${n > 1 ? 's' : ''})`);
+  const area = h.raio ? ` em área ${h.raio * 2 + 1}×${h.raio * 2 + 1}` : '';
+  const ex = [h.perfura && 'ignora Proteção', h.limpa && 'remove condições ruins', h.dissipa && 'anula condições boas do alvo'].filter(Boolean);
+  const partes = h.t === 'atq' ? [h.dados === '-' ? 'sem dano' : `Lyra + ${h.dados}`, ...cs, ...ex] : [h.dados && `cura ${h.dados}`, ...cs, ...ex].filter(Boolean);
+  const quem = h.t === 'si' ? 'Em você' : h.t === 'apoio' ? (h.alc <= 1 ? 'Toque num aliado' : `Aliados a ${h.alc} casas`) : (h.alc <= 1 ? 'Corpo a corpo' : `Ataque a ${h.alc} casas`);
+  return `${quem}${area}: ${partes.join(', ')}.`;
+}
+export const HABILIDADE = {};
+for (const [dom, lista] of Object.entries(HAB_DOM)) {
+  const d = TODOS_DONS[dom];
+  ARVORES['hab_' + dom] = { nome: 'Habilidades de ' + d.nome, tipo: 'habilidade', dom, cor: d.cor, desc: `Só Aurethian com ${d.nome}. Golpes, defesas e condições do Dom.`,
+    nos: lista.map((h, i) => {
+      const id = `hab_${dom}_${i + 1}`;
+      HABILIDADE[id] = { ...h, id, dom, n: i + 1, custo: CUSTO_HAB[i], tensao: i === 3 ? 1 : 0, cor: d.cor };
+      return { ...N(id, GRAU_HAB[i], h.nome, `${CUSTO_HAB[i]} Fôlego${i === 3 ? ', +1 Tensão' : ''}. ${descHabilidade(h)}`), hab: true, nivelMin: i === 3 ? 5 : 0 };
+    }) };
+}
+// habilidades que o personagem aprendeu (na ordem da árvore)
+export function habilidadesDe(f) { return (f?.talentos || []).map(id => HABILIDADE[id]).filter(h => h && ehAurethian(f) && (h.dom === f.dom || (f.estrato === 'dualista' && h.dom === f.dom2))); }
+export function danoHabilidade(f, h) { const e = efeitos(f); return h.t === 'atq' && h.dados !== '-' ? h.dados + (e.danoDom ? '+' + e.danoDom : '') : h.dados; }
 export const TALENTO = Object.fromEntries(Object.entries(ARVORES).flatMap(([a, arv]) => arv.nos.map(n => [n.id, { ...n, arvore: a }])));
 export function pontosTalento(f) {
   const n = num(f.nivel, 1);
@@ -510,14 +579,16 @@ export function pontosTalento(f) {
 export function arvoresPermitidas(f) {
   const aur = ehAurethian(f);
   const cristal = !!VOCACOES[f.vocacao]?.cristal;
-  return Object.entries(ARVORES).filter(([, a]) => a.tipo === 'arma' || (a.tipo === 'cristal' ? cristal : aur ? a.tipo === 'dom' || a.tipo === 'hibrida' : a.tipo === 'vellunari')).map(([k]) => k);
+  const doms = [f.dom, f.estrato === 'dualista' && f.dom2].filter(Boolean);
+  return Object.entries(ARVORES).filter(([, a]) => a.tipo === 'arma' || (a.tipo === 'habilidade' ? aur && doms.includes(a.dom) : a.tipo === 'cristal' ? cristal : aur ? a.tipo === 'dom' || a.tipo === 'hibrida' : a.tipo === 'vellunari')).map(([k]) => k);
 }
 export function pontosNaArvore(f, arvore) { return (f.talentos || []).filter(id => TALENTO[id]?.arvore === arvore).length; }
 // por que um nó não pode ser pego agora (ou null)
 export function bloqueioTalento(f, id) {
   const t = TALENTO[id]; if (!t) return 'Talento desconhecido.';
   const aur = ehAurethian(f), arv = ARVORES[t.arvore];
-  if (!arvoresPermitidas(f).includes(t.arvore)) return arv.tipo === 'vellunari' ? 'Só Vellunari.' : arv.tipo === 'cristal' ? 'Só Canalizador e Curandeiro.' : 'Só Aurethian.';
+  if (!arvoresPermitidas(f).includes(t.arvore)) return arv.tipo === 'vellunari' ? 'Só Vellunari.' : arv.tipo === 'cristal' ? 'Só Canalizador e Curandeiro.' : arv.tipo === 'habilidade' ? `Só Aurethian com ${TODOS_DONS[arv.dom].nome}.` : 'Só Aurethian.';
+  if (t.nivelMin && num(f.nivel, 1) < t.nivelMin) return `Exige nível ${t.nivelMin}.`;
   if (t.ef?.soVellunari && aur) return 'Mestria: só Vellunari.';
   if (aur && arv.tipo === 'arma' && t.grau > 3) return 'Aurethians vão até o Grau 3 nas armas.';
   const outros = (f.talentos || []).filter(x => x !== id);

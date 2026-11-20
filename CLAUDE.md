@@ -27,6 +27,7 @@ Mesa virtual 3D para o RPG de Arkahad (sistema próprio: testes em 2d10 Kael/Lyr
 | Relevo contínuo do chão (heightfield + mistura de 8 texturas por shader) | `public/terreno.js` |
 | Personagens modulares (corpo, roupas, cabelo, armas, Dom na arma), criaturas, natureza | `public/modelos.js` |
 | Miniaturas simples de reserva e dados 3D | `public/miniatura.js` |
+| Efeitos das habilidades do Dom (partículas, projéteis, feixes, explosões, colunas, ondas, auras, escudos) | `public/efeitos.js` |
 | Estilos | `public/style.css` |
 | Créditos e licenças (obrigatório atualizar ao adicionar asset de terceiros) | `public/creditos.html`, `public/modelos/LICENCA-*.txt`, `README.md` |
 
@@ -43,6 +44,7 @@ Comandos do projeto: `/tarefa <pedido>`, `/regra <pergunta>`, `/modelo3d <arquiv
 - O cliente nunca é a autoridade: movimento (Dijkstra com custo de subida), turno, 3 ações por turno, rolagens e ataques (`case 'ataque'`: `rolarAtaque` em `regras.js`, Kael + mod contra Defesa + cobertura + guarda, dano = Lyra + dano da arma − Proteção) acontecem no servidor. O cliente só calcula prévias (alcance, linha de visão, bônus de altura) e envia o modificador.
 - Toda entrada do cliente passa por `limparPc` / `limparNpc` / `mapaValidado`. Ao criar campo novo, adicione-o às listas `CAMPOS_PC` / `CAMPOS_NPC` e valide.
 - Mensagens WebSocket principais: `mesa` (editar o mapa atual), `mapa` (criar/ir/importar/apagar/inicial/trazer), `portal`, `pc`, `npc`, `apagarNpc`, `mover`, `combate`, `ataque`, `defender`, `rolar`, `pedir` (jogador pede teste), `decidir` (Mestre aprova com DIF oculta e XP), `xp`, `fichaMestre` (notas secretas e para o jogador), `ajuda` (dica + bônus no próximo teste, secreta ou não), `acoes`, `ping`, `aviso`. XP: `darXp`/`xpAbate` em `worker.js`, tabela em `regras.js`.
+- Habilidades do Dom: 4 por Dom em `HAB_DOM` (`conteudo.js`), viram a árvore de talentos `hab_<dom>`. `ataque` com `hab` usa os dados da tabela (dano, cura, condições); o servidor manda `habilidade` (animação) e `condicao` (pulso no começo do turno). Condições ficam em `cond` de PCs/NPCs (só o servidor escreve), tabela `CONDICOES` em `regras.js`.
 
 ## Assets 3D
 - Personagens: Quaternius (Universal Base Characters + Modular Outfits + Universal Animation Library), recoloridos por shader (pele, roupa por máscara em `modelos/q/mask_*.png`, olhos). Ossos de peças de roupa vêm com sufixos `_1`, `_2` do GLTFLoader: use `acharOsso()`/`canon()`.
