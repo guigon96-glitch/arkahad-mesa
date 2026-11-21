@@ -105,6 +105,14 @@ export const num = (v, d = 0) => {
 
 // Paredes e cercas ficam numa camada própria (mesa.par, um caractere por casa, ' ' = nada) por cima do chão.
 export const PAREDES = ['#', 'm', 'f', 'h', '+', 'd', 'g', 'i', 'p', 'z', '!', '%'];
+// Pintura das paredes (camada mesa.tin, um caractere por casa, ' ' = cor natural do material)
+export const TINTAS = {
+  a: { n: 'Branco caiado', c: '#f1ece0' }, b: { n: 'Creme', c: '#e8d7b0' }, c: { n: 'Ocre', c: '#c99a4a' }, d: { n: 'Terracota', c: '#b5603d' },
+  e: { n: 'Vinho', c: '#7a2a2e' }, f: { n: 'Rosa antigo', c: '#c98c8a' }, g: { n: 'Verde sálvia', c: '#9aab8a' }, h: { n: 'Verde musgo', c: '#4f6a3a' },
+  i: { n: 'Azul celeste', c: '#8fb3cc' }, j: { n: 'Azul anil', c: '#2f4f86' }, k: { n: 'Lilás', c: '#8e7aa8' }, l: { n: 'Cinza pedra', c: '#9a968e' },
+  m: { n: 'Grafite', c: '#4a4a50' }, n: { n: 'Preto', c: '#22201f' }, o: { n: 'Madeira clara', c: '#b08a5a' }, p: { n: 'Madeira escura', c: '#5a3a22' },
+  q: { n: 'Dourado', c: '#d4a640' }, r: { n: 'Turquesa', c: '#3f9a96' },
+};
 export const paredeEm = (mesa, x, y) => { const p = (mesa?.par?.[y] || '')[x]; return PAREDES.includes(p) ? p : ''; };
 // o que vale para movimento, visão e cobertura: a parede, se houver; senão o chão
 export const celula = (mesa, x, y) => paredeEm(mesa, x, y) || (mesa?.grid?.[y] || '')[x];

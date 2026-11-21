@@ -1,5 +1,5 @@
 import { DurableObject } from 'cloudflare:workers';
-import { TERRENOS, LUZES, LUAS, r, num, custoCel, celula, PAREDES, dijkstra, rolar2d10, rolarAtaque, rolarExpr, nivelPorXp, CONDICOES, CONDS_CAOS, modCond, temCond, deslocCom, distanciaCasas } from '../public/regras.js';
+import { TERRENOS, TINTAS, LUZES, LUAS, r, num, custoCel, celula, PAREDES, dijkstra, rolar2d10, rolarAtaque, rolarExpr, nivelPorXp, CONDICOES, CONDS_CAOS, modCond, temCond, deslocCom, distanciaCasas } from '../public/regras.js';
 import { HABILIDADE, danoHabilidade, ataqueArma, temImbuir, temTalento, TODOS_DONS, DOM_FUNDIDO, migrarHabs, migrarFicha } from '../public/conteudo.js';
 
 const MAX_JOGADORES = 6;
@@ -260,6 +260,11 @@ function camadaParedes(p, cols, rows) {
   p = Array.isArray(p) ? p : [];
   return Array.from({ length: rows }, (_, y) => [...String(p[y] || '').padEnd(cols, ' ').slice(0, cols)].map(c => PAREDES.includes(c) ? c : ' ').join(''));
 }
+// pintura das paredes: uma letra de TINTAS por casa, ' ' = cor natural
+function camadaTinta(p, cols, rows) {
+  p = Array.isArray(p) ? p : [];
+  return Array.from({ length: rows }, (_, y) => [...String(p[y] || '').padEnd(cols, ' ').slice(0, cols)].map(c => TINTAS[c] ? c : ' ').join(''));
+}
 // giro dos objetos: '0'..'3' = quartos de volta, ' ' = automático
 function camadaGiro(p, cols, rows) {
   p = Array.isArray(p) ? p : [];
@@ -276,6 +281,7 @@ function mapaValidado(id, d) {
     alt: Array.from({ length: rows }, (_, y) => [...String(a[y] || '').padEnd(cols, '1').slice(0, cols)].map(c => /[0-4]/.test(c) ? c : '1').join('')),
     par: camadaParedes(d.par, cols, rows),
     rot: camadaGiro(d.rot, cols, rows),
+    tin: camadaTinta(d.tin, cols, rows),
     luz: LUZES[d.luz] ? d.luz : 'dia', lua: LUAS[d.lua] ? d.lua : 'nenhuma',
   });
   return m;
@@ -457,7 +463,7 @@ export class Sala extends DurableObject {
         if ('nome' in d) mesa.nome = texto(d.nome, 60) || 'Mapa';
         if ('luz' in d && LUZES[d.luz]) mesa.luz = d.luz;
         if ('lua' in d && LUAS[d.lua]) mesa.lua = d.lua;
-        if ('cols' in d || 'rows' in d || 'grid' in d || 'alt' in d || 'par' in d || 'rot' in d) {
+        if ('cols' in d || 'rows' in d || 'grid' in d || 'alt' in d || 'par' in d || 'rot' in d || 'tin' in d) {
           const cols = Math.max(6, Math.min(60, Math.round(num(d.cols, mesa.cols))));
           const rows = Math.max(6, Math.min(60, Math.round(num(d.rows, mesa.rows))));
           const g = Array.isArray(d.grid) ? d.grid : mesa.grid;
@@ -467,6 +473,7 @@ export class Sala extends DurableObject {
           mesa.alt = Array.from({ length: rows }, (_, y) => [...String(a[y] || '').padEnd(cols, '1').slice(0, cols)].map(c => /[0-4]/.test(c) ? c : '1').join(''));
           mesa.par = camadaParedes(Array.isArray(d.par) ? d.par : mesa.par, cols, rows);
           mesa.rot = camadaGiro(Array.isArray(d.rot) ? d.rot : mesa.rot, cols, rows);
+          mesa.tin = camadaTinta(Array.isArray(d.tin) ? d.tin : mesa.tin, cols, rows);
           mesa.cols = cols; mesa.rows = rows;
           for (const k of Object.keys(mesa.portais || {})) { const [x, y] = k.split(',').map(Number); if (x >= cols || y >= rows) delete mesa.portais[k]; }
         }

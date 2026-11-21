@@ -38,9 +38,10 @@ Comandos do projeto: `/tarefa <pedido>`, `/regra <pergunta>`, `/modelo3d <arquiv
 
 ## Modelo de dados (Durable Object `Sala`)
 - Armazenamento: `meta` (nome, códigos, senha PBKDF2, `mapaInicial`, `vendo` = mapa que o Mestre está vendo), `mapas` (id → mapa), `pcs` (id do usuário → personagem), `npcs`, `log`. Sessões antigas com a chave `mesa` são migradas para `mapas.m1` em `carregar()`.
-- Mapa: `{ id, nome, cols, rows, grid: string[], alt: string[], luz, lua, portais: { 'x,y': { para, x, y, nome, cor } }, combate }`.
+- Mapa: `{ id, nome, cols, rows, grid: string[], alt: string[], par: string[], rot: string[], tin: string[], luz, lua, portais: { 'x,y': { para, x, y, nome, cor } }, combate }`.
   - `grid`: um caractere por casa (ver `TERRENOS` em `regras.js`: `"` mato, `.` terra, `,` areia, `_` ladrilho, `=` madeira, `v` vidro negro, `~` água, `T` árvore, `P` pinheiro, `Q` árvore seca, `k` arbusto, `#` muro, `m` paliçada, `h` muro baixo, `+` porta, `^` rocha, `*` fogueira, `b c s n a o w` objetos, `/` rampa e `|` escada, que ligam níveis: `custoSubida`).
   - `par` (paredes): `# m f h + d` e as de construção `g` tijolo, `i` reboco, `p` tábuas, `z` muralha, `!` janela, `%` grade (`PAREDES` em `regras.js`; espessura/altura em `PAREDES` do `cena3d.js` e em `godot` `cena/paredes.gd`).
+  - `tin` (pintura das paredes): uma letra de `TINTAS` (`regras.js`) por casa, ' ' = cor natural; validada por `camadaTinta` no `worker.js`. Só o cliente Godot desenha a tinta.
   - `alt`: `'0'..'4'` = nível −1..+3 (`nivelEm`). `NIVEL_H` em `terreno.js` dá a altura visual.
 - PCs e NPCs têm `mapa`; o servidor resolve com `idMapa()`. Cada jogador recebe só o mapa onde está o personagem dele (`estadoPara`); o Mestre recebe o mapa `meta.vendo` e todos os NPCs.
 - O cliente nunca é a autoridade: movimento (Dijkstra com custo de subida), turno, 3 ações por turno, rolagens e ataques (`case 'ataque'`: `rolarAtaque` em `regras.js`, Kael + mod contra Defesa + cobertura + guarda, dano = Lyra + dano da arma − Proteção) acontecem no servidor. O cliente só calcula prévias (alcance, linha de visão, bônus de altura) e envia o modificador.

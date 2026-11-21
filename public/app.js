@@ -493,7 +493,7 @@ function cartaoPortal(x, y, pt) {
 // ================= Baixar e carregar mapas =================
 function baixarMapa() {
   const npcsAqui = Object.values(npcs).filter(n => (n.mapa || mesa.id) === mesa.id).map(({ mapa, x, y, ...n }) => ({ ...n, x, y }));
-  const dados = { formato: 'arkahad-mapa', versao: 1, mapa: { nome: mesa.nome, cols: mesa.cols, rows: mesa.rows, grid: mesa.grid, alt: altDe(mesa), par: parDe(mesa), rot: rotDe(mesa), luz: mesa.luz, lua: mesa.lua }, npcs: npcsAqui };
+  const dados = { formato: 'arkahad-mapa', versao: 1, mapa: { nome: mesa.nome, cols: mesa.cols, rows: mesa.rows, grid: mesa.grid, alt: altDe(mesa), par: parDe(mesa), rot: rotDe(mesa), tin: mesa.tin, luz: mesa.luz, lua: mesa.lua }, npcs: npcsAqui };
   const url = URL.createObjectURL(new Blob([JSON.stringify(dados, null, 1)], { type: 'application/json' }));
   const a = document.createElement('a'); a.href = url; a.download = (mesa.nome || 'mapa').replace(/[^\p{L}\p{N}]+/gu, '-').toLowerCase() + '.arkahad.json';
   document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 2000);
