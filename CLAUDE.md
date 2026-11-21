@@ -2,11 +2,16 @@
 
 Mesa virtual 3D para o RPG de Arkahad (sistema próprio: testes em 2d10 Kael/Lyra; ataques em d20 separados — Kael acerto, Lyra dano, Aranor punição do Dom). Até 6 jogadores + Mestre, login Google, sessões com senha, vários mapas por sessão ligados por portais. Tudo em português (interface, código, nomes de variáveis).
 
+## Cliente principal: Godot (leia antes de qualquer tarefa)
+- **Toda novidade de jogo (interface, cena 3D, combate, mover, efeitos, ficha, painel do Mestre) é feita no cliente Godot 4.7 em `godot/`.** O site em `public/` (app.js, cena3d.js, criacao.js…) virou legado: só mexa nele se o dono pedir pelo nome “site”/“navegador”.
+- O servidor continua sendo `src/worker.js` (autoridade de tudo: movimento, ações, rolagens) e as regras compartilhadas continuam em `public/regras.js` + `public/conteudo.js`. Regra nova vai no servidor primeiro; o Godot só mostra prévia e envia mensagens WebSocket.
+- O Godot não importa os módulos JS: o que ele precisa das regras é copiado em GDScript (ex.: custos de terreno em `godot/movimento.gd`, alturas em `godot/construtor_mapa.gd`). Ao mudar `TERRENOS`/`PAREDES`/`custoSubida` em `regras.js`, atualize a cópia no Godot no mesmo commit.
+
 ## Economia de tokens (siga sempre)
 - Leia só o que a tarefa precisa. Use `grep -n` para achar a função e leia com offset/limit; nunca leia `app.js`, `cena3d.js` ou `worker.js` inteiros.
 - Não abra: `public/vendor/`, `node_modules/`, `package-lock.json`, `*.glb`, `*.hdr`, `public/texturas/`, `public/ceus/`, imagens. (Bloqueados em `.claude/settings.json`.)
 - Regras do jogo: veja `docs/regras/INDICE.md` e abra só o capítulo necessário.
-- Não tire screenshots nem rode playwright a menos que o dono peça; ele testa no navegador e descreve o problema.
+- Não tire screenshots nem rode playwright a menos que o dono peça; ele testa no Godot e descreve o problema.
 - Respostas curtas: diga o que mudou e como testar. Não cole código grande na resposta.
 - Uma tarefa por sessão. Ao terminar: commit + push, e sugira `/clear`.
 
@@ -21,15 +26,15 @@ Mesa virtual 3D para o RPG de Arkahad (sistema próprio: testes em 2d10 Kael/Lyr
 | Servidor: login (JWT do Google), API, Durable Objects `Saguao` (lista de sessões) e `Sala` (estado da sessão + WebSocket) | `src/worker.js` |
 | Regras de mapa: terrenos, custos, níveis de altura, Dijkstra, linha de visão, terreno alto, rolagens 2d10 | `public/regras.js` (usado pelo servidor e pelo cliente) |
 | Conteúdo do sistema: raças, origens, estratos, vocações, Dons, armas, talentos, ficha e cálculos | `public/conteudo.js` |
-| Interface do jogo: saguão, ficha, painel do Mestre, editor de terreno, mapas/portais, barra de combate, mira | `public/app.js` |
+| (legado, site) Interface do jogo: saguão, ficha, painel do Mestre, editor de terreno, mapas/portais, barra de combate, mira | `public/app.js` |
 | Criador de personagem (passos, talentos, aparência com prévia 3D) | `public/criacao.js` |
-| Cena 3D: câmera, céus HDRI, luzes, água, paredes, portais, miniaturas, dados físicos, pós-processamento | `public/cena3d.js` |
+| (legado, site) Cena 3D: câmera, céus HDRI, luzes, água, paredes, portais, miniaturas, dados físicos, pós-processamento | `public/cena3d.js` |
 | Relevo contínuo do chão (heightfield + mistura de 8 texturas por shader) | `public/terreno.js` |
 | Personagens modulares (corpo, roupas, cabelo, armas, Dom na arma), criaturas, natureza | `public/modelos.js` |
 | Miniaturas simples de reserva e dados 3D | `public/miniatura.js` |
 | Efeitos das habilidades do Dom (partículas, projéteis, feixes, explosões, colunas, ondas, auras, escudos) | `public/efeitos.js` |
 | Estilos | `public/style.css` |
-| Piloto do cliente instalável (Godot 4, Forward+): login, mapa com texturas e modelos do site, personagens animados, mover pelo clique; usa o mesmo servidor. Antes de abrir: `node godot/preparar_modelos.mjs` (copia os .glb sem quantização para `godot/modelos/`, fora do git) | `godot/` |
+| **Cliente principal (Godot 4.7, Forward+)**: `principal.gd` (cena, câmera, clique, peças, Mover com alcance e rastro), `interface.gd` (entrada e botões), `rede.gd` (WebSocket), `construtor_mapa.gd` (chão, paredes, objetos), `modelos.gd` (personagens e criaturas), `movimento.gd` (Dijkstra/caminho, cópia de `regras.js`). Antes de abrir: `node godot/preparar_modelos.mjs` (copia os .glb sem quantização para `godot/modelos/`, fora do git) | `godot/` |
 | Créditos e licenças (obrigatório atualizar ao adicionar asset de terceiros) | `public/creditos.html`, `public/modelos/LICENCA-*.txt`, `README.md` |
 
 O livro de regras completo está em `docs/regras/` (um arquivo por capítulo, índice em `INDICE.md`; cópia do Claude Doc do dono). O que vale no jogo é o implementado em `conteudo.js` + `regras.js`.
@@ -40,8 +45,8 @@ Comandos do projeto: `/tarefa <pedido>`, `/regra <pergunta>`, `/modelo3d <arquiv
 - Armazenamento: `meta` (nome, códigos, senha PBKDF2, `mapaInicial`, `vendo` = mapa que o Mestre está vendo), `mapas` (id → mapa), `pcs` (id do usuário → personagem), `npcs`, `log`. Sessões antigas com a chave `mesa` são migradas para `mapas.m1` em `carregar()`.
 - Mapa: `{ id, nome, cols, rows, grid: string[], alt: string[], par: string[], rot: string[], tin: string[], luz, lua, portais: { 'x,y': { para, x, y, nome, cor } }, combate }`.
   - `grid`: um caractere por casa (ver `TERRENOS` em `regras.js`: `"` mato, `.` terra, `,` areia, `_` ladrilho, `=` madeira, `v` vidro negro, `~` água, `T` árvore, `P` pinheiro, `Q` árvore seca, `k` arbusto, `#` muro, `m` paliçada, `h` muro baixo, `+` porta, `^` rocha, `*` fogueira, `b c s n a o w` objetos, `/` rampa e `|` escada, que ligam níveis: `custoSubida`).
-  - `par` (paredes): `# m f h + d` e as de construção `g` tijolo, `i` reboco, `p` tábuas, `z` muralha, `!` janela, `%` grade (`PAREDES` em `regras.js`; espessura/altura em `PAREDES` do `cena3d.js` e em `godot` `cena/paredes.gd`).
-  - `tin` (pintura das paredes): uma letra de `TINTAS` (`regras.js`) por casa, ' ' = cor natural; validada por `camadaTinta` no `worker.js`. Só o cliente Godot desenha a tinta.
+  - `par` (paredes): `# m f h + d` e as de construção `g` tijolo, `i` reboco, `p` tábuas, `z` muralha, `!` janela, `%` grade (`PAREDES` em `regras.js`; espessura/altura em `PAREDE` de `godot/construtor_mapa.gd` (e `PAREDES` do `cena3d.js` no site).
+  - `tin` (pintura das paredes): uma letra de `TINTAS` (`regras.js`) por casa, ' ' = cor natural; validada por `camadaTinta` no `worker.js`. Nenhum cliente desenha a tinta ainda (fazer no Godot).
   - Sala fechada pelas quatro paredes (porta fechada conta): `semParedeEntre` em `regras.js`; o `mover` recusa para todos, inclusive o Mestre.
   - `alt`: `'0'..'4'` = nível −1..+3 (`nivelEm`). `NIVEL_H` em `terreno.js` dá a altura visual.
 - PCs e NPCs têm `mapa`; o servidor resolve com `idMapa()`. Cada jogador recebe só o mapa onde está o personagem dele (`estadoPara`); o Mestre recebe o mapa `meta.vendo` e todos os NPCs.
@@ -60,7 +65,9 @@ Comandos do projeto: `/tarefa <pedido>`, `/regra <pergunta>`, `/modelo3d <arquiv
 
 ## Testar
 - Depois de mudar JS: `node --check arquivo.js`.
-- Teste de verdade: `npm run dev` e abrir no navegador. Em `localhost`, `globalThis.__arkahad` expõe `enviar`, `selecionar`, `mesa`, `cena` (com `_cam`, `_ctl`, `_alt`, `_solo`) para testes automáticos.
+- Godot: executável em `C:/Users/guigo/Documents/RPG/Godot_v4.7.2-stable_win64.exe`. Checar sintaxe: `<godot> --headless --path godot --check-only --script principal.gd` (antes, `--headless --path godot --import` se criou `class_name` novo). Teste de lógica: script `extends SceneTree` rodado com `--headless --path godot --script <arquivo>`.
+- Teste de verdade: `npm run dev` e abrir o projeto `godot/` (servidor `http://127.0.0.1:8787`, entrar por apelido).
+- Site (legado): `npm run dev` e abrir no navegador. Em `localhost`, `globalThis.__arkahad` expõe `enviar`, `selecionar`, `mesa`, `cena` (com `_cam`, `_ctl`, `_alt`, `_solo`) para testes automáticos.
 - A cena tem qualidade adaptativa (desliga AO/bloom se < 24 fps). Verifique em PC fraco e no celular quando mexer em gráficos.
 
 ## Convenções
