@@ -379,9 +379,12 @@ export function criarCena(el, cb = {}) {
       const t = P.t, h = P.h;
       const post = !reto ? t * 1.15 : t;
       const pedra = (w, hh, d, px, py, pz, peca, esc) => { const g = caixaUV(w, hh, d, esc); g.translate(px, py, pz); pedacos[peca].push(g); };
-      pedra(post, h, post, cx, y0 + h / 2, cz, 'muro', .9);
-      pedra(post + .1, .2, post + .1, cx, y0 + .1, cz, 'topo', 1.2);
-      pedra(post + .07, .09, post + .07, cx, y0 + h + .045, cz, 'topo', 1.2);
+      // trecho reto: os dois braços já cobrem o meio; um pilar do mesmo tamanho teria faces coincidentes e piscaria
+      if (!reto) {
+        pedra(post, h + .01, post, cx, y0 + (h + .01) / 2, cz, 'muro', .9);
+        pedra(post + .1, .22, post + .1, cx, y0 + .11, cz, 'topo', 1.2);
+        pedra(post + .07, .09, post + .07, cx, y0 + h + .055, cz, 'topo', 1.2);
+      }
       for (const [dx, dy] of viz) {
         const l = .5, w = dx ? l : t, d = dy ? l : t;
         pedra(w, h, d, cx + dx * l / 2, y0 + h / 2, cz + dy * l / 2, 'muro', .9);
