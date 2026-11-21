@@ -1,5 +1,5 @@
 import { DurableObject } from 'cloudflare:workers';
-import { TERRENOS, LUZES, LUAS, r, num, custoCel, dijkstra, rolar2d10, rolarAtaque, rolarExpr, nivelPorXp, CONDICOES, CONDS_CAOS, modCond, temCond, deslocCom, distanciaCasas } from '../public/regras.js';
+import { TERRENOS, LUZES, LUAS, r, num, custoCel, celula, PAREDES, dijkstra, rolar2d10, rolarAtaque, rolarExpr, nivelPorXp, CONDICOES, CONDS_CAOS, modCond, temCond, deslocCom, distanciaCasas } from '../public/regras.js';
 import { HABILIDADE, danoHabilidade, ataqueArma, temImbuir, temTalento, TODOS_DONS, DOM_FUNDIDO, migrarHabs, migrarFicha } from '../public/conteudo.js';
 
 const MAX_JOGADORES = 6;
@@ -255,6 +255,11 @@ function limparNpc(d) {
 function novoMapa(id, nome) {
   return { id, nome, cols: 24, rows: 16, grid: Array.from({ length: 16 }, () => '"'.repeat(24)), alt: Array.from({ length: 16 }, () => '1'.repeat(24)), luz: 'dia', lua: 'nenhuma', portais: {}, combate: { ...COMBATE_VAZIO } };
 }
+// paredes/cercas por cima do chão: um caractere de PAREDES por casa, ' ' = nada
+function camadaParedes(p, cols, rows) {
+  p = Array.isArray(p) ? p : [];
+  return Array.from({ length: rows }, (_, y) => [...String(p[y] || '').padEnd(cols, ' ').slice(0, cols)].map(c => PAREDES.includes(c) ? c : ' ').join(''));
+}
 // mapa vindo de fora (novo ou arquivo enviado pelo Mestre): tudo validado
 function mapaValidado(id, d) {
   const cols = Math.max(6, Math.min(60, Math.round(num(d.cols, 24)))), rows = Math.max(6, Math.min(60, Math.round(num(d.rows, 16))));
@@ -264,6 +269,7 @@ function mapaValidado(id, d) {
     cols, rows,
     grid: Array.from({ length: rows }, (_, y) => [...String(g[y] || '').padEnd(cols, '"').slice(0, cols)].map(c => TERRENOS[c] ? c : '.').join('')),
     alt: Array.from({ length: rows }, (_, y) => [...String(a[y] || '').padEnd(cols, '1').slice(0, cols)].map(c => /[0-4]/.test(c) ? c : '1').join('')),
+    par: camadaParedes(d.par, cols, rows),
     luz: LUZES[d.luz] ? d.luz : 'dia', lua: LUAS[d.lua] ? d.lua : 'nenhuma',
   });
   return m;
@@ -445,7 +451,7 @@ export class Sala extends DurableObject {
         if ('nome' in d) mesa.nome = texto(d.nome, 60) || 'Mapa';
         if ('luz' in d && LUZES[d.luz]) mesa.luz = d.luz;
         if ('lua' in d && LUAS[d.lua]) mesa.lua = d.lua;
-        if ('cols' in d || 'rows' in d || 'grid' in d || 'alt' in d) {
+        if ('cols' in d || 'rows' in d || 'grid' in d || 'alt' in d || 'par' in d) {
           const cols = Math.max(6, Math.min(60, Math.round(num(d.cols, mesa.cols))));
           const rows = Math.max(6, Math.min(60, Math.round(num(d.rows, mesa.rows))));
           const g = Array.isArray(d.grid) ? d.grid : mesa.grid;
@@ -453,6 +459,7 @@ export class Sala extends DurableObject {
           // altura de cada casa: '0' fosso, '1' chão, '2'..'4' terreno alto
           const a = Array.isArray(d.alt) ? d.alt : (mesa.alt || []);
           mesa.alt = Array.from({ length: rows }, (_, y) => [...String(a[y] || '').padEnd(cols, '1').slice(0, cols)].map(c => /[0-4]/.test(c) ? c : '1').join(''));
+          mesa.par = camadaParedes(Array.isArray(d.par) ? d.par : mesa.par, cols, rows);
           mesa.cols = cols; mesa.rows = rows;
           for (const k of Object.keys(mesa.portais || {})) { const [x, y] = k.split(',').map(Number); if (x >= cols || y >= rows) delete mesa.portais[k]; }
         }
@@ -955,7 +962,7 @@ export class Sala extends DurableObject {
   linha(de, para, n, mesa) {
     const dx = num(para.x) - num(de.x), dy = num(para.y) - num(de.y), m = Math.max(Math.abs(dx), Math.abs(dy)) || 1, l = [];
     for (let i = 1; i <= n; i++) {
-      const x = num(de.x) + Math.round(dx * i / m), y = num(de.y) + Math.round(dy * i / m), ch = (mesa.grid[y] || '')[x];
+      const x = num(de.x) + Math.round(dx * i / m), y = num(de.y) + Math.round(dy * i / m), ch = celula(mesa, x, y);
       if (x < 0 || y < 0 || x >= mesa.cols || y >= mesa.rows || (ch !== '*' && !Number.isFinite(TERRENOS[ch]?.custo))) break;
       l.push([x, y]);
     }
@@ -994,7 +1001,7 @@ export class Sala extends DurableObject {
   absorver(o, dano) { const e = Math.min(num(o.escudo), dano); if (e > 0) { o.escudo = num(o.escudo) - e; if (o.escudo <= 0) delete o.escudo; } return Math.max(0, e); }
   // Ferida de Brasa: quem está Queimando recebe metade da cura (inteira = ignora)
   curar(o, v, inteira = false) { if (o.cond?.queimando && !inteira) v = Math.floor(v / 2); const antes = num(o.vigor), max = num(o.vigorMax, antes); o.vigor = Math.min(Math.max(max, antes), antes + Math.max(0, v)); return o.vigor - antes; }
-  livre(mesa, x, y, ocup) { return x >= 0 && y >= 0 && x < mesa.cols && y < mesa.rows && Number.isFinite(TERRENOS[(mesa.grid[y] || '')[x]]?.custo) && !ocup.has(x + ',' + y); }
+  livre(mesa, x, y, ocup) { return x >= 0 && y >= 0 && x < mesa.cols && y < mesa.rows && Number.isFinite(TERRENOS[celula(mesa, x, y)]?.custo) && !ocup.has(x + ',' + y); }
   // empurra (n > 0) para longe da origem ou puxa (n < 0) para ela; bater em algo = 1d6
   empurrar(o, k, origem, n, mesa) {
     if (num(o.tamanho, 1) > 1) return '';
@@ -1051,9 +1058,10 @@ export class Sala extends DurableObject {
     let n = 0;
     for (let y = c.y - hab.raio; y <= c.y + hab.raio; y++) for (let x = c.x - hab.raio; x <= c.x + hab.raio; x++) {
       if (x < 0 || y < 0 || x >= mesa.cols || y >= mesa.rows || mesa.portais?.[x + ',' + y]) continue;
-      const linha = mesa.grid[y] || '', ch = linha[x], t = TERRENOS[ch];
+      const linha = mesa.grid[y] || '', ch = linha[x], t = TERRENOS[ch], pa = celula(mesa, x, y) !== ch;
       const por = v => { mesa.grid[y] = linha.slice(0, x) + v + linha.slice(x + 1); n++; };
-      if (novo && Number.isFinite(t?.custo) && ch !== hab.terreno && (Number.isFinite(novo.custo) || !ocup.has(x + ',' + y))) por(hab.terreno);
+      if (hab.derruba && pa) { const l = mesa.par[y]; mesa.par[y] = l.slice(0, x) + ' ' + l.slice(x + 1); n++; continue; }
+      if (novo && !pa && Number.isFinite(t?.custo) && ch !== hab.terreno && (Number.isFinite(novo.custo) || !ocup.has(x + ',' + y))) por(hab.terreno);
       if (hab.derruba && t && (t.parede || !Number.isFinite(t.custo)) && !'TPQ'.includes(ch)) por('.');
       if (hab.altura) {
         const a = (mesa.alt[y] || '').padEnd(mesa.cols, '1'), v = Math.max(0, Math.min(4, num(a[x], 1) + hab.altura));

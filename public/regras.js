@@ -14,6 +14,8 @@ export const TERRENOS = {
   'm': { n: 'Paliçada de madeira', custo: Infinity, parede: 'madeira' },
   'h': { n: 'Muro baixo (cobertura)', custo: 3, parede: 'baixo', cobertura: true },
   'k': { n: 'Arbusto', custo: 2, cobertura: true },
+  'f': { n: 'Cerca de madeira', custo: Infinity, parede: 'cerca', cobertura: true },
+  'd': { n: 'Porta fechada', custo: Infinity, parede: 'porta' },
   'P': { n: 'Pinheiro', custo: Infinity },
   'Q': { n: 'Árvore seca', custo: Infinity },
   'T': { n: 'Árvore', custo: Infinity },
@@ -56,9 +58,14 @@ export const num = (v, d = 0) => {
   return Number.isFinite(n) ? n : d;
 };
 
+// Paredes e cercas ficam numa camada própria (mesa.par, um caractere por casa, ' ' = nada) por cima do chão.
+export const PAREDES = ['#', 'm', 'f', 'h', '+', 'd'];
+export const paredeEm = (mesa, x, y) => { const p = (mesa?.par?.[y] || '')[x]; return PAREDES.includes(p) ? p : ''; };
+// o que vale para movimento, visão e cobertura: a parede, se houver; senão o chão
+export const celula = (mesa, x, y) => paredeEm(mesa, x, y) || (mesa?.grid?.[y] || '')[x];
 export function custoCel(mesa, x, y) {
   if (!mesa || x < 0 || y < 0 || x >= mesa.cols || y >= mesa.rows) return Infinity;
-  const c = (mesa.grid[y] || '')[x];
+  const c = celula(mesa, x, y);
   return (TERRENOS[c] || TERRENOS['.']).custo;
 }
 
@@ -94,8 +101,9 @@ export function linhaDeVisao(mesa, a, b) {
     const x = Math.floor(ax + (bx - ax) * i / passos), y = Math.floor(ay + (by - ay) * i / passos), k = x + ',' + y;
     if ((x === a.x && y === a.y) || (x === b.x && y === b.y) || vistas.has(k)) continue;
     vistas.add(k);
-    const c = (mesa.grid[y] || '')[x], t = TERRENOS[c] || {};
-    if (t.parede && t.parede !== 'baixo') return { livre: false, cobertura: true };
+    const c = celula(mesa, x, y), t = TERRENOS[c] || {};
+    // muro baixo e cerca dão cobertura sem cortar a visão
+    if (t.parede && !t.cobertura) return { livre: false, cobertura: true };
     if (nivelEm(mesa, x, y) > topo) return { livre: false, cobertura: true };
     if (t.cobertura || c === 'T' || c === 'P' || c === 'Q' || c === '^') cobertura = true;
   }

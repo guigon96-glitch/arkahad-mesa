@@ -1,7 +1,7 @@
 // Cena 3D do tabuleiro: terreno, cenário, luzes de Kael e Lyra, miniaturas, dados.
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-import { TERRENOS, nivelEm } from './regras.js';
+import { TERRENOS, nivelEm, celula, paredeEm } from './regras.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { RGBELoader } from 'three/addons/loaders/RGBELoader.js';
 import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
@@ -21,7 +21,7 @@ const TELA_FINA = matchMedia('(pointer: coarse)').matches;
 // ---------- configuração fácil de editar ----------
 const ALTURA = { '.': .12, '_': .16, ',': .1, '"': .14, '~': .04, '=': .17, '+': .16, 'v': .12, '#': .16, m: .12, h: .12, k: .14, P: .14, Q: .12, 'T': .14, '^': .12, '*': .12, b: .12, c: .12, s: .12, n: .14, a: .16, o: .14, w: .12 };
 const NIVEL_H = NIVEL_SOLO; // altura de um nível de terreno
-const PAREDES = { '#': { h: 1.7, t: .4, tex: 'muro' }, m: { h: 1.6, t: .3, tex: 'tronco' }, h: { h: .8, t: .42, tex: 'muro' } };
+const PAREDES = { '#': { h: 1.7, t: .4, tex: 'muro' }, m: { h: 1.6, t: .3, tex: 'tronco' }, h: { h: .8, t: .42, tex: 'muro' }, f: { h: .75, t: .1 } };
 const OBJETOS = { b: ['barril'], c: ['caixote', 'caixotes'], s: ['saco'], n: ['tenda'], a: ['suporte_armas'], o: ['alvo'], w: ['carrinho', 'balde'] };
 const TEXTURA_DE = { '.': 'terra', '_': 'ladrilho', ',': 'areia', '"': 'mato', '~': 'leito', '=': 'madeira', '+': 'madeira', 'v': 'vidro', '#': 'ladrilho', m: 'terra', h: 'terra', k: 'mato', P: 'mato', Q: 'terra', 'T': 'mato', '^': 'terra', '*': 'terra', b: 'terra', c: 'terra', s: 'terra', n: 'mato', a: 'ladrilho', o: 'mato', w: 'terra' };
 // Céus: fotos 360° (HDRI da Poly Haven, CC0) iluminam a cena; as luzes de Kael e Lyra dão as sombras.
@@ -207,6 +207,7 @@ export function criarCena(el, cb = {}) {
     for (let y = 0; y < R; y++) for (let x = 0; x < C; x++) {
       const c = TERRENOS[mesa.grid[y][x]] ? mesa.grid[y][x] : '.';
       (porTipo[c] ||= []).push([x, y]);
+      const p = paredeEm(mesa, x, y); if (p) (porTipo[p] ||= []).push([x, y]); // parede por cima do chão
     }
     const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), cor = new THREE.Color(), up = new THREE.Vector3(0, 1, 0), um = new THREE.Vector3(1, 1, 1);
     // 1) relevo contínuo com texturas misturadas
@@ -319,7 +320,7 @@ export function criarCena(el, cb = {}) {
     }
     // 6) paredes: segmentos que se ligam aos vizinhos (muro, paliçada, muro baixo)
     const pedacos = { muro: [], tronco: [], topo: [] };
-    const liga = (x, y) => { const c = (mesa.grid[y] || '')[x]; return ehParede(c) || c === '+'; };
+    const liga = (x, y) => { const c = celula(mesa, x, y); return ehParede(c) || c === '+' || c === 'd'; };
     const tronco = new THREE.CylinderGeometry(.07, .08, 1, 7);
     const ponta = new THREE.ConeGeometry(.075, .16, 7);
     for (const tipo of Object.keys(PAREDES)) for (const [x, y] of porTipo[tipo] || []) {
@@ -335,6 +336,14 @@ export function criarCena(el, cb = {}) {
           const h = P.h * (.88 + acaso(Math.round((x + ox) * 50), Math.round((y + oz) * 50), 5) * .2);
           const g1 = tronco.clone(); g1.scale(1, h, 1); g1.translate(cx + ox, y0 + h / 2, cz + oz); pedacos.tronco.push(g1);
           const g2 = ponta.clone(); g2.translate(cx + ox, y0 + h + .08, cz + oz); pedacos.tronco.push(g2);
+        }
+        continue;
+      }
+      if (tipo === 'f') {
+        // cerca: mourão no meio e duas travessas até cada vizinho
+        const g1 = tronco.clone(); g1.scale(1, P.h, 1); g1.translate(cx, y0 + P.h / 2, cz); pedacos.tronco.push(g1);
+        for (const [dx, dy] of viz.length ? viz : [[1, 0], [-1, 0]]) for (const a of [.35, .65]) {
+          const g = caixaUV(dx ? .5 : .05, .07, dy ? .5 : .05); g.translate(cx + dx * .25, y0 + P.h * a + .1, cz + dy * .25); pedacos.tronco.push(g);
         }
         continue;
       }
@@ -357,13 +366,14 @@ export function criarCena(el, cb = {}) {
       const malha = new THREE.Mesh(geo, mat); malha.castShadow = malha.receiveShadow = true; grupoTerreno.add(malha);
     }
     // portas: batentes
-    for (const [x, y] of porTipo['+'] || []) {
+    for (const [x, y] of [...porTipo['+'] || [], ...porTipo.d || []]) {
       const y0 = chaoDe(x, y);
       const lateral = liga(x - 1, y) || liga(x + 1, y);
       const madeira = new THREE.MeshStandardMaterial({ map: tex.tronco, color: '#a07a5a', roughness: .9 });
       const add = (w, h, d, px, py, pz) => { const o = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), madeira); o.position.set(px, y0 + py, pz); o.castShadow = o.receiveShadow = true; grupoTerreno.add(o); };
       if (lateral) { add(.12, 1.3, .36, x + .06, .65, y + .5); add(.12, 1.3, .36, x + .94, .65, y + .5); add(1, .14, .38, x + .5, 1.36, y + .5); }
       else { add(.36, 1.3, .12, x + .5, .65, y + .06); add(.36, 1.3, .12, x + .5, .65, y + .94); add(.38, .14, 1, x + .5, 1.36, y + .5); }
+      if (celula(mesa, x, y) === 'd') lateral ? add(.76, 1.22, .08, x + .5, .61, y + .5) : add(.08, 1.22, .76, x + .5, .61, y + .5); // folha da porta fechada
     }
     // portais para outros mapas: anel de pedra com um redemoinho de luz
     portaisAnim = [];
@@ -768,7 +778,7 @@ export function criarCena(el, cb = {}) {
       ultimo = estado;
       const { mesa: m, tokens: lista, selecionado, alcance } = estado;
       if (!m) return;
-      const novaChave = m.id + ':' + m.cols + 'x' + m.rows + ':' + m.grid.join('') + ':' + (m.alt || []).join('') + JSON.stringify(m.portais || {});
+      const novaChave = m.id + ':' + m.cols + 'x' + m.rows + ':' + m.grid.join('') + ':' + (m.alt || []).join('') + (m.par || []).join('') + JSON.stringify(m.portais || {});
       const tamanhoMudou = !mesa || mesa.cols !== m.cols || mesa.rows !== m.rows;
       mesa = m;
       if (novaChave !== chaveTerreno) { chaveTerreno = novaChave; construirTerreno(); }
