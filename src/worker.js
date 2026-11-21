@@ -591,16 +591,14 @@ export class Sala extends DurableObject {
             const chave = `${cb.rodada}:${cb.turno}`, desloc = deslocCom(obj, num(obj.desloc, 6));
             const usadas = obj.acoes?.chave === chave ? num(obj.acoes.usadas) : 0;
             const resta = obj.mov?.chave === chave ? num(obj.mov.resta) : 0;
-            const d = dijkstra(mesa, this.ocupadas('pc:' + id, mesa.id), num(obj.x), num(obj.y), Math.max(resta, usadas < 3 ? desloc : 0));
+            // passar do que resta gasta mais ações (ex.: Deslocamento 6, andar 7 = 2 ações)
+            const d = dijkstra(mesa, this.ocupadas('pc:' + id, mesa.id), num(obj.x), num(obj.y), resta + Math.max(0, 3 - usadas) * desloc);
             const custo = d.get(x + ',' + y);
-            if (custo === undefined) return erro('Fora do seu Deslocamento.');
-            if (custo <= resta) obj.mov = { chave, resta: resta - custo };
-            else {
-              if (usadas >= 3) return erro('Você já usou as 3 ações.');
-              if (custo > desloc) return erro('Fora do seu Deslocamento.');
-              obj.acoes = { chave, usadas: usadas + 1 };
-              obj.mov = { chave, resta: desloc - custo };
-            }
+            if (custo === undefined) return erro(usadas >= 3 && !resta ? 'Você já usou as 3 ações.' : 'Fora do seu Deslocamento.');
+            const n = custo <= resta ? 0 : Math.ceil((custo - resta) / Math.max(1, desloc));
+            if (usadas + n > 3) return erro('Fora do seu Deslocamento.');
+            if (n) obj.acoes = { chave, usadas: usadas + n };
+            obj.mov = { chave, resta: resta + n * desloc - custo };
           }
         }
         obj.x = x; obj.y = y;

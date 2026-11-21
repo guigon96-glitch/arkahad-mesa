@@ -281,7 +281,7 @@ let movendo = false;
 function restoMov(t) { return t?.mov?.chave === chaveTurno() ? num(t.mov.resta) : 0; }
 function limiteMov(t) {
   if (!mesa.combate?.ativo) return 9999;
-  return Math.max(restoMov(t), num(acoesDe(t)) > 0 ? num(t.desloc, 6) : 0);
+  return restoMov(t) + Math.max(0, num(acoesDe(t))) * num(t.desloc, 6);
 }
 function areaMover(t) { return t ? dijkstra(mesa, ocupadas(t.k), num(t.x), num(t.y), limiteMov(t)) : null; }
 function alternarMover(t) {
@@ -306,7 +306,8 @@ function moverToken(t, x, y) {
     if (emCombate) {
       // mesma conta do servidor, para a barra mostrar na hora
       const chave = chaveTurno(), resta = restoMov(t);
-      extra = custo <= resta ? { mov: { chave, resta: resta - custo } } : { mov: { chave, resta: num(t.desloc, 6) - custo }, acoes: { chave, usadas: 3 - num(acoesDe(t)) + 1 } };
+      const desl = Math.max(1, num(t.desloc, 6)), n = custo <= resta ? 0 : Math.ceil((custo - resta) / desl);
+      extra = { mov: { chave, resta: resta + n * desl - custo }, ...(n ? { acoes: { chave, usadas: 3 - num(acoesDe(t)) + n } } : {}) };
     }
   }
   movendo = false;
