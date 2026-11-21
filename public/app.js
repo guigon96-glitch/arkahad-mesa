@@ -268,16 +268,16 @@ function chaveTurno() { const cb = mesa?.combate || {}; return `${num(cb.rodada,
 function acoesUsadas() { const p = pcs[eu()]; return p?.acoes?.chave === chaveTurno() ? num(p.acoes.usadas) : 0; }
 function possoMover(t) {
   if (!t || !mesa) return false;
-  if (souMestre()) return true;
-  if (t.tipo !== 'pc' || t.id !== eu()) return false;
-  return !mesa.combate?.ativo || (minhaVez() && acoesUsadas() < 3);
+  if (!souMestre() && (t.tipo !== 'pc' || t.id !== eu())) return false;
+  // em combate vale para todos, Mestre também: só a peça da vez anda
+  return !mesa.combate?.ativo || (vezDe(t.k) && (restoMov(t) > 0 || num(acoesDe(t)) > 0));
 }
 function calcAlcance() {
-  if (movendo && mesa?.combate?.ativo && !vezDe('pc:' + eu())) movendo = false;
-  alcance = movendo ? areaMover(tokenPorK('pc:' + eu())) : null;
+  if (movendo && mesa?.combate?.ativo && !vezDe(movendo)) movendo = false;
+  alcance = movendo ? areaMover(tokenPorK(movendo)) : null;
 }
 // ===== Mover: 1 ação dá o Deslocamento inteiro, dividido como quiser no mesmo turno =====
-let movendo = false;
+let movendo = false; // k da peça que está escolhendo para onde andar
 function restoMov(t) { return t?.mov?.chave === chaveTurno() ? num(t.mov.resta) : 0; }
 function limiteMov(t) {
   if (!mesa.combate?.ativo) return 9999;
@@ -286,11 +286,11 @@ function limiteMov(t) {
 function areaMover(t) { return t ? dijkstra(mesa, ocupadas(t.k), num(t.x), num(t.y), limiteMov(t)) : null; }
 function alternarMover(t) {
   if (movendo) return pararMover();
-  if (!t || t.k !== 'pc:' + eu()) return;
-  if (mesa.combate?.ativo && !vezDe(t.k)) return avisar('Aguarde o seu turno.', 2200);
+  if (!t || !(t.k === 'pc:' + eu() || (souMestre() && t.tipo !== 'pc'))) return;
+  if (mesa.combate?.ativo && !vezDe(t.k)) return avisar('Aguarde o turno de ' + t.nome + '.', 2200);
   if (mesa.combate?.ativo && !restoMov(t) && num(acoesDe(t)) <= 0) return avisar('Você já usou as 3 ações.', 2200);
   if (mira) cancelarMira();
-  movendo = true; calcAlcance(); $('cartao').hidden = true; render();
+  movendo = t.k; calcAlcance(); $('cartao').hidden = true; render();
 }
 function pararMover() { movendo = false; alcance = null; render(); }
 function moverToken(t, x, y) {
@@ -298,9 +298,9 @@ function moverToken(t, x, y) {
   const tam = num(t.tamanho, 1);
   if (x < 0 || y < 0 || x + tam > mesa.cols || y + tam > mesa.rows) return;
   let extra = {};
-  if (!souMestre()) {
-    const emCombate = mesa.combate?.ativo;
-    if (emCombate && !movendo) { avisar('Para andar, use Mover na barra de atalhos.', 2500); return; }
+  const emCombate = mesa.combate?.ativo;
+  if (!souMestre() || emCombate) {
+    if (emCombate && movendo !== t.k) { avisar('Para andar, use Mover na barra de atalhos.', 2500); return; }
     const custo = dijkstra(mesa, ocupadas(t.k), num(t.x), num(t.y), limiteMov(t)).get(x + ',' + y);
     if (custo === undefined) { avisar(emCombate ? 'Fora do seu Deslocamento.' : 'Sem caminho até lá.', 2500); return; }
     if (emCombate) {
@@ -331,7 +331,7 @@ function aoMover(i, e) {
 }
 function aoSoltar(i) {
   if (mira) { dispararMira(i); return; }
-  if (movendo) { arrasto = null; const eu_ = tokenPorK('pc:' + eu()); if (i.k === eu_?.k) return pararMover(); if (eu_ && dentro(i.x, i.y)) moverToken(eu_, i.x, i.y); return; }
+  if (movendo) { arrasto = null; const eu_ = tokenPorK(movendo); if (i.k === eu_?.k) return pararMover(); if (eu_ && dentro(i.x, i.y)) moverToken(eu_, i.x, i.y); return; }
   if (edicao) { terminarEdicao(); return; }
   if (souMestre() && [...EDITA, 'portal'].includes(modoMestre)) return;
   if (arrasto) {
@@ -1081,7 +1081,6 @@ function acoesDe(t) {
 function podeAgir(t) {
   if (!t || !mesa) return false;
   if (!mesa.combate?.ativo) return true;
-  if (souMestre() && t.tipo !== 'pc') return true;
   return vezDe(t.k) && acoesDe(t) > 0;
 }
 function hud() {
@@ -1098,7 +1097,7 @@ function hud() {
   if (cb.ativo) {
     const vez = tokenPorK(cb.ordem?.[cb.turno]?.k);
     topoHud = minha || (souMestre() && t.tipo !== 'pc' && vezDe(t.k))
-      ? `<span class="hud-vez">Sua vez</span>${t.tipo === 'pc' ? `<span class="pips-hud">${[0, 1, 2].map(i => `<i class="${i < resta ? 'ok' : ''}"></i>`).join('')}</span><span class="hud-sub">${resta} ${resta === 1 ? 'ação' : 'ações'} · Mover: 1 ação = ${num(t.desloc, 6)} casas${restoMov(t) ? ` · restam ${restoMov(t)}` : ''}</span>` : ''}`
+      ? `<span class="hud-vez">Sua vez</span><span class="pips-hud">${[0, 1, 2].map(i => `<i class="${i < resta ? 'ok' : ''}"></i>`).join('')}</span><span class="hud-sub">${resta} ${resta === 1 ? 'ação' : 'ações'} · Mover: 1 ação = ${num(t.desloc, 6)} casas${restoMov(t) ? ` · restam ${restoMov(t)}` : ''}</span>`
       : `<span class="hud-sub">Rodada ${num(cb.rodada, 1)} · vez de <b>${esc(vez?.nome || '—')}</b></span>`;
   } else topoHud = `<span class="hud-sub">Fora de combate · ações livres</span>`;
   el.innerHTML = `<div class="hud-linha">${retrato}<div class="hud-meio"><div class="hud-topo"><b class="hud-nome">${esc(t.nome)}</b>${topoHud}</div>
@@ -1152,7 +1151,7 @@ function tecDe(f, dom, nivel) { return { nome: dom.tec[nivel - 1], nivel, custo:
 function opcoesBarra(t) {
   const f = t.tipo === 'pc' ? t.ficha : null, dom = f && ehAurethian(f) ? TODOS_DONS[f.dom] : null, n = f ? nivelDom(f) : 0;
   const ops = [{ id: 'arma', ic: '⚔', nome: 'Atacar', sub: armaDoAtor(t).nome }];
-  if (t.k === 'pc:' + eu()) { const r = restoMov(t); ops.push({ id: 'mover', ic: '👣', nome: 'Mover', sub: r ? `${r} casas restantes neste turno` : `1 ação · até ${num(t.desloc, 6)} casas no turno`, on: movendo }); }
+  if (t.k === 'pc:' + eu() || (souMestre() && t.tipo !== 'pc')) { const r = restoMov(t); ops.push({ id: 'mover', ic: '👣', nome: 'Mover', sub: r ? `${r} casas restantes neste turno` : `1 ação · até ${num(t.desloc, 6)} casas no turno`, on: movendo === t.k }); }
   if (dom) for (let i = 1; i <= n; i++) ops.push({ id: 'tec:' + i, ic: '✦', cor: dom.cor, nome: dom.tec[i - 1], sub: `${dom.nome} N${i} · ${CUSTO_DOM[i - 1]} Fôlego` });
   for (const h of habilidadesDoAtor(t)) ops.push({ id: 'hab:' + h.id, img: h.id, ic: ICONE_HAB[h.t], cor: h.cor, nome: h.nome, sub: `${TALENTO[h.id].desc}` });
   if (f && temImbuir(f)) ops.push({ id: 'imbuir', ic: '🜂', cor: dom?.cor, nome: t.imbuido ? 'Imbuída' : 'Imbuir', sub: f.talentos.includes('imb4') ? 'grátis' : '1 Fôlego', on: !!t.imbuido });

@@ -578,28 +578,25 @@ export class Sala extends DurableObject {
         if (x < 0 || y < 0 || x + tam > mesa.cols || y + tam > mesa.rows) return;
         // sala fechada pelas quatro paredes: ninguém entra nem sai andando, nem movido pelo Mestre
         if ((x !== num(obj.x) || y !== num(obj.y)) && !semParedeEntre(mesa, num(obj.x), num(obj.y), x, y)) return erro('Não dá para chegar lá: há paredes fechando o caminho.');
-        if (!mestre) {
-          if (tipo !== 'pc' || id !== att.id) return erro('Você só move o seu personagem.');
-          const cb = mesa.combate || COMBATE_VAZIO;
-          if (!cb.ativo) {
-            const d = dijkstra(mesa, this.ocupadas('pc:' + id, mesa.id), num(obj.x), num(obj.y), 9999);
-            if (!d.has(x + ',' + y)) return erro('Sem caminho até lá.');
-          } else {
-            // Mover: 1 ação dá o Deslocamento inteiro, que pode ser dividido entre outras ações no mesmo turno
-            if (cb.ordem[cb.turno]?.k !== 'pc:' + id) return erro('Aguarde o seu turno.');
-            if (temCond(obj, 'imovel')) return erro(`${obj.nome} está ${Object.keys(obj.cond).filter(c => CONDICOES[c]?.imovel).map(c => CONDICOES[c].nome.toLowerCase()).join(' e ')} e não pode se mover.`);
-            const chave = `${cb.rodada}:${cb.turno}`, desloc = deslocCom(obj, num(obj.desloc, 6));
-            const usadas = obj.acoes?.chave === chave ? num(obj.acoes.usadas) : 0;
-            const resta = obj.mov?.chave === chave ? num(obj.mov.resta) : 0;
-            // passar do que resta gasta mais ações (ex.: Deslocamento 6, andar 7 = 2 ações)
-            const d = dijkstra(mesa, this.ocupadas('pc:' + id, mesa.id), num(obj.x), num(obj.y), resta + Math.max(0, 3 - usadas) * desloc);
-            const custo = d.get(x + ',' + y);
-            if (custo === undefined) return erro(usadas >= 3 && !resta ? 'Você já usou as 3 ações.' : 'Fora do seu Deslocamento.');
-            const n = custo <= resta ? 0 : Math.ceil((custo - resta) / Math.max(1, desloc));
-            if (usadas + n > 3) return erro('Fora do seu Deslocamento.');
-            if (n) obj.acoes = { chave, usadas: usadas + n };
-            obj.mov = { chave, resta: resta + n * desloc - custo };
-          }
+        if (!mestre && (tipo !== 'pc' || id !== att.id)) return erro('Você só move o seu personagem.');
+        const cb = mesa.combate || COMBATE_VAZIO;
+        if (!cb.ativo) {
+          if (!mestre && !dijkstra(mesa, this.ocupadas('pc:' + id, mesa.id), num(obj.x), num(obj.y), 9999).has(x + ',' + y)) return erro('Sem caminho até lá.');
+        } else {
+          // Mover: 1 ação dá o Deslocamento inteiro, que pode ser dividido entre outras ações no mesmo turno; vale para todos, Mestre e NPCs também
+          if (cb.ordem[cb.turno]?.k !== kk) return erro('Aguarde o turno de ' + obj.nome + '.');
+          if (temCond(obj, 'imovel')) return erro(`${obj.nome} está ${Object.keys(obj.cond).filter(c => CONDICOES[c]?.imovel).map(c => CONDICOES[c].nome.toLowerCase()).join(' e ')} e não pode se mover.`);
+          const chave = `${cb.rodada}:${cb.turno}`, desloc = deslocCom(obj, num(obj.desloc, 6));
+          const usadas = obj.acoes?.chave === chave ? num(obj.acoes.usadas) : 0;
+          const resta = obj.mov?.chave === chave ? num(obj.mov.resta) : 0;
+          // passar do que resta gasta mais ações (ex.: Deslocamento 6, andar 7 = 2 ações)
+          const d = dijkstra(mesa, this.ocupadas(kk, mesa.id), num(obj.x), num(obj.y), resta + Math.max(0, 3 - usadas) * desloc);
+          const custo = d.get(x + ',' + y);
+          if (custo === undefined) return erro(usadas >= 3 && !resta ? 'Você já usou as 3 ações.' : 'Fora do seu Deslocamento.');
+          const n = custo <= resta ? 0 : Math.ceil((custo - resta) / Math.max(1, desloc));
+          if (usadas + n > 3) return erro('Fora do seu Deslocamento.');
+          if (n) obj.acoes = { chave, usadas: usadas + n };
+          obj.mov = { chave, resta: resta + n * desloc - custo };
         }
         obj.x = x; obj.y = y;
         this.pisarFogo(obj, mesa);
@@ -616,7 +613,9 @@ export class Sala extends DurableObject {
       case 'acoes': {
         const pc = s.pcs[att.id], cb = s.mapas[this.idMapa(pc)]?.combate;
         if (!pc || !cb?.ativo) return;
-        pc.acoes = { chave: `${cb.rodada}:${cb.turno}`, usadas: Math.max(0, Math.min(3, Math.round(num(msg.usadas)))) };
+        // o jogador marca ações gastas, mas não devolve as que já gastou
+        const chave = `${cb.rodada}:${cb.turno}`, antes = pc.acoes?.chave === chave ? num(pc.acoes.usadas) : 0;
+        pc.acoes = { chave, usadas: Math.max(antes, Math.min(3, Math.round(num(msg.usadas)))) };
         await this.gravar('pcs');
         break;
       }
@@ -692,13 +691,12 @@ export class Sala extends DurableObject {
         if (!autor) return;
         if (!mestre && de !== 'pc:' + att.id) return erro('Você só ataca com o seu personagem.');
         const cb = s.mapas[this.idMapa(autor)]?.combate;
-        if (cb?.ativo && de.startsWith('pc:')) {
-          if (cb.ordem[cb.turno]?.k !== de) { if (!mestre) return erro('Aguarde o seu turno.'); }
-          else {
+        // em combate, todos (PC ou NPC, jogador ou Mestre) só agem na sua vez e com ações sobrando
+        if (cb?.ativo) {
+          if (cb.ordem[cb.turno]?.k !== de) return erro('Aguarde o turno de ' + autor.nome + '.');
           const chave = `${cb.rodada}:${cb.turno}`, usadas = autor.acoes?.chave === chave ? num(autor.acoes.usadas) : 0;
-          if (usadas >= 3 && !mestre) return erro('Você já usou as 3 ações.');
-          autor.acoes = { chave, usadas: Math.min(3, usadas + 1) };
-          }
+          if (usadas >= 3) return erro('Já foram usadas as 3 ações.');
+          autor.acoes = { chave, usadas: usadas + 1 };
         }
         let alvos = [...new Set((Array.isArray(msg.alvos) ? msg.alvos : []).map(String))].slice(0, 16).map(k => [k, this.objetoDe(k)]).filter(([, o]) => o);
         // habilidade do Dom: dados, condições e efeitos vêm da tabela, não do cliente
@@ -1127,7 +1125,7 @@ export class Sala extends DurableObject {
   tickCondicoes(o, k, chave) {
     const linhas = [], sangra = !!o.cond.sangrando, perde = Math.max(-1, Math.min(3, modCond(o, 'acoes')));
     // ações: atordoado/adormecido tiram, acelerado dá uma a mais (usadas negativo)
-    if (perde && k.startsWith('pc:')) o.acoes = { chave, usadas: perde };
+    if (perde) o.acoes = { chave, usadas: perde };
     if (perde > 0) linhas.push(perde >= 3 ? '💤 perde o turno' : `perde ${perde} ação`); else if (perde < 0) linhas.push('⏩ +1 ação');
     for (const [c, n] of Object.entries(o.cond)) {
       if (!o.cond?.[c]) continue; // Eterno pode ter saído no meio do laço
