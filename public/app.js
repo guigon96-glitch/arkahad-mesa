@@ -3,7 +3,7 @@ import { criarCena } from './cena3d.js';
 import { CRIATURAS_3D, ARMAS_3D, SECUNDARIAS, SEXOS, ESTILO_DOM } from './modelos.js';
 import { abrirCriador } from './criacao.js';
 import { retratoDe } from './retrato.js';
-import { tocarSom, somDoDom, volumeSom, definirVolume } from './sons.js';
+import { tocarSom, somDoDom } from './sons.js';
 import {
   ATRIBUTOS, PERICIAS, RACAS, VOCACOES, TODOS_DONS, DONS, CUSTO_DOM, notasDom, RESSONANCIAS, ORIGENS, ESTRATOS,
   ataqueArma, danoTecnica, bonusTesteDom, temImbuir, TALENTO, ARVORES, pontosTalento, alcanceTecnica,
@@ -522,15 +522,6 @@ function carregarArquivoMapa(arquivo) {
 }
 
 function mostrarPing(x, y, cor) { cena?.ping(x, y, cor); }
-$('zMais').onclick = () => cena?.zoom(.8);
-$('zMenos').onclick = () => cena?.zoom(1.25);
-$('girarE').onclick = () => cena?.girar(Math.PI / 4);
-// volume: alto → baixo → mudo
-const ICONE_SOM = v => v >= .6 ? '🔊' : v > 0 ? '🔉' : '🔇';
-$('som').textContent = ICONE_SOM(volumeSom());
-$('som').onclick = () => { const v = volumeSom(); definirVolume(v >= .6 ? .3 : v > 0 ? 0 : .7); $('som').textContent = ICONE_SOM(volumeSom()); tocarSom('dado1'); };
-$('girarD').onclick = () => cena?.girar(-Math.PI / 4);
-$('centrar').onclick = () => { const p = pcs[eu()]; if (p && cena) cena.focar(num(p.x), num(p.y)); else cena?.enquadrar(); };
 
 // ================= Cartão de token =================
 function selecionar(k) { selecionado = k; const t = tokenPorK(k); calcAlcance(); render(); cartao(t); }

@@ -69,13 +69,19 @@
     <div class="ordem" id="ordem"></div>
     <span class="cresce"></span>
     <div class="ordem" id="online"></div>
+    <nav class="dock" id="abas" aria-label="Painéis">
+      <button data-aba="ficha" class="ativo" title="Ficha" aria-label="Ficha">📜</button>
+      <button data-aba="dados" title="Dados" aria-label="Dados">🎲</button>
+      <button data-aba="itens" title="Inventário" aria-label="Inventário">🎒</button>
+      <button data-aba="registro" title="Registro" aria-label="Registro">📖</button>
+      <button data-aba="mestre" id="abaMestre" title="Mestre" aria-label="Mestre" hidden>👑</button>
+    </nav>
   </header>
   <main class="area" id="area">
     <div class="palco" id="palco"></div>
     <div class="camada-dados" id="camadaDados"></div>
     <div class="rolagens" id="rolagens" aria-live="polite"></div>
     <div class="notas" id="notas"><div class="aviso" id="aviso" hidden></div></div>
-    <div class="zoom"><button id="girarE" aria-label="Girar câmera para a esquerda" title="Girar">⟲</button><button id="girarD" aria-label="Girar câmera para a direita" title="Girar">⟳</button><button id="centrar" aria-label="Centralizar no meu personagem" title="Centralizar">◎</button><button id="zMenos" aria-label="Afastar">−</button><button id="zMais" aria-label="Aproximar">+</button><button id="som" aria-label="Volume do som" title="Som: alto, baixo ou mudo">🔊</button></div>
     <div class="dica">WASD/setas: andar · Q/E: girar · Shift: rápido · botão direito: girar · roda: zoom · dois dedos no celular</div>
     <div class="cartao" id="cartao" hidden></div>
     <div class="iniciativa" id="iniciativa" hidden></div>
@@ -87,13 +93,6 @@
     <header class="lado-topo"><h2 id="ladoTitulo">Ficha</h2><button id="minimizar" class="mini" aria-label="Minimizar painel" title="Minimizar">▾</button></header>
     <div class="conteudo" id="conteudo"></div>
   </aside>
-  <nav class="dock" id="abas" aria-label="Painéis">
-    <button data-aba="ficha" class="ativo" title="Ficha" aria-label="Ficha">📜</button>
-    <button data-aba="dados" title="Dados" aria-label="Dados">🎲</button>
-    <button data-aba="itens" title="Inventário" aria-label="Inventário">🎒</button>
-    <button data-aba="registro" title="Registro" aria-label="Registro">📖</button>
-    <button data-aba="mestre" id="abaMestre" title="Mestre" aria-label="Mestre" hidden>👑</button>
-  </nav>
 </div>
 </section>
 
