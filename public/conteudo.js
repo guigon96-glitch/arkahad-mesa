@@ -417,6 +417,17 @@ export const ARVORES = {
     N('imb4', 4, 'Arma Viva', 'Imbuir passa a ser gratuito; um Triunfo no ataque aplica a condição do Dom (queimando, congelado, atordoado…).', { imbuir: '1d6', exigeDom: true }),
     N('imb5', 5, 'Avatar Elemental', '1×/cena, por 3 rodadas: cada acerto com a arma aplica de graça uma técnica de Nível 2.', { exigeDom: true }),
   ] },
+  // Arma Imbuída própria do Kalthor (substitui a genérica): efeitos no servidor, 'Queimar Brasas' liga os que gastam Brasas
+  imbuida_kalthor: { nome: 'Arma de Brasa', tipo: 'hibrida', dom: 'kalthor', cor: '#ff7a1e', desc: 'Só Aurethian com Kalthor. A arma vira brasa viva: acende o campo, corta em arco e descarrega as Brasas num golpe só.', nos: [
+    N('imbk1', 1, 'Arma em Brasa', 'Ação menor, 1 Fôlego: a arma pega fogo até o fim da cena (+1d4 de fogo). Funciona com flechas e virotes.', { imbuir: '1d4' }),
+    N('imbk2a', 2, 'Lâmina Flamejante', 'Corpo a corpo, com Queimar Brasas ligado: gasta 1 Brasa e o golpe acerta também todos os inimigos ao seu lado. Exige 1 ponto numa árvore de arma.', { exigeArma: true }),
+    N('imbk2b', 2, 'Martelo de Forja', 'Crítico corpo a corpo com a arma em brasa: o alvo cai (Marcado 1) e uma fogueira acende ao lado dele. Exige 1 ponto numa árvore de arma.', { exigeArma: true }),
+    N('imbk2c', 2, 'Flecha Incendiária', 'Disparo em brasa que acerta acende uma fogueira ao lado do alvo. Exige 1 ponto numa árvore de arma.', { exigeArma: true }),
+    N('imbk2d', 2, 'Saraivada de Brasas', 'À distância, com Queimar Brasas ligado: cada Brasa vira um disparo extra num inimigo diferente ao alcance. Exige 1 ponto numa árvore de arma.', { exigeArma: true }),
+    N('imbk3a', 3, 'Têmpera Viva', 'O fogo da arma vira +1d6. Superaquecido, a arma em brasa ignora a Proteção. Exige 1 ponto numa árvore do Dom.', { imbuir: '1d6', exigeDom: true }),
+    N('imbk3b', 3, 'Aparar em Chamas', 'Reação automática com a arma em brasa (1 Brasa): quem ataca você corpo a corpo tem −2 e pega fogo. Exige 1 ponto numa árvore do Dom.', { exigeDom: true }),
+    N('imbk4', 4, 'Golpe do Sol Negro', '1× por combate: gasta todas as Brasas. +1d6 por Brasa em todos os inimigos numa linha de 6 casas na direção do alvo, deixando fogueiras pelo caminho.', { exigeDom: true }),
+  ] },
 };
 
 // ================= Habilidades do Dom (árvore de cada Dom, só Aurethian) =================
@@ -504,11 +515,14 @@ const HAB_MOVIDA = { hab_nebulon_2: 'hab_zephyr_2', hab_ferrar_3: 'hab_geo_2', h
   hab_somnis_2: 'hab_psyka_3', hab_aether_2: 'hab_gravitio_3', hab_caosmora_2: 'hab_veu_caos_3' };
 // habilidade movida troca de id; as dos Dons cortados somem (o ponto volta para gastar de novo)
 export const migrarHabs = l => [...new Set((Array.isArray(l) ? l : []).map(id => HAB_MOVIDA[id] || id))].filter(id => !String(id).startsWith('hab_') || HABILIDADE[id]);
+const IMB_KALTHOR = { imb1: 'imbk1', imb2a: 'imbk2a', imb2b: 'imbk2c', imb3: 'imbk3a', imb4: 'imbk4' };
 export function migrarFicha(f) {
   if (!f || typeof f !== 'object') return f;
   for (const k of ['dom', 'dom2']) if (DOM_FUNDIDO[f[k]]) f[k] = DOM_FUNDIDO[f[k]];
   if (f.dom2 && f.dom2 === f.dom) f.dom2 = '';
   if ('talentos' in f) f.talentos = migrarHabs(f.talentos);
+  // Kalthor ganhou a Arma de Brasa: os pontos da Arma Imbuída genérica passam para os nós equivalentes
+  if (f.dom === 'kalthor' && Array.isArray(f.talentos)) f.talentos = [...new Set(f.talentos.map(id => IMB_KALTHOR[id] || id))];
   return f;
 }
 // ícones gerados no Canva (public/icones/<id>.webp); sem o arquivo, cai no símbolo de texto
@@ -526,7 +540,8 @@ export function arvoresPermitidas(f) {
   const aur = ehAurethian(f);
   const cristal = !!VOCACOES[f.vocacao]?.cristal;
   const doms = [f.dom, f.estrato === 'dualista' && f.dom2].filter(Boolean);
-  return Object.entries(ARVORES).filter(([, a]) => a.tipo === 'arma' || (a.tipo === 'habilidade' ? aur && doms.includes(a.dom) : a.tipo === 'cristal' ? cristal : aur ? a.tipo === 'dom' || a.tipo === 'hibrida' : a.tipo === 'vellunari')).map(([k]) => k);
+  const imbPropria = Object.values(ARVORES).some(a => a.tipo === 'hibrida' && a.dom === f.dom);
+  return Object.entries(ARVORES).filter(([, a]) => a.tipo === 'arma' || (a.tipo === 'hibrida' && (a.dom ? aur && a.dom === f.dom : aur && !imbPropria)) || (a.tipo === 'habilidade' ? aur && doms.includes(a.dom) : a.tipo === 'cristal' ? cristal : aur ? a.tipo === 'dom' : a.tipo === 'vellunari')).map(([k]) => k);
 }
 export function pontosNaArvore(f, arvore) { return (f.talentos || []).filter(id => TALENTO[id]?.arvore === arvore).length; }
 // por que um nó não pode ser pego agora (ou null)
@@ -557,7 +572,8 @@ function efeitos(f) {
   }
   return e;
 }
-export function temImbuir(f) { return ehAurethian(f) && (f.talentos || []).includes('imb1'); }
+export function temImbuir(f) { return ehAurethian(f) && (f.talentos || []).some(id => id === 'imb1' || id === 'imbk1'); }
+export const temTalento = (f, id) => (f?.talentos || []).includes(id);
 // Ataque com a arma equipada: bônus no teste e dano (já com talentos e imbuir)
 export function ataqueArma(f, imbuida = false) {
   const a = atributosFinais(f), id = armaDe(f), arma = ARMAS[id], e = efeitos(f);

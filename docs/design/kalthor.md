@@ -1,6 +1,6 @@
 # Kalthor — design aprovado (a implementar)
 
-Estado: árvore do Dom **aprovada pelo dono**. Arma Imbuída do Kalthor em proposta (final do arquivo).
+Estado: parte 1 da árvore do Dom e a Arma de Brasa implementadas; ramos Inferno e Cinza pendentes (parte 2).
 Hoje no código: `HAB_DOM.kalthor` em `public/conteudo.js` (4 nós antigos) e a árvore genérica `imbuida`.
 
 ## Mecânica central: Brasas (0–5)
@@ -43,7 +43,9 @@ Hoje no código: `HAB_DOM.kalthor` em `public/conteudo.js` (4 nós antigos) e a 
 
 ---
 
-# Arma Imbuída do Kalthor — "Arma de Brasa" (PROPOSTA)
+# Arma Imbuída do Kalthor — "Arma de Brasa" (IMPLEMENTADA)
+
+No jogo: Martelo de Forja e Flecha Incendiária acendem a fogueira na casa livre ao lado do alvo (a fogueira bloqueia a casa); "cai" = Marcado 1. Lâmina Flamejante e Saraivada só gastam Brasas com o botão Queimar Brasas ligado. Aparar em Chamas é automático (só PC com a arma em brasa). Sol Negro é 1× por combate.
 
 Árvore própria `imbuida_kalthor`, no lugar da genérica `imbuida` quando o Dom é Kalthor. Nós G2+ exigem 1 ponto numa árvore de arma (`exigeArma`), como hoje. O foco é a arma; a árvore do Dom é o corpo e a magia.
 

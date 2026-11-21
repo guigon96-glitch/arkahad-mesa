@@ -1028,7 +1028,7 @@ function ligar() {
 }
 
 // ================= Combate: HUD, mira, alcance =================
-let mira = null, filaDados = Promise.resolve(), filaOcupada = 0, tirithHud = 'normal', menuTec = false;
+let mira = null, filaDados = Promise.resolve(), filaOcupada = 0, tirithHud = 'normal', menuTec = false, queimarBrasas = false; // Arma de Brasa: gastar Brasas no golpe
 const corDoDom = k => { const [t, id] = partir(k); const f = t === 'pc' ? pcs[id]?.ficha : null; return f && ehAurethian(f) ? TODOS_DONS[f.dom]?.cor : '#9ad0ff'; };
 // quem o usuário controla agora: o NPC selecionado (Mestre) ou o próprio personagem
 function atorAtivo() {
@@ -1076,7 +1076,7 @@ function hud() {
     <div class="hud-acoes">
       <div class="atalhos ${editandoBarra ? 'editando' : ''}" role="toolbar" aria-label="Atalhos 1 a 0">${barra.map((id, i) => {
         const op = ops.find(o => o.id === id), ativo = op && ((id === 'arma' && mira?.tipo === 'arma') || (id.startsWith('tec:') && mira?.tipo === 'tec' && mira.nivel === num(id.slice(4))) || (id.startsWith('hab:') && mira?.hab === id.slice(4)) || op.on);
-        const livre = op && (id === 'imbuir' || (id === 'defender' ? pode && !t.guarda : pode));
+        const livre = op && (id === 'imbuir' || id === 'brasas' || (id === 'defender' ? pode && !t.guarda : pode));
         return `<button class="slot ${op ? '' : 'vazio'} ${ativo ? 'on' : ''} ${editandoBarra && slotEditado === i ? 'sel' : ''}" data-slot="${i}" ${!editandoBarra && op && !livre ? 'disabled' : ''} title="${op ? esc(`${op.nome} — ${op.sub}`) : editandoBarra ? 'Escolher atalho' : 'Vazio'}"${op?.cor ? ` style="--cor:${op.cor}"` : ''}><kbd>${(i + 1) % 10}</kbd><span class="ic">${op ? (op.img ? icone(op.img, op.ic) : op.ic) : ''}</span><small>${op ? esc(op.nome) : ''}</small></button>`;
       }).join('')}</div>
       <div class="hud-lado">
@@ -1107,6 +1107,9 @@ function opcoesBarra(t) {
   if (dom) for (let i = 1; i <= n; i++) ops.push({ id: 'tec:' + i, ic: '✦', cor: dom.cor, nome: dom.tec[i - 1], sub: `${dom.nome} N${i} · ${CUSTO_DOM[i - 1]} Fôlego` });
   for (const h of habilidadesDoAtor(t)) ops.push({ id: 'hab:' + h.id, img: h.id, ic: ICONE_HAB[h.t], cor: h.cor, nome: h.nome, sub: `${TALENTO[h.id].desc}` });
   if (f && temImbuir(f)) ops.push({ id: 'imbuir', ic: '🜂', cor: dom?.cor, nome: t.imbuido ? 'Imbuída' : 'Imbuir', sub: f.talentos.includes('imb4') ? 'grátis' : '1 Fôlego', on: !!t.imbuido });
+  const tal = f?.talentos || [];
+  if (tal.includes('imbk2a') || tal.includes('imbk2d')) ops.push({ id: 'brasas', ic: '♨', cor: '#ff7a1e', nome: 'Queimar Brasas', sub: `${num(t.brasas)}/5 Brasas · ligado, a Lâmina Flamejante e a Saraivada gastam Brasas`, on: queimarBrasas });
+  if (tal.includes('imbk4') && !t.solNegro) ops.push({ id: 'solnegro', ic: '☀', cor: '#ff7a1e', nome: 'Sol Negro', sub: `1× por combate · descarrega ${num(t.brasas)} Brasas numa linha de 6 casas`, on: !!mira?.solNegro });
   if (t.tipo === 'pc') ops.push({ id: 'defender', ic: '⛨', nome: 'Defender', sub: '+2 Defesa até seu turno', on: !!t.guarda });
   if (t.k === 'pc:' + eu()) for (const it of (Array.isArray(t.itens) ? t.itens : [])) ops.push({ id: 'item:' + it.n, ic: '🧪', nome: it.n, sub: `Item · ${num(it.q, 1)} no Inventário` });
   return ops;
@@ -1116,6 +1119,7 @@ function barraDe(t, ops) {
     const b = Array.from({ length: 10 }, (_, i) => t.barra[i] || '');
     // barras salvas antes do Mover existir ganham o Mover no primeiro espaço vazio
     if (!b.includes('mover') && !t.barra.includes('mover')) { const v = b.indexOf(''); if (v >= 0) b[v] = 'mover'; }
+    for (const id of ['brasas', 'solnegro']) if (ops.some(o => o.id === id) && !b.includes(id)) { const v = b.indexOf(''); if (v >= 0) b[v] = id; }
     return b;
   }
   const ids = ops.filter(o => !o.id.startsWith('item:')).map(o => o.id);
@@ -1154,7 +1158,9 @@ document.addEventListener('keydown', e => {
   e.preventDefault(); usarSlot(e.key === '0' ? 9 : num(e.key) - 1);
 });
 function acaoHud(a, t) {
-  if (a === 'arma') { menuTec = false; if (mira?.tipo === 'arma') return cancelarMira(); iniciarMira(t, { tipo: 'arma' }); }
+  if (a === 'arma') { menuTec = false; if (mira?.tipo === 'arma' && !mira.solNegro) return cancelarMira(); iniciarMira(t, { tipo: 'arma' }); }
+  else if (a === 'solnegro') { menuTec = false; if (mira?.solNegro) return cancelarMira(); iniciarMira(t, { tipo: 'arma', solNegro: true }); }
+  else if (a === 'brasas') { queimarBrasas = !queimarBrasas; hud(); }
   else if (a === 'tecs') { menuTec = !menuTec; if (mira) cancelarMira(); else hud(); }
   else if (a === 'imbuir') $('imbuir') ? $('imbuir').click() : alternarImbuir();
   else if (a === 'defender') enviar({ tipo: 'defender' });
@@ -1296,7 +1302,7 @@ function atacarAlvos(ator, cfg0, ks, centro) {
   const mod = Math.min(...validos.map(a => av[alvos.indexOf(a)].mod));
   const cob = Object.fromEntries(validos.map(a => [a.k, av[alvos.indexOf(a)].cob]));
   const rotulo = cfg.tipo === 'tec' ? `${cfg.nome} (N${cfg.nivel})` : `${cfg.nome} em ${validos.length > 1 ? validos.length + ' alvos' : validos[0].nome}`;
-  enviar({ tipo: 'ataque', de: ator.k, alvos: validos.map(a => a.k), mod, cob, tirith: tirithHud, dano: cfg.dano, rotulo, dom: cfg.tipo === 'tec' || (cfg.tipo === 'arma' && !!ator.imbuido && !!f && temImbuir(f)), distancia: !!cfg.distancia });
+  enviar({ tipo: 'ataque', de: ator.k, alvos: validos.map(a => a.k), mod, cob, tirith: tirithHud, dano: cfg.dano, rotulo, arma: cfg.tipo === 'arma', queimar: queimarBrasas, solNegro: !!cfg.solNegro, dom: cfg.tipo === 'tec' || (cfg.tipo === 'arma' && !!ator.imbuido && !!f && temImbuir(f)), distancia: !!cfg.distancia });
 }
 function usarHabNoServidor(ator, cfg, alvos, centro) {
   const livre = cfg.mov || cfg.campo; // teleporte e campo não miram miniaturas
