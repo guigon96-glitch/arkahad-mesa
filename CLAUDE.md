@@ -3,9 +3,10 @@
 Mesa virtual 3D para o RPG de Arkahad (sistema próprio: testes em 2d10 Kael/Lyra; ataques em d20 separados — Kael acerto, Lyra dano, Aranor punição do Dom). Até 6 jogadores + Mestre, login Google, sessões com senha, vários mapas por sessão ligados por portais. Tudo em português (interface, código, nomes de variáveis).
 
 ## Cliente principal: Godot (leia antes de qualquer tarefa)
-- **Toda novidade de jogo (interface, cena 3D, combate, mover, efeitos, ficha, painel do Mestre) é feita no cliente Godot 4.7 em `godot/`.** O site em `public/` (app.js, cena3d.js, criacao.js…) virou legado: só mexa nele se o dono pedir pelo nome “site”/“navegador”.
+- **Toda novidade de jogo (interface, cena 3D, combate, mover, efeitos, ficha, painel do Mestre) é feita no cliente Godot 4.7, que é OUTRA pasta: `C:/Users/guigo/Documents/arkahad-godot` (sem git; o `LEIAME.md` de lá tem o mapa dos arquivos).** A pasta `godot/` deste repositório é só o piloto antigo: não mexa nela. O site em `public/` (app.js, cena3d.js, criacao.js…) virou legado: só mexa nele se o dono pedir pelo nome “site”/“navegador”.
 - O servidor continua sendo `src/worker.js` (autoridade de tudo: movimento, ações, rolagens) e as regras compartilhadas continuam em `public/regras.js` + `public/conteudo.js`. Regra nova vai no servidor primeiro; o Godot só mostra prévia e envia mensagens WebSocket.
-- O Godot não importa os módulos JS: o que ele precisa das regras é copiado em GDScript (ex.: custos de terreno em `godot/movimento.gd`, alturas em `godot/construtor_mapa.gd`). Ao mudar `TERRENOS`/`PAREDES`/`custoSubida` em `regras.js`, atualize a cópia no Godot no mesmo commit.
+- O Godot não importa os módulos JS: o que ele precisa das regras é copiado em GDScript (`nucleo/regras.gd` = regras de mapa, `nucleo/ficha.gd` = contas da ficha, `nucleo/jogo.gd` = turno/ações/alcance, espelho do `app.js`; `dados/conteudo.json` vem de `node ferramentas/preparar.mjs ../arkahad-mesa`). Ao mudar regra no servidor ou em `regras.js`/`conteudo.js`, atualize o espelho no Godot na mesma tarefa.
+- Antes de editar o `arkahad-godot`, copie os arquivos que vai mudar para o scratchpad (não há git lá para desfazer).
 
 ## Economia de tokens (siga sempre)
 - Leia só o que a tarefa precisa. Use `grep -n` para achar a função e leia com offset/limit; nunca leia `app.js`, `cena3d.js` ou `worker.js` inteiros.
@@ -34,7 +35,8 @@ Mesa virtual 3D para o RPG de Arkahad (sistema próprio: testes em 2d10 Kael/Lyr
 | Miniaturas simples de reserva e dados 3D | `public/miniatura.js` |
 | Efeitos das habilidades do Dom (partículas, projéteis, feixes, explosões, colunas, ondas, auras, escudos) | `public/efeitos.js` |
 | Estilos | `public/style.css` |
-| **Cliente principal (Godot 4.7, Forward+)**: `principal.gd` (cena, câmera, clique, peças, Mover com alcance e rastro), `interface.gd` (entrada e botões), `rede.gd` (WebSocket), `construtor_mapa.gd` (chão, paredes, objetos), `modelos.gd` (personagens e criaturas), `movimento.gd` (Dijkstra/caminho, cópia de `regras.js`). Antes de abrir: `node godot/preparar_modelos.mjs` (copia os .glb sem quantização para `godot/modelos/`, fora do git) | `godot/` |
+| **Cliente principal (Godot 4.7, Forward+)**: saguão, mesa 3D, barra de ações, mira, Mover, editor, criador, fichas. Mapa dos arquivos no `LEIAME.md` de lá (`interface/tela_mesa.gd`, `nucleo/jogo.gd`, `nucleo/regras.gd`, `cena/mesa3d.gd`…) | `C:/Users/guigo/Documents/arkahad-godot` |
+| Piloto antigo do Godot (abandonado, não mexer) | `godot/` |
 | Créditos e licenças (obrigatório atualizar ao adicionar asset de terceiros) | `public/creditos.html`, `public/modelos/LICENCA-*.txt`, `README.md` |
 
 O livro de regras completo está em `docs/regras/` (um arquivo por capítulo, índice em `INDICE.md`; cópia do Claude Doc do dono). O que vale no jogo é o implementado em `conteudo.js` + `regras.js`.
@@ -45,7 +47,7 @@ Comandos do projeto: `/tarefa <pedido>`, `/regra <pergunta>`, `/modelo3d <arquiv
 - Armazenamento: `meta` (nome, códigos, senha PBKDF2, `mapaInicial`, `vendo` = mapa que o Mestre está vendo), `mapas` (id → mapa), `pcs` (id do usuário → personagem), `npcs`, `log`. Sessões antigas com a chave `mesa` são migradas para `mapas.m1` em `carregar()`.
 - Mapa: `{ id, nome, cols, rows, grid: string[], alt: string[], par: string[], rot: string[], tin: string[], luz, lua, portais: { 'x,y': { para, x, y, nome, cor } }, combate }`.
   - `grid`: um caractere por casa (ver `TERRENOS` em `regras.js`: `"` mato, `.` terra, `,` areia, `_` ladrilho, `=` madeira, `v` vidro negro, `~` água, `T` árvore, `P` pinheiro, `Q` árvore seca, `k` arbusto, `#` muro, `m` paliçada, `h` muro baixo, `+` porta, `^` rocha, `*` fogueira, `b c s n a o w` objetos, `/` rampa e `|` escada, que ligam níveis: `custoSubida`).
-  - `par` (paredes): `# m f h + d` e as de construção `g` tijolo, `i` reboco, `p` tábuas, `z` muralha, `!` janela, `%` grade (`PAREDES` em `regras.js`; espessura/altura em `PAREDE` de `godot/construtor_mapa.gd` (e `PAREDES` do `cena3d.js` no site).
+  - `par` (paredes): `# m f h + d` e as de construção `g` tijolo, `i` reboco, `p` tábuas, `z` muralha, `!` janela, `%` grade (`PAREDES` em `regras.js`; espessura/altura em `arkahad-godot/cena/paredes.gd` (e `PAREDES` do `cena3d.js` no site).
   - `tin` (pintura das paredes): uma letra de `TINTAS` (`regras.js`) por casa, ' ' = cor natural; validada por `camadaTinta` no `worker.js`. Nenhum cliente desenha a tinta ainda (fazer no Godot).
   - Sala fechada pelas quatro paredes (porta fechada conta): `semParedeEntre` em `regras.js`; o `mover` recusa para todos, inclusive o Mestre.
   - `alt`: `'0'..'4'` = nível −1..+3 (`nivelEm`). `NIVEL_H` em `terreno.js` dá a altura visual.
@@ -65,8 +67,8 @@ Comandos do projeto: `/tarefa <pedido>`, `/regra <pergunta>`, `/modelo3d <arquiv
 
 ## Testar
 - Depois de mudar JS: `node --check arquivo.js`.
-- Godot: executável em `C:/Users/guigo/Documents/RPG/Godot_v4.7.2-stable_win64.exe`. Checar sintaxe: `<godot> --headless --path godot --check-only --script principal.gd` (antes, `--headless --path godot --import` se criou `class_name` novo). Teste de lógica: script `extends SceneTree` rodado com `--headless --path godot --script <arquivo>`.
-- Teste de verdade: `npm run dev` e abrir o projeto `godot/` (servidor `http://127.0.0.1:8787`, entrar por apelido).
+- Godot: executável em `C:/Users/guigo/Documents/RPG/Godot_v4.7.2-stable_win64.exe`. Checar erros: `<godot> --headless --path C:/Users/guigo/Documents/arkahad-godot --quit-after 200` (o `--check-only` por arquivo não enxerga os autoloads `Jogo`, `Rede`, `Dados`). Teste de verdade automático: uma cena temporária `_teste.tscn` na raiz de lá que instancia `principal.tscn`, põe `Rede.token` (login por apelido em `/api/login`), chama `_entrar(codigo)` e salva `get_viewport().get_texture().get_image()`; apague depois.
+- Teste do dono: `npm run dev` aqui e F5 no projeto `arkahad-godot` (servidor `http://127.0.0.1:8787`).
 - Site (legado): `npm run dev` e abrir no navegador. Em `localhost`, `globalThis.__arkahad` expõe `enviar`, `selecionar`, `mesa`, `cena` (com `_cam`, `_ctl`, `_alt`, `_solo`) para testes automáticos.
 - A cena tem qualidade adaptativa (desliga AO/bloom se < 24 fps). Verifique em PC fraco e no celular quando mexer em gráficos.
 
