@@ -63,6 +63,16 @@ export const TERRENOS = {
   'W': { n: 'Espinhos (armadilha)', custo: 3 },
   'N': { n: 'Grade no chão', custo: 1 },
   'e': { n: 'Escada de mão', custo: Infinity },
+  // construção (camada de paredes): materiais e espessuras diferentes
+  'g': { n: 'Parede de tijolo', custo: Infinity, parede: 'tijolo' },
+  'i': { n: 'Parede de reboco (fina)', custo: Infinity, parede: 'reboco' },
+  'p': { n: 'Parede de tábuas (fina)', custo: Infinity, parede: 'tabuas' },
+  'z': { n: 'Muralha de castelo (grossa)', custo: Infinity, parede: 'muralha' },
+  '!': { n: 'Janela', custo: Infinity, parede: 'janela', cobertura: true },
+  '%': { n: 'Grade de ferro', custo: Infinity, parede: 'grade', cobertura: true },
+  // rampa e escada ligam níveis de altura (camada do chão)
+  '/': { n: 'Rampa', custo: 1, rampa: true },
+  '|': { n: 'Escada', custo: 1, escada: true },
 };
 
 export const LUZES = {
@@ -94,7 +104,7 @@ export const num = (v, d = 0) => {
 };
 
 // Paredes e cercas ficam numa camada própria (mesa.par, um caractere por casa, ' ' = nada) por cima do chão.
-export const PAREDES = ['#', 'm', 'f', 'h', '+', 'd'];
+export const PAREDES = ['#', 'm', 'f', 'h', '+', 'd', 'g', 'i', 'p', 'z', '!', '%'];
 export const paredeEm = (mesa, x, y) => { const p = (mesa?.par?.[y] || '')[x]; return PAREDES.includes(p) ? p : ''; };
 // o que vale para movimento, visão e cobertura: a parede, se houver; senão o chão
 export const celula = (mesa, x, y) => paredeEm(mesa, x, y) || (mesa?.grid?.[y] || '')[x];
@@ -112,8 +122,15 @@ export function nivelEm(mesa, x, y) {
   return c >= '0' && c <= '4' ? c.charCodeAt(0) - 49 : 0;
 }
 // Subir 1 nível custa +1 casa; descer é livre; diferença de 2+ níveis exige escalar ou saltar (o Mestre move).
+// Rampa: sobe ou desce 1 nível sem custo extra. Escada: vence até 2 níveis, subir custa +1.
 export function custoSubida(mesa, x, y, nx, ny) {
   const d = nivelEm(mesa, nx, ny) - nivelEm(mesa, x, y);
+  const chao = (a, b) => TERRENOS[(mesa?.grid?.[b] || '')[a]] || {};
+  const o = chao(x, y), n = chao(nx, ny);
+  // a rampa/escada é a casa mais alta do par: desce até o vizinho mais baixo
+  const liga = k => (n[k] && d > 0) || (o[k] && d < 0);
+  if (liga('rampa')) return Math.abs(d) >= 2 ? Infinity : 0;
+  if (liga('escada')) return Math.abs(d) >= 3 ? Infinity : d > 0 ? 1 : 0;
   if (Math.abs(d) >= 2) return Infinity;
   return d === 1 ? 1 : 0;
 }

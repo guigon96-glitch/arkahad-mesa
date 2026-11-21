@@ -21,7 +21,9 @@ const TELA_FINA = matchMedia('(pointer: coarse)').matches;
 // ---------- configuração fácil de editar ----------
 const ALTURA = { '.': .12, '_': .16, ',': .1, '"': .14, '~': .04, '=': .17, '+': .16, 'v': .12, '#': .16, m: .12, h: .12, k: .14, P: .14, Q: .12, 'T': .14, '^': .12, '*': .12, b: .12, c: .12, s: .12, n: .14, a: .16, o: .14, w: .12 };
 const NIVEL_H = NIVEL_SOLO; // altura de um nível de terreno
-const PAREDES = { '#': { h: 1.7, t: .4, tex: 'muro' }, m: { h: 1.6, t: .3, tex: 'tronco' }, h: { h: .8, t: .42, tex: 'muro' }, f: { h: .75, t: .1 } };
+const PAREDES = { '#': { h: 1.7, t: .4, tex: 'muro' }, m: { h: 1.6, t: .3, tex: 'tronco' }, h: { h: .8, t: .42, tex: 'muro' }, f: { h: .75, t: .1 },
+  // paredes de construção (o cliente Godot desenha cada material; aqui viram muros com a espessura certa)
+  g: { h: 1.7, t: .25, tex: 'muro' }, i: { h: 1.7, t: .12, tex: 'muro' }, p: { h: 1.7, t: .14, tex: 'muro' }, z: { h: 2.2, t: .6, tex: 'muro' }, '!': { h: 1.7, t: .14, tex: 'muro' }, '%': { h: 1.7, t: .08, tex: 'muro' } };
 // 'a+b' = peça b em cima da peça a
 const OBJETOS = { b: ['barril'], c: ['caixote', 'caixas'], s: ['saco'], n: ['tenda'], a: ['suporte_armas'], o: ['alvo'], w: ['carrinho', 'balde'],
   M: ['mesa'], Y: ['mesa_redonda+garrafas', 'mesa_redonda+velas', 'mesa_redonda+prato', 'mesa_redonda+tacas'], L: ['mesa_longa+tacas', 'mesa_longa+prato'], u: ['trono'], C: ['cadeira'], U: ['banco'], A: ['cama'], E: ['estante'], R: ['prateleira'],
