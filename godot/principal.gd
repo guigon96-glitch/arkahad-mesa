@@ -44,7 +44,7 @@ func _ready() -> void:
 	ambiente.sdfgi_enabled = true          # luz global em tempo real
 	ambiente.glow_enabled = true
 	ambiente.volumetric_fog_enabled = true # neblina que a luz atravessa
-	ambiente.volumetric_fog_density = 0.008
+	ambiente.volumetric_fog_density = 0.003
 	var we := WorldEnvironment.new()
 	we.environment = ambiente
 	add_child(we)
@@ -118,17 +118,24 @@ func _peca(k: String, o: Dictionary, mesa: Dictionary) -> void:
 	var p: Node3D = pecas.get(k)
 	if p == null:
 		p = Node3D.new()
-		var corpo := MeshInstance3D.new()
-		var capsula := CapsuleMesh.new()
-		capsula.radius = 0.28
-		capsula.height = 1.02  # pessoa de 1,85 m
-		var mat := StandardMaterial3D.new()
-		mat.albedo_color = Color.from_string(str(o.get("cor", "#e2b04a")), Color(0.89, 0.69, 0.29))
-		mat.roughness = 0.6
-		capsula.material = mat
-		corpo.mesh = capsula
-		corpo.position.y = 0.51
-		p.add_child(corpo)
+		var montado := Modelos.personagem(o)
+		if montado[0]:
+			p.add_child(montado[0])
+			p.set_meta("anim", montado[1])
+			p.set_meta("nomes", montado[2])
+			_animar(p, "parado")
+		else:  # reserva: cápsula na cor do personagem
+			var corpo := MeshInstance3D.new()
+			var capsula := CapsuleMesh.new()
+			capsula.radius = 0.28
+			capsula.height = 1.02  # pessoa de 1,85 m
+			var mat := StandardMaterial3D.new()
+			mat.albedo_color = Color.from_string(str(o.get("cor", "#e2b04a")), Color(0.89, 0.69, 0.29))
+			mat.roughness = 0.6
+			capsula.material = mat
+			corpo.mesh = capsula
+			corpo.position.y = 0.51
+			p.add_child(corpo)
 		var nome := Label3D.new()
 		nome.billboard = BaseMaterial3D.BILLBOARD_ENABLED
 		nome.position.y = 1.35
@@ -143,8 +150,20 @@ func _peca(k: String, o: Dictionary, mesa: Dictionary) -> void:
 	p.scale = Vector3.ONE * tam
 	(p.get_node("Nome") as Label3D).text = str(o.get("nome", "?")) + ("  ◆" if k == selecionada else "")
 	if p.position.distance_to(destino) > 0.01:
+		var plano := Vector2(destino.x - p.position.x, destino.z - p.position.z)
+		if plano.length() > 0.01:
+			p.rotation.y = atan2(plano.x, plano.y)  # vira para onde vai
+		_animar(p, "andar")
 		var tw := create_tween()
-		tw.tween_property(p, "position", destino, clampf(p.position.distance_to(destino) * 0.12, 0.15, 1.2))
+		tw.tween_property(p, "position", destino, clampf(plano.length() * 0.35, 0.25, 3.0))
+		tw.tween_callback(_animar.bind(p, "parado"))
+
+
+func _animar(p: Node3D, qual: String) -> void:
+	var ap: AnimationPlayer = p.get_meta("anim", null)
+	var nome: String = p.get_meta("nomes", {}).get(qual, "")
+	if ap and nome != "" and ap.current_animation != nome:
+		ap.play(nome, 0.2)
 
 
 func _luz(luz: String) -> void:

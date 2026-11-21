@@ -4,3 +4,4 @@ node_modules/
 
 # Godot (cache do editor)
 godot/.godot/
+godot/modelos/

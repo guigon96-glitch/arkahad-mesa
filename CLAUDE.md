@@ -29,7 +29,7 @@ Mesa virtual 3D para o RPG de Arkahad (sistema próprio: testes em 2d10 Kael/Lyr
 | Miniaturas simples de reserva e dados 3D | `public/miniatura.js` |
 | Efeitos das habilidades do Dom (partículas, projéteis, feixes, explosões, colunas, ondas, auras, escudos) | `public/efeitos.js` |
 | Estilos | `public/style.css` |
-| Piloto do cliente instalável (Godot 4, Forward+): login, mapa em 3D simples, mover pelo clique; usa o mesmo servidor | `godot/` |
+| Piloto do cliente instalável (Godot 4, Forward+): login, mapa com texturas e modelos do site, personagens animados, mover pelo clique; usa o mesmo servidor. Antes de abrir: `node godot/preparar_modelos.mjs` (copia os .glb sem quantização para `godot/modelos/`, fora do git) | `godot/` |
 | Créditos e licenças (obrigatório atualizar ao adicionar asset de terceiros) | `public/creditos.html`, `public/modelos/LICENCA-*.txt`, `README.md` |
 
 O livro de regras completo está em `docs/regras/` (um arquivo por capítulo, índice em `INDICE.md`; cópia do Claude Doc do dono). O que vale no jogo é o implementado em `conteudo.js` + `regras.js`.
