@@ -206,9 +206,11 @@ export function construirSolo(mesa, tex, opcoes = {}) {
           vec3 T = normalize(cross(vec3(0., 0., 1.), nM)); vec3 B = normalize(cross(nM, T));
           vec3 nW = normalize(nM + (T * nTex.x - B * nTex.y) * .6);
           normal = normalize((viewMatrix * vec4(nW, 0.)).xyz);
-        }`);
+        }`)
+      // reflexo do céu (HDRI) no chão a 10%: cheio, o vidro negro virava um espelho
+      .replace('#include <lights_fragment_end>', '#if defined( RE_IndirectSpecular )\n radiance *= .1;\n#endif\n#include <lights_fragment_end>');
   };
-  mat.customProgramCacheKey = () => 'solo-v1';
+  mat.customProgramCacheKey = () => 'solo-v2';
   const malha = new THREE.Mesh(geo, mat);
   malha.receiveShadow = true; malha.castShadow = true;
 

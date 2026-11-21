@@ -1,7 +1,7 @@
 // Cena 3D do tabuleiro: terreno, cenário, luzes de Kael e Lyra, miniaturas, dados.
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-import { TERRENOS, nivelEm, celula, paredeEm } from './regras.js';
+import { TERRENOS, nivelEm, celula, paredeEm, dijkstra, custoCel, custoSubida } from './regras.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { RGBELoader } from 'three/addons/loaders/RGBELoader.js';
 import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
@@ -194,12 +194,37 @@ export function criarCena(el, cb = {}) {
   }
   let alvosClique = [];
   const ehParede = c => !!PAREDES[c];
+  // fotos do ambientCG (CC0) já usadas no chão, aqui como textura comum para paredes e portas
+  const fotos = {};
+  const foto = n => fotos[n] ||= ['cor', 'nrm'].map(suf => {
+    const t = new THREE.TextureLoader().load(`/texturas/${n}_${suf}.jpg`);
+    t.wrapS = t.wrapT = THREE.RepeatWrapping; t.anisotropy = 8; t.colorSpace = suf === 'cor' ? THREE.SRGBColorSpace : THREE.NoColorSpace;
+    return t;
+  });
   // UV proporcional ao tamanho de cada face (tijolos do mesmo tamanho em qualquer peça)
   function caixaUV(w, h, d, escala = 1) {
     const g = new THREE.BoxGeometry(w, h, d), uv = g.attributes.uv;
     const dims = [[d, h], [d, h], [w, d], [w, d], [w, h], [w, h]];
     for (let f = 0; f < 6; f++) for (let k = 0; k < 4; k++) { const i = f * 4 + k; uv.setXY(i, uv.getX(i) * dims[f][0] * escala, uv.getY(i) * dims[f][1] * escala); }
     return g;
+  }
+  // casas do caminho de (x0,y0) até (x1,y1), sem a de saída, contornando paredes; null se não há caminho
+  function rota(x0, y0, x1, y1) {
+    const d = dijkstra(mesa, new Set(), x0, y0, 9999), r = [];
+    if (!d.has(x1 + ',' + y1)) return null;
+    let x = x1, y = y1;
+    while (x !== x0 || y !== y0) {
+      r.unshift([x, y]);
+      const aqui = d.get(x + ',' + y); let ant = null;
+      for (let dx = -1; dx <= 1 && !ant; dx++) for (let dy = -1; dy <= 1 && !ant; dy++) {
+        const v = d.get((x - dx) + ',' + (y - dy));
+        // vizinho que é antecessor de verdade no Dijkstra (mesma conta de custo)
+        if (v !== undefined && (dx || dy) && Math.abs(v + (custoCel(mesa, x, y) + custoSubida(mesa, x - dx, y - dy, x, y)) * (dx && dy ? 1.5 : 1) - aqui) < 1e-6) ant = [x - dx, y - dy];
+      }
+      if (!ant) return null;
+      [x, y] = ant;
+    }
+    return r;
   }
   function construirTerreno() {
     limpar(grupoTerreno); chamas = []; agua = null; alvosClique = []; fogosVivos = fogosVivos.filter(c => c.userData.rastro); chaveRastro = '';
@@ -340,40 +365,59 @@ export function criarCena(el, cb = {}) {
         continue;
       }
       if (tipo === 'f') {
-        // cerca: mourão no meio e duas travessas até cada vizinho
-        const g1 = tronco.clone(); g1.scale(1, P.h, 1); g1.translate(cx, y0 + P.h / 2, cz); pedacos.tronco.push(g1);
-        for (const [dx, dy] of viz.length ? viz : [[1, 0], [-1, 0]]) for (const a of [.35, .65]) {
-          const g = caixaUV(dx ? .5 : .05, .07, dy ? .5 : .05); g.translate(cx + dx * .25, y0 + P.h * a + .1, cz + dy * .25); pedacos.tronco.push(g);
+        // cerca: mourão quadrado com topo chanfrado e duas tábuas (levemente tortas) até cada vizinho
+        const hp = P.h * (.95 + acaso(x, y, 7) * .1);
+        const g1 = caixaUV(.1, hp, .1, 1); g1.translate(cx, y0 + hp / 2, cz); pedacos.tronco.push(g1);
+        const g0 = new THREE.ConeGeometry(.075, .08, 4, 1).rotateY(Math.PI / 4); g0.translate(cx, y0 + hp + .04, cz); pedacos.tronco.push(g0);
+        for (const [dx, dy] of viz.length ? viz : [[1, 0], [-1, 0]]) for (const a of [.38, .72]) {
+          const g = caixaUV(dx ? .52 : .035, .09, dy ? .52 : .035, 1); g.rotateX(dy ? (acaso(x, y, a * 9 + dy) - .5) * .06 : 0).rotateZ(dx ? (acaso(x, y, a * 9 + dx) - .5) * .06 : 0);
+          g.translate(cx + dx * .25 + (dy ? .06 : 0), y0 + P.h * a + .1, cz + dy * .25 + (dx ? .06 : 0)); pedacos.tronco.push(g);
         }
         continue;
       }
+      // muro de pedra: rodapé mais largo, corpo e pedras de remate irregulares no topo
       const t = P.t, h = P.h;
-      const post = !reto ? t * 1.2 : t;
-      const gp = caixaUV(post, h, post, 1.6); gp.translate(cx, y0 + h / 2, cz); pedacos.muro.push(gp);
-      const gt = caixaUV(post + .08, .08, post + .08, 1.6); gt.translate(cx, y0 + h + .04, cz); pedacos.topo.push(gt);
+      const post = !reto ? t * 1.15 : t;
+      const pedra = (w, hh, d, px, py, pz, peca, esc) => { const g = caixaUV(w, hh, d, esc); g.translate(px, py, pz); pedacos[peca].push(g); };
+      pedra(post, h, post, cx, y0 + h / 2, cz, 'muro', .9);
+      pedra(post + .1, .2, post + .1, cx, y0 + .1, cz, 'topo', 1.2);
+      pedra(post + .07, .09, post + .07, cx, y0 + h + .045, cz, 'topo', 1.2);
       for (const [dx, dy] of viz) {
         const l = .5, w = dx ? l : t, d = dy ? l : t;
-        const ga = caixaUV(w, h, d, 1.6); ga.translate(cx + dx * l / 2, y0 + h / 2, cz + dy * l / 2); pedacos.muro.push(ga);
-        const gc = caixaUV(dx ? l : t + .06, .07, dy ? l : t + .06, 1.6); gc.translate(cx + dx * l / 2, y0 + h + .035, cz + dy * l / 2); pedacos.topo.push(gc);
+        pedra(w, h, d, cx + dx * l / 2, y0 + h / 2, cz + dy * l / 2, 'muro', .9);
+        pedra(dx ? l : t + .1, .2, dy ? l : t + .1, cx + dx * l / 2, y0 + .1, cz + dy * l / 2, 'topo', 1.2);
+        for (let i = 0; i < 3; i++) {
+          // três pedras de remate por meia casa, cada uma com altura e largura um pouco diferentes
+          const r1 = acaso(x * 4 + dx + i, y * 4 + dy, 11), r2 = acaso(x * 4 + dx, y * 4 + dy + i, 12), comp = l / 3 - .012;
+          const off = (i + .5) * l / 3;
+          pedra(dx ? comp : t + .06 + r1 * .03, .07 + r2 * .05, dy ? comp : t + .06 + r1 * .03, cx + dx * off, y0 + h + .035 + r2 * .025, cz + dy * off, 'topo', 1.2);
+        }
       }
     }
-    const matMuro = new THREE.MeshStandardMaterial({ map: tex.muro, normalMap: tex.muroNormal, normalScale: new THREE.Vector2(.8, .8), roughness: .88 });
-    const matTopo = new THREE.MeshStandardMaterial({ color: '#8a8378', map: tex.muro, roughness: .8 });
-    const matTronco = new THREE.MeshStandardMaterial({ map: tex.tronco, roughness: .92 });
+    const [calcCor, calcNrm] = foto('calcada'), [rochaCor, rochaNrm] = foto('rocha'), [tabCor, tabNrm] = foto('tabuas');
+    const matMuro = new THREE.MeshStandardMaterial({ map: calcCor, normalMap: calcNrm, color: '#d8d0c4', roughness: .95 });
+    const matTopo = new THREE.MeshStandardMaterial({ map: rochaCor, normalMap: rochaNrm, color: '#bdb4a6', roughness: .92 });
+    const matTronco = new THREE.MeshStandardMaterial({ map: tabCor, normalMap: tabNrm, color: '#c9a582', roughness: .9 });
     for (const [k, mat] of [['muro', matMuro], ['topo', matTopo], ['tronco', matTronco]]) {
       if (!pedacos[k].length) continue;
       const geo = mergeGeometries(pedacos[k].map(g => g.index ? g.toNonIndexed() : g), false); pedacos[k].forEach(g => g.dispose());
       const malha = new THREE.Mesh(geo, mat); malha.castShadow = malha.receiveShadow = true; grupoTerreno.add(malha);
     }
     // portas: batentes
+    const matFerro = new THREE.MeshStandardMaterial({ color: '#2a2622', metalness: .6, roughness: .55 });
     for (const [x, y] of [...porTipo['+'] || [], ...porTipo.d || []]) {
       const y0 = chaoDe(x, y);
       const lateral = liga(x - 1, y) || liga(x + 1, y);
-      const madeira = new THREE.MeshStandardMaterial({ map: tex.tronco, color: '#a07a5a', roughness: .9 });
-      const add = (w, h, d, px, py, pz) => { const o = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), madeira); o.position.set(px, y0 + py, pz); o.castShadow = o.receiveShadow = true; grupoTerreno.add(o); };
-      if (lateral) { add(.12, 1.3, .36, x + .06, .65, y + .5); add(.12, 1.3, .36, x + .94, .65, y + .5); add(1, .14, .38, x + .5, 1.36, y + .5); }
-      else { add(.36, 1.3, .12, x + .5, .65, y + .06); add(.36, 1.3, .12, x + .5, .65, y + .94); add(.38, .14, 1, x + .5, 1.36, y + .5); }
-      if (celula(mesa, x, y) === 'd') lateral ? add(.76, 1.22, .08, x + .5, .61, y + .5) : add(.08, 1.22, .76, x + .5, .61, y + .5); // folha da porta fechada
+      const add = (w, h, d, px, py, pz, mat = matTronco) => { const o = new THREE.Mesh(caixaUV(w, h, d, 1), mat); o.position.set(px, y0 + py, pz); o.castShadow = o.receiveShadow = true; grupoTerreno.add(o); };
+      // batentes de pedra e verga de madeira; ao longo de x quando os vizinhos são laterais
+      const L = (a, b, c, px, py, pz, mat) => lateral ? add(a, b, c, x + px, py, y + pz, mat) : add(c, b, a, x + pz, py, y + px, mat);
+      L(.14, 1.32, .4, .07, .66, .5, matTopo); L(.14, 1.32, .4, .93, .66, .5, matTopo); L(1, .14, .42, .5, 1.37, .5);
+      if (celula(mesa, x, y) === 'd') {
+        // folha fechada: tábuas com duas cintas de ferro e argola
+        L(.72, 1.2, .07, .5, .6, .5);
+        for (const a of [.3, .95]) L(.72, .06, .09, .5, a, .5, matFerro);
+        L(.06, .06, .12, .7, .62, .5, matFerro);
+      }
     }
     // portais para outros mapas: anel de pedra com um redemoinho de luz
     portaisAnim = [];
@@ -553,8 +597,13 @@ export function criarCena(el, cb = {}) {
       // movimento
       if (tk.x !== t.x || tk.y !== t.y) {
         const de = tk.g.position.clone(), para = new THREE.Vector3(t.x + tam / 2, alturaEm(t.x, t.y), t.y + tam / 2);
-        const dist = de.distanceTo(para), correr = dist > 3.5;
-        tk.anim = { de, para, t0: performance.now(), dur: tk.pers ? Math.min(4000, dist * (correr ? 260 : 520)) : Math.min(900, 220 + dist * 90) };
+        // anda pelas casas do caminho; sem caminho (o Mestre pôs do outro lado de um muro) aparece direto lá
+        const casas = tk.x === undefined ? [] : rota(tk.x, tk.y, t.x, t.y);
+        if (!casas) { tk.anim = null; tk.g.position.copy(para); tk.x = t.x; tk.y = t.y; continue; }
+        const pts = [de, ...casas.slice(0, -1).map(([x, y]) => new THREE.Vector3(x + tam / 2, alturaEm(x, y), y + tam / 2)), para];
+        let dist = 0; const acum = [0]; for (let i = 1; i < pts.length; i++) acum.push(dist += pts[i].distanceTo(pts[i - 1]));
+        const correr = dist > 3.5;
+        tk.anim = { de, para, pts, acum, t0: performance.now(), dur: tk.pers ? Math.min(4000, dist * (correr ? 260 : 520)) : Math.min(900, 220 + dist * 90) };
         if (tk.pers && (tk.vigor === undefined || tk.vigor > 0 || !t.vigorMax)) tk.pers.tocar(correr ? 'correr' : 'andar');
         tk.mini.rotation.y = Math.atan2(para.x - de.x, para.z - de.z);
         tk.x = t.x; tk.y = t.y;
@@ -723,7 +772,10 @@ export function criarCena(el, cb = {}) {
     for (const tk of tokens.values()) {
       if (tk.anim) {
         const p = Math.min(1, (agora - tk.anim.t0) / tk.anim.dur), e = p < .5 ? 2 * p * p : 1 - (-2 * p + 2) ** 2 / 2;
-        tk.g.position.lerpVectors(tk.anim.de, tk.anim.para, e);
+        const { pts, acum } = tk.anim, alvo = e * acum[acum.length - 1];
+        let i = 1; while (i < pts.length - 1 && acum[i] < alvo) i++;
+        tk.g.position.lerpVectors(pts[i - 1], pts[i], (alvo - acum[i - 1]) / ((acum[i] - acum[i - 1]) || 1));
+        if (tk.pers) tk.mini.rotation.y = Math.atan2(pts[i].x - pts[i - 1].x, pts[i].z - pts[i - 1].z);
         if (!tk.pers) tk.g.position.y += Math.sin(p * Math.PI) * .35;
         if (p >= 1) { tk.anim = null; if (tk.pers && (tk.vigor === undefined || tk.vigor > 0)) tk.pers.tocar('parado'); }
       }
