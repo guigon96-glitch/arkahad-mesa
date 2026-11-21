@@ -414,6 +414,22 @@ export function criarCena(el, cb = {}) {
     p.z = i === 2 ? -m : i === 3 ? R + m : Math.max(-m, Math.min(R + m, p.z));
     p.y = MESA_Y; p.deitada = i >= 2; return p;
   }
+  function casaVaziaPerto(k) {
+    const t = ultimo?.tokens?.find(o => o.k === k); if (!t || !mesa) return null;
+    const ocup = new Set();
+    for (const o of ultimo.tokens) for (let dy = 0; dy < (o.tamanho || 1); dy++) for (let dx = 0; dx < (o.tamanho || 1); dx++) ocup.add((o.x + dx) + ',' + (o.y + dy));
+    const livre = (x, y) => x >= 0 && y >= 0 && x < mesa.cols && y < mesa.rows && !ocup.has(x + ',' + y) && Number.isFinite(TERRENOS[(mesa.grid[y] || '')[x]]?.custo) && (mesa.grid[y] || '')[x] !== '~';
+    const tam = t.tamanho || 1, cam = camera.position;
+    for (let d = 1; d <= 4; d++) {
+      const op = [];
+      for (let y = t.y - d; y < t.y + tam + d; y++) for (let x = t.x - d; x < t.x + tam + d; x++) if (Math.max(t.x - x, x - t.x - tam + 1, t.y - y, y - t.y - tam + 1) === d && livre(x, y)) op.push([x, y]);
+      if (op.length) {
+        const [x, y] = op.sort((a, b) => Math.hypot(a[0] - cam.x, a[1] - cam.z) - Math.hypot(b[0] - cam.x, b[1] - cam.z))[0];
+        const p = new THREE.Vector3(x + .5, alturaEm(x, y), y + .5); p.casa = true; return p;
+      }
+    }
+    return null;
+  }
   // fora do tabuleiro é tudo moldura
   const foraDoDiorama = (x, z) => !solo || x < 0 || z < 0 || x > mesa.cols || z > mesa.rows;
 
@@ -556,16 +572,17 @@ export function criarCena(el, cb = {}) {
 
   // ----------- dados -----------
   function rolar(ev) {
-    const centro = mesa && solo ? pontoDosDados() : controles.target.clone().setY(0);
+    const centro = (ev.perto || ev.k) && casaVaziaPerto(ev.perto || ev.k) || (mesa && solo ? pontoDosDados() : controles.target.clone().setY(0));
     const lista = (ev.dados || []).slice(0, 20);
     const resultado = [];
     lista.forEach((d, i) => {
       const cor = d.c === 'lyra' || d.papel === 'lyra' ? ev.lyra : d.c === 'tirith' ? '#e9edf2' : d.c === 'aranor' ? '#d23a3a' : ev.kael;
       const m = criarDado(d.f, cor, ev.material); m.scale.setScalar(.3);
       const ang = Math.random() * Math.PI * 2;
-      m.position.set(centro.x + Math.cos(ang) * 1.2, centro.y + 3.2 + i * .25, centro.z + Math.sin(ang) * 1.2);
-      // fileira ao longo da moldura (dentro da largura dela)
-      const ao = (i - (lista.length - 1) / 2) * .85 + (Math.random() - .5) * .3, de = (Math.random() - .5) * .6;
+      const casa = centro.casa, raio = casa ? .5 : 1.2;
+      m.position.set(centro.x + Math.cos(ang) * raio, centro.y + 3.2 + i * .25, centro.z + Math.sin(ang) * raio);
+      // fileira ao longo da moldura (dentro da largura dela); numa casa do mapa, juntinhos dentro dela
+      const ao = (i - (lista.length - 1) / 2) * (casa ? .3 : .85) + (Math.random() - .5) * (casa ? .08 : .3), de = (Math.random() - .5) * (casa ? .25 : .6);
       const destino = new THREE.Vector3(centro.x + (centro.deitada === false ? de : ao), 0, centro.z + (centro.deitada === false ? ao : de));
       const vel = destino.clone().sub(m.position).setY(0).multiplyScalar(1.4); vel.y = 1.5;
       const ang2 = new THREE.Vector3((Math.random() - .5) * 26, (Math.random() - .5) * 26, (Math.random() - .5) * 26);

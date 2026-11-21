@@ -740,9 +740,9 @@ export class Sala extends DurableObject {
         }
         const pele = (de.startsWith('pc:') ? autor.dados : null) || {};
         // dados em sequência (acerto → dano → punição); o golpe e o dano aparecem só no fim ('golpe')
-        const base = { tipo: 'dado', nome: autor.nome, cor: autor.cor || '#e2b04a', kael: pele.kael || '#d9a23a', lyra: pele.lyra || '#3f78e0', material: pele.material || 'cristal' };
+        const base = { tipo: 'dado', nome: autor.nome, cor: autor.cor || '#e2b04a', kael: pele.kael || '#d9a23a', lyra: pele.lyra || '#3f78e0', material: pele.material || 'cristal', perto: de };
         const rot = texto(msg.rotulo, 60);
-        const mandar = ev => { this.enviarTodos(ev); this.registrar({ ...ev, dados: undefined, tipo: undefined }); };
+        const mandar = ev => { this.enviarTodos(ev); this.registrar({ ...ev, dados: undefined, tipo: undefined, perto: undefined }); };
         const dadoLyra = res.dados.find(d => d.c === 'lyra'), dadoAranor = res.dados.find(d => d.c === 'aranor');
         mandar({ ...base, t: Date.now(), dados: res.dados.filter(d => d !== dadoLyra && d !== dadoAranor), total: res.total, tags, grau: acertos.length ? (alvos.length > 1 ? `${acertos.length} de ${alvos.length} atingidos` : 'Acertou') : 'Errou', desc: res.desc.split(' · ')[0], rotulo: rot });
         if (hab) {
@@ -1080,7 +1080,7 @@ export class Sala extends DurableObject {
     }
     const res = rolarAtaque(num(msg.mod), msg.tirith, true), falha = res.kael === 1;
     const pele = autor.dados || {}, tags = [];
-    const base = { tipo: 'dado', nome: autor.nome, cor: autor.cor || '#e2b04a', kael: pele.kael || '#d9a23a', lyra: pele.lyra || '#3f78e0', material: pele.material || 'cristal' };
+    const base = { tipo: 'dado', nome: autor.nome, cor: autor.cor || '#e2b04a', kael: pele.kael || '#d9a23a', lyra: pele.lyra || '#3f78e0', material: pele.material || 'cristal', perto: de };
     const cura = !falha && hab.dados ? rolarExpr(danoHabilidade(autor.ficha, hab)) : null;
     if (!falha) {
       if (hab.t === 'mov') { autor.x = centro.x; autor.y = centro.y; autor.tp = num(autor.tp) + 1; tags.push(`${autor.nome} reaparece em outra casa`); }
@@ -1097,7 +1097,7 @@ export class Sala extends DurableObject {
     }
     if (!falha && alvos.length && Object.keys(hab.cond).length) tags.push(Object.keys(hab.cond).map(c => CONDICOES[c].ic + ' ' + CONDICOES[c].nome).join(', ') + ' em ' + alvos.map(([, o]) => o.nome).join(', '));
     const ev = { ...base, t: Date.now(), dados: [...res.dados, ...(cura?.dados || [])], total: cura ? cura.total : res.kael, tags: falha ? ['Olho de Aranor: a habilidade falha'] : tags, grau: falha ? 'Falhou' : 'Sucesso', desc: res.desc + (cura ? ` · cura ${cura.desc}` : ''), rotulo: hab.nome };
-    this.enviarTodos(ev); this.registrar({ ...ev, dados: undefined, tipo: undefined });
+    this.enviarTodos(ev); this.registrar({ ...ev, dados: undefined, tipo: undefined, perto: undefined });
     this.enviarTodos({ tipo: 'habilidade', k: de, hab: hab.id, alvos: alvos.map(([k]) => k), acertos: falha ? [] : alvos.map(([k]) => k), centro, falhou: falha });
     await this.gravar('pcs', 'npcs', 'log', 'mapas');
   }
