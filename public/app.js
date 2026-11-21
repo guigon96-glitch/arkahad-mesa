@@ -236,7 +236,7 @@ function render() {
     tokens: tokensTodos().map(t => ({
       k: t.k, x: num(t.x), y: num(t.y), tamanho: num(t.tamanho, 1), nome: t.nome, ...visualDe(t),
       vigor: num(t.vigor), vigorMax: num(t.vigorMax), mostrarVida: souMestre() || t.tipo === 'pc', oculto: t.visivel === false,
-      cond: Object.keys(t.cond || {}).filter(c => CONDICOES[c]).map(c => CONDICOES[c].ic).join('') + (num(t.escudo) > 0 ? ` ◇${num(t.escudo)}` : '') + (num(t.brasas) > 0 ? ` ♨${num(t.brasas)}` : ''), tp: num(t.tp),
+      cond: Object.keys(t.cond || {}).filter(c => CONDICOES[c]).map(c => CONDICOES[c].ic).join('') + (num(t.escudo) > 0 ? ` ◇${num(t.escudo)}` : '') + (num(t.brasas) > 0 ? ` ♨${num(t.brasas)}` : ''), tp: num(t.tp), queima: !!t.cond?.queimando,
       corNome: t.tipo === 'pc' ? '#ffe9b8' : t.tipo === 'monstro' ? '#ff9a8a' : '#e6dccb',
     })),
     selecionado, alcance,
@@ -611,9 +611,12 @@ async function animarGolpe(m) {
   // som: magia = disparo; distância = zunido da flecha; corpo a corpo = corte e pancada
   if (m.dom) tocarSom('disparo', { atraso: 380, vol: .6 }); else if (m.distancia) tocarSom('zunido', { tom: 1.7, atraso: 350, vol: .7 }); else tocarSom('corte', { atraso: 380 });
   if ((m.alvos || []).length) tocarSom(m.dom ? 'acerto' : m.distancia ? 'acerto' : 'soco', { atraso: m.dom || m.distancia ? 750 : 460, vol: .8 });
+  // arma imbuída: golpe de arma (não magia); o Dom aparece no rastro da flecha e na explosão do elemento no acerto
+  const estilo = m.imbuida ? ESTILO_DOM[tokenPorK(m.k)?.ficha?.dom] || 'luz' : null;
   for (const a of m.alvos || []) {
-    if (m.dom || m.distancia) cena.projetil(m.k, a, m.dom ? cor : null, !!m.dom);
+    if (m.dom || m.distancia) cena.projetil(m.k, a, m.dom || m.imbuida ? cor : null, !!m.dom);
     else setTimeout(() => cena.impacto(a, m.k), 450);
+    if (estilo) setTimeout(() => cena.pulso(a, cor, estilo), m.distancia ? 750 : 470);
   }
   await new Promise(r => setTimeout(r, 900));
 }

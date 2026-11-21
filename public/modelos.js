@@ -335,12 +335,16 @@ function criarAura(armaObj, cor, estilo, comp) {
     linhas.frustumCulled = false; g.add(linhas);
   }
   const luz = new THREE.PointLight(c, 1.2, 2.2, 2); luz.position.y = comp * .55; g.add(luz);
+  // imbuir na hora: um brilho (a mão) corre do cabo à ponta e o Dom acende atrás dele (g.userData.varrer de 0 a 1)
+  const mao = new THREE.Mesh(new THREE.SphereGeometry(.05, 12, 8), new THREE.MeshBasicMaterial({ color: c.clone().lerp(new THREE.Color('#fff'), .55), transparent: true, depthWrite: false, blending: THREE.AdditiveBlending }));
+  mao.visible = false; g.add(mao);
   // brilho na própria arma
   const mats = [];
   armaObj.traverse(o => { if (o.isMesh) { o.material = o.material.clone(); o.material.emissive = c.clone(); o.material.emissiveIntensity = .35; mats.push(o.material); } });
   let t = 0;
   g.userData.atualizar = dt => {
     t += dt;
+    const rev = g.userData.varrer, frente = rev === undefined ? Infinity : (.18 + rev * .82) * comp;
     for (let i = 0; i < N; i++) {
       const s = sem[i], v = ((t * (estilo === 'fumaca' ? .35 : .8) + s) % 1);
       const y = (.18 + s * .82) * comp;
@@ -352,13 +356,18 @@ function criarAura(armaObj, cor, estilo, comp) {
       else if (estilo === 'ondas') { const a = s * 6.28, r = .03 + v * .12; x = Math.cos(a) * r; z = Math.sin(a) * r; yy = comp * (.3 + (i % 4) * .18); }
       else if (estilo === 'raio') { x = (Math.random() - .5) * .05; z = (Math.random() - .5) * .05; }
       else { x = Math.sin(s * 50) * .025; z = Math.cos(s * 50) * .025; } // luz, cristal
+      if (yy > frente) { yy = frente + (Math.random() - .5) * .04; x *= .3; z *= .3; }
       pos[i * 3] = x; pos[i * 3 + 1] = yy; pos[i * 3 + 2] = z;
     }
     geo.attributes.position.needsUpdate = true;
     const pisca = estilo === 'raio' ? (Math.random() > .35 ? 1 : .2) : .85 + Math.sin(t * 9) * .15;
     mat.opacity = (estilo === 'fumaca' ? .55 : .95) * (estilo === 'gotas' ? 1 : pisca);
     luz.intensity = 1.2 * pisca;
-    mats.forEach(m => m.emissiveIntensity = .25 + .35 * pisca);
+    mats.forEach(m => m.emissiveIntensity = (.25 + .35 * pisca) * (rev === undefined ? 1 : rev));
+    if (rev !== undefined) {
+      mao.visible = rev < 1; mao.position.y = frente; mao.scale.setScalar(1 + Math.sin(t * 30) * .15); luz.position.y = frente; luz.intensity = 2.4;
+      if (rev >= 1) { delete g.userData.varrer; luz.position.y = comp * .55; } else g.userData.varrer = Math.min(1, rev + dt / 1.1);
+    }
     if (linhas) {
       const p = linhas.geometry.attributes.position.array; let y = comp * .2;
       for (let i = 0; i < 12; i++) {
@@ -552,11 +561,12 @@ export function criarPersonagem(apIn = {}, raca = 'sarthani', opcoes = {}) {
   if (base2 === 'parado') mixer.setTime(Math.random() * 2);
   // imbuir arma com o Dom
   let auras = [];
-  function imbuir(cor, estilo) {
+  function imbuir(cor, estilo, varrer = false) {
     auras.forEach(a => { a.userData.limpar(); a.parent?.parent?.remove(a.parent); }); auras = [];
     if (!cor) return;
     for (const p of presas) if (p && p.comp) {
       const a = criarAura(p.obj, cor, estilo || 'luz', p.comp);
+      if (varrer) a.userData.varrer = 0;
       const sup = new THREE.Group(); sup.scale.setScalar(1 / p.obj.scale.x); sup.add(a); p.obj.add(sup); auras.push(a);
     }
     if (!auras.length) { // punhos: aura nas duas mãos

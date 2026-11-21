@@ -581,6 +581,7 @@ export class Sala extends DurableObject {
           }
         }
         obj.x = x; obj.y = y;
+        this.pisarFogo(obj, mesa);
         // portal: quem para em cima atravessa para o outro mapa
         const pt = mesa.portais?.[x + ',' + y], dest = pt && s.mapas[pt.para];
         if (dest && tipo === 'pc') {
@@ -614,7 +615,9 @@ export class Sala extends DurableObject {
           let turno = cb.turno + 1, rodada = cb.rodada;
           if (turno >= cb.ordem.length) { turno = 0; rodada++; }
           mesa.combate = { ...cb, turno, rodada };
+          if (rodada !== cb.rodada && mesa.fogo) { for (const [c, n] of Object.entries(mesa.fogo)) if (n <= 1) delete mesa.fogo[c]; else mesa.fogo[c] = n - 1; if (!Object.keys(mesa.fogo).length) delete mesa.fogo; }
           const vez = this.objetoDe(cb.ordem[turno]?.k);
+          if (vez) this.pisarFogo(vez, mesa);
           if (vez) delete vez.guarda;   // a Defesa extra dura até o próximo turno de quem defendeu
           const nomeVez = vez?.nome || '—';
           this.enviarTodos({ tipo: 'turno', k: cb.ordem[turno]?.k, nome: nomeVez, rodada });
@@ -622,7 +625,7 @@ export class Sala extends DurableObject {
           if (vez && num(vez.brasas) >= 5) { const v = rolarExpr('1d4').total; vez.vigor = Math.max(-99, num(vez.vigor) - v); this.enviarTodos({ tipo: 'aviso', texto: `${vez.nome}: ♨ −${v} (Superaquecido)` }); }
           await this.gravar('pcs', 'npcs');
         } else if (msg.acao === 'encerrar') {
-          mesa.combate = { ...COMBATE_VAZIO };
+          mesa.combate = { ...COMBATE_VAZIO }; delete mesa.fogo;
           for (const o of [...Object.values(s.pcs), ...Object.values(s.npcs)]) if (this.idMapa(o) === mesa.id) { delete o.cond; delete o.escudo; delete o.brasas; delete o.solNegro; }
           await this.gravar('pcs', 'npcs');
         }
@@ -702,8 +705,8 @@ export class Sala extends DurableObject {
           if (!num(autor.brasas)) return erro('Sem Brasas para o Golpe do Sol Negro.');
           const casas = this.linha(autor, alvos[0][1], 6, mesaA), naLinha = new Set(casas.map(c => c.join()));
           alvos = this.inimigos(autor, de).filter(([, o]) => naLinha.has(num(o.x) + ',' + num(o.y)));
-          const ocup = this.ocupadas(null, mesaA.id);
-          for (const [x, y] of casas) if (!ocup.has(x + ',' + y) && !mesaA.portais?.[x + ',' + y] && Number.isFinite(TERRENOS[mesaA.grid[y][x]]?.custo)) { mesaA.grid[y] = mesaA.grid[y].slice(0, x) + '*' + mesaA.grid[y].slice(x + 1); mudouMapa = true; }
+          for (const [x, y] of casas) this.inflamar(mesaA, x, y);
+          mudouMapa = casas.length > 0;
           danoExtra = autor.brasas + 'd6'; notasBrasa.push(`Sol Negro: ${autor.brasas} Brasas descarregadas`);
           autor.brasas = 0; autor.solNegro = true;
         } else if (brasa && msg.queimar && num(autor.brasas) > 0) {
@@ -779,13 +782,13 @@ export class Sala extends DurableObject {
           mandar({ ...base, t: Date.now() + 1, dados: [dadoLyra, ...d.dados], total: critico ? somaCrit : somaDano, tags: tagsD, grau: '', desc: `Lyra ${res.lyra}${d.desc ? ' + ' + d.desc : ''}`, rotulo: 'Dano · ' + texto(msg.rotulo, 50) });
           // shortcut: tabela de punição ainda não existe; ligar aqui quando o dono montar
           if (dadoAranor) mandar({ ...base, t: Date.now() + 2, dados: [dadoAranor], total: res.aranor, tags: [`Aranor ${res.aranor}: punição do Dom`], grau: '', desc: `Aranor ${res.aranor}`, rotulo: 'Punição · ' + texto(msg.rotulo, 46) });
-          if (!hab) this.enviarTodos({ tipo: 'golpe', k: de, dom: !!msg.dom, alvos: acertos.map(([k]) => k), distancia: !!msg.distancia });
+          if (!hab) this.enviarTodos({ tipo: 'golpe', k: de, dom: !!msg.dom && !msg.arma, imbuida: !!msg.dom && !!msg.arma, alvos: acertos.map(([k]) => k), distancia: !!msg.distancia });
           for (const o of abatidos) this.xpAbate(o, de);
         }
         if (brasa) for (const [, o, crit] of acertos) {
           const martelo = crit && !msg.distancia && temTalento(fa, 'imbk2b'), flecha = msg.distancia && temTalento(fa, 'imbk2c');
           if (martelo) { o.cond ||= {}; o.cond.marcado = Math.max(num(o.cond.marcado), 1); notasBrasa.push(`${o.nome} cai`); }
-          if ((martelo || flecha) && this.fogueiraAoLado(mesaA, o, autor)) { mudouMapa = true; notasBrasa.push(`fogo ao lado de ${o.nome}`); }
+          if (martelo || flecha) { this.inflamar(mesaA, num(o.x), num(o.y)); mudouMapa = true; notasBrasa.push(`o chão sob ${o.nome} pega fogo`); }
         }
         if (notasBrasa.length) this.enviarTodos({ tipo: 'aviso', texto: `Arma de Brasa: ${notasBrasa.join(' · ')}` });
         if (fogo && acertos.length) {
@@ -958,13 +961,14 @@ export class Sala extends DurableObject {
     }
     return l;
   }
-  // acende uma fogueira numa casa livre ao lado do alvo (a mais perto de quem atacou)
-  fogueiraAoLado(mesa, o, autor) {
-    const ocup = this.ocupadas(null, mesa.id), op = [];
-    for (let y = num(o.y) - 1; y <= num(o.y) + 1; y++) for (let x = num(o.x) - 1; x <= num(o.x) + 1; x++) if (this.livre(mesa, x, y, ocup) && !mesa.portais?.[x + ',' + y]) op.push([x, y]);
-    const c = op.sort((a, b) => distanciaCasas({ x: a[0], y: a[1] }, autor) - distanciaCasas({ x: b[0], y: b[1] }, autor))[0];
-    if (!c) return false;
-    mesa.grid[c[1]] = mesa.grid[c[1]].slice(0, c[0]) + '*' + mesa.grid[c[1]].slice(c[0] + 1); return true;
+  // rastro de fogo: a casa queima por algumas rodadas (mapa.fogo, só o servidor escreve); quem começa o turno ou para nela pega fogo
+  inflamar(mesa, x, y, rodadas = 2) {
+    if (x < 0 || y < 0 || x >= mesa.cols || y >= mesa.rows || (mesa.grid[y] || '')[x] === '~') return;
+    mesa.fogo ||= {}; mesa.fogo[x + ',' + y] = Math.max(num(mesa.fogo[x + ',' + y]), rodadas);
+  }
+  pisarFogo(o, mesa) {
+    if (!mesa?.fogo?.[num(o.x) + ',' + num(o.y)] || !this.acender(o, 1)) return;
+    this.enviarTodos({ tipo: 'aviso', texto: `${o.nome} pisa no rastro de fogo e pega fogo.` });
   }
   // Aparar em Chamas: reação automática de quem tem a arma em brasa (1 Brasa): −2 no golpe e o atacante pega fogo
   aparar(o, autor) {

@@ -129,6 +129,45 @@ function texFx(estilo) {
 }
 const matEnergia = (cor, estilo) => matShader(FRAG_ENERGIA, VERT_FRES, cor, { uModo: MODO[estilo] ?? 4, uTex: texFx(estilo) }, estilo === 'fumaca');
 
+let TEX_BRILHO = null;
+function texBrilho() {
+  if (TEX_BRILHO) return TEX_BRILHO;
+  const c = document.createElement('canvas'); c.width = c.height = 64; const x = c.getContext('2d'), g = x.createRadialGradient(32, 32, 0, 32, 32, 32);
+  g.addColorStop(0, 'rgba(255,255,255,1)'); g.addColorStop(.35, 'rgba(255,255,255,.45)'); g.addColorStop(1, 'rgba(255,255,255,0)');
+  x.fillStyle = g; x.fillRect(0, 0, 64, 64); return (TEX_BRILHO = new THREE.CanvasTexture(c));
+}
+// chama contínua (fogueira, rastro de fogo, quem está queimando): duas camadas de fogo em shader, brilho no chão e fagulhas que sobem.
+// Quem cria chama g.userData.atualizar(dt) a cada quadro e g.userData.limpar() ao remover.
+export function criarChama({ raio = .3, altura = .5, cor = '#ff5a12', fagulhas = 10, op = 1 } = {}) {
+  const g = new THREE.Group(), mats = [];
+  const camada = (r, h, c, o) => {
+    const m = matEnergia(c, 'fogo'); m.uniforms.uOp.value = o; mats.push(m);
+    const malha = new THREE.Mesh(new THREE.CylinderGeometry(r * .2, r, h, 16, 1, true).translate(0, h / 2, 0), m);
+    malha.renderOrder = 5; g.add(malha); return malha;
+  };
+  const fora = camada(raio, altura, cor, op), dentro = camada(raio * .55, altura * .7, '#ffc65a', op);
+  const brilho = new THREE.Mesh(new THREE.CircleGeometry(raio * 1.6, 24).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color: cor, map: texBrilho(), transparent: true, opacity: .6 * op, depthWrite: false, blending: THREE.AdditiveBlending }));
+  brilho.position.y = .02; g.add(brilho);
+  const pos = new Float32Array(fagulhas * 3), sem = Array.from({ length: fagulhas }, () => [Math.random(), Math.random() * 6.28, .5 + Math.random() * .7]);
+  const geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  const pts = new THREE.Points(geo, new THREE.PointsMaterial({ color: '#ffb050', size: .07, map: texBrilho(), transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, opacity: op }));
+  pts.frustumCulled = false; g.add(pts);
+  let t = Math.random() * 10;
+  g.userData.atualizar = dt => {
+    t += dt;
+    for (const m of mats) m.uniforms.uT.value = t;
+    const f = 1 + Math.sin(t * 11) * .07 + Math.sin(t * 23) * .04;
+    fora.scale.set(1, f, 1); dentro.scale.set(1, 2 - f, 1); fora.rotation.y = t * .7; dentro.rotation.y = -t * 1.1;
+    brilho.material.opacity = (.5 + Math.sin(t * 17) * .1) * op;
+    for (let i = 0; i < fagulhas; i++) {
+      const [s0, a, v] = sem[i], k = (t * v * .55 + s0) % 1, r = raio * (1 - k * .6) * .8, w = a + t * 1.5 * v;
+      pos[i * 3] = Math.cos(w) * r; pos[i * 3 + 1] = k * altura * 1.9; pos[i * 3 + 2] = Math.sin(w) * r;
+    }
+    geo.attributes.position.needsUpdate = true;
+  };
+  g.userData.limpar = () => g.traverse(o => { o.geometry?.dispose(); o.material?.dispose(); });
+  return g;
+}
 export function criarEfeitos(grupo) {
   const lista = [];
   function add(objs, dur, upd, atraso = 0) {
@@ -346,6 +385,6 @@ export function criarEfeitos(grupo) {
     if (para !== de) { circulo(para, c, .8, atraso + 100, 800); coluna(para, c, .4, 2.2, atraso + 120, 600); esfera(para.clone().add(V(0, .5, 0)), '#ffffff', .1, .8, atraso + 120, 350, .7); particulas(para, c, 24, 'luz', .3, atraso + 150, 800); anel(para, c, .2, 1.2, atraso + 120, 500); }
   }
   // pulso de condição no começo do turno (queimar, veneno, regenerar)
-  function pulso(p, cor) { anel(p, cor, .2, .9, 0, 600); particulas(p, cor, 16, 'luz', .3, 0, 800); }
+  function pulso(p, cor, estilo = 'luz') { anel(p, cor, .2, .9, 0, 600); particulas(p, cor, estilo === 'luz' ? 16 : 26, estilo, .3, 0, 800); }
   return { atualizar, tocar, pulso, salto };
 }

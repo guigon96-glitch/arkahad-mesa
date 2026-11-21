@@ -421,12 +421,12 @@ export const ARVORES = {
   imbuida_kalthor: { nome: 'Arma de Brasa', tipo: 'hibrida', dom: 'kalthor', cor: '#ff7a1e', desc: 'Só Aurethian com Kalthor. A arma vira brasa viva: acende o campo, corta em arco e descarrega as Brasas num golpe só.', nos: [
     N('imbk1', 1, 'Arma em Brasa', 'Ação menor, 1 Fôlego: a arma pega fogo até o fim da cena (+1d4 de fogo). Funciona com flechas e virotes.', { imbuir: '1d4' }),
     N('imbk2a', 2, 'Lâmina Flamejante', 'Corpo a corpo, com Queimar Brasas ligado: gasta 1 Brasa e o golpe acerta também todos os inimigos ao seu lado. Exige 1 ponto numa árvore de arma.', { exigeArma: true }),
-    N('imbk2b', 2, 'Martelo de Forja', 'Crítico corpo a corpo com a arma em brasa: o alvo cai (Marcado 1) e uma fogueira acende ao lado dele. Exige 1 ponto numa árvore de arma.', { exigeArma: true }),
-    N('imbk2c', 2, 'Flecha Incendiária', 'Disparo em brasa que acerta acende uma fogueira ao lado do alvo. Exige 1 ponto numa árvore de arma.', { exigeArma: true }),
+    N('imbk2b', 2, 'Martelo de Forja', 'Crítico corpo a corpo com a arma em brasa: o alvo cai (Marcado 1) e o chão sob ele vira rastro de fogo (2 rodadas). Exige 1 ponto numa árvore de arma.', { exigeArma: true }),
+    N('imbk2c', 2, 'Flecha Incendiária', 'Disparo em brasa que acerta deixa o chão sob o alvo em chamas (rastro de fogo, 2 rodadas). Exige 1 ponto numa árvore de arma.', { exigeArma: true }),
     N('imbk2d', 2, 'Saraivada de Brasas', 'À distância, com Queimar Brasas ligado: cada Brasa vira um disparo extra num inimigo diferente ao alcance. Exige 1 ponto numa árvore de arma.', { exigeArma: true }),
     N('imbk3a', 3, 'Têmpera Viva', 'O fogo da arma vira +1d6. Superaquecido, a arma em brasa ignora a Proteção. Exige 1 ponto numa árvore do Dom.', { imbuir: '1d6', exigeDom: true }),
     N('imbk3b', 3, 'Aparar em Chamas', 'Reação automática com a arma em brasa (1 Brasa): quem ataca você corpo a corpo tem −2 e pega fogo. Exige 1 ponto numa árvore do Dom.', { exigeDom: true }),
-    N('imbk4', 4, 'Golpe do Sol Negro', '1× por combate: gasta todas as Brasas. +1d6 por Brasa em todos os inimigos numa linha de 6 casas na direção do alvo, deixando fogueiras pelo caminho.', { exigeDom: true }),
+    N('imbk4', 4, 'Golpe do Sol Negro', '1× por combate: gasta todas as Brasas. +1d6 por Brasa em todos os inimigos numa linha de 6 casas na direção do alvo, deixando um rastro de fogo (2 rodadas: quem começa o turno ou para nele pega fogo).', { exigeDom: true }),
   ] },
 };
 

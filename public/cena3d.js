@@ -13,7 +13,7 @@ import { construirSolo, carregarTexturasSolo, NIVEL_H as NIVEL_SOLO, MESA_Y } fr
 import { criarMesaDeJogo } from './mesajogo.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { criarMiniatura, criarDado, rotulo } from './miniatura.js';
-import { criarEfeitos } from './efeitos.js';
+import { criarEfeitos, criarChama } from './efeitos.js';
 import { carregarModelos, carregarNatureza, criarPersonagem, criarCriatura3D, CRIATURAS_3D, pecaCenario, pecaNatureza, temCenario, temNatureza, modelosProntos, TEMPO } from './modelos.js';
 // celular/tablet: céus 1k e chão 512 (memória de vídeo menor)
 const TELA_FINA = matchMedia('(pointer: coarse)').matches;
@@ -130,6 +130,20 @@ export function criarCena(el, cb = {}) {
   const grupoTerreno = new THREE.Group(), grupoTokens = new THREE.Group(), grupoEfeitos = new THREE.Group(), grupoDados = new THREE.Group();
   cena.add(grupoTerreno, grupoTokens, grupoEfeitos, grupoDados);
   const efx = criarEfeitos(grupoEfeitos);
+  const grupoRastro = new THREE.Group(); grupoEfeitos.add(grupoRastro);
+  // rastro de fogo do Kalthor (mapa.fogo: 'x,y' → rodadas)
+  function construirRastro() {
+    for (const c of grupoRastro.children) c.userData.limpar?.();
+    grupoRastro.clear(); fogosVivos = fogosVivos.filter(c => !c.userData.rastro);
+    let luzes = 0;
+    for (const k of Object.keys(mesa.fogo || {})) {
+      const [x, y] = k.split(',').map(Number); if (!(x >= 0 && y >= 0 && x < mesa.cols && y < mesa.rows)) continue;
+      const c = criarChama({ raio: .36, altura: .4, fagulhas: 7, op: .9 }); c.userData.rastro = true;
+      c.position.set(x + .5, alturaEm(x, y), y + .5); c.rotation.y = Math.random() * 6;
+      if (luzes++ < 4) { const pl = new THREE.PointLight('#ff7a2a', 1.6, 3.5, 1.8); pl.position.y = .4; c.add(pl); }
+      grupoRastro.add(c); fogosVivos.push(c);
+    }
+  }
   // a sombra de contato (AO) trata planos transparentes como sólidos: esconde os efeitos só nessa etapa
   if (passoAO.overrideVisibility) { const ov = passoAO.overrideVisibility.bind(passoAO); passoAO.overrideVisibility = () => { ov(); grupoEfeitos.visible = false; }; }
 
@@ -141,6 +155,7 @@ export function criarCena(el, cb = {}) {
   const luzLua = new THREE.DirectionalLight('#ffffff', 0); cena.add(luzLua, luzLua.target);
 
   let mesa = null, chaveTerreno = '', agua = null, chamas = [], selecaoAnel = null, portaisAnim = [];
+  let fogosVivos = [], chaveRastro = ''; // chamas em shader (fogueiras + rastro de fogo), animadas no laço
   const tokens = new Map(), dados = [], pings = [], projeteis = [], faiscas = [];
   // dados batendo na mesa fazem as miniaturas perto balançarem
   function tremer(pos, forca) {
@@ -186,7 +201,7 @@ export function criarCena(el, cb = {}) {
     return g;
   }
   function construirTerreno() {
-    limpar(grupoTerreno); chamas = []; agua = null; alvosClique = [];
+    limpar(grupoTerreno); chamas = []; agua = null; alvosClique = []; fogosVivos = fogosVivos.filter(c => c.userData.rastro); chaveRastro = '';
     const C = mesa.cols, R = mesa.rows, porTipo = {};
     for (let y = 0; y < R; y++) for (let x = 0; x < C; x++) {
       const c = TERRENOS[mesa.grid[y][x]] ? mesa.grid[y][x] : '.';
@@ -381,9 +396,7 @@ export function criarCena(el, cb = {}) {
       const pedraMat = new THREE.MeshStandardMaterial({ color: '#6b6560', roughness: .9, flatShading: true });
       for (let k = 0; k < 8; k++) { const a = k / 8 * Math.PI * 2; const p = new THREE.Mesh(new THREE.DodecahedronGeometry(.07, 0), pedraMat); p.position.set(Math.cos(a) * .28, .04, Math.sin(a) * .28); p.castShadow = true; g.add(p); }
       for (let k = 0; k < 3; k++) { const t = new THREE.Mesh(new THREE.CylinderGeometry(.035, .035, .45, 6), new THREE.MeshStandardMaterial({ color: '#3a2412', roughness: 1 })); t.rotation.z = Math.PI / 2; t.rotation.y = k * Math.PI / 3; t.position.y = .05; g.add(t); }
-      const f1 = new THREE.Mesh(new THREE.ConeGeometry(.16, .5, 7), new THREE.MeshStandardMaterial({ color: '#ff7a1e', emissive: '#ff5a0a', emissiveIntensity: 2.2, transparent: true, opacity: .9 }));
-      const f2 = new THREE.Mesh(new THREE.ConeGeometry(.08, .3, 6), new THREE.MeshStandardMaterial({ color: '#ffe08a', emissive: '#ffd060', emissiveIntensity: 2.5 }));
-      f1.position.y = .28; f2.position.y = .2; g.add(f1, f2); chamas.push([f1, f2, x * 7 + y]);
+      const fogo = criarChama({ raio: .17, altura: .62, fagulhas: 12 }); fogo.position.y = .04; g.add(fogo); fogosVivos.push(fogo);
       if (luzes++ < 6) { const pl = new THREE.PointLight('#ff9a3a', 2.2, 6, 1.6); pl.position.y = .6; g.add(pl); chamas.push([pl, null, x + y]); }
       grupoTerreno.add(g);
     }
@@ -450,9 +463,10 @@ export function criarCena(el, cb = {}) {
       vistos.add(t.k);
       const tam = Math.max(1, t.tamanho || 1);
       const chave = JSON.stringify([t.aparencia, t.raca, t.cristal, tam, t.nome, t.oculto]);
-      let tk = tokens.get(t.k);
+      let tk = tokens.get(t.k), novoTk = false;
       if (!tk || tk.chave !== chave) {
-        if (tk) { grupoTokens.remove(tk.g); limpar(tk.g); }
+        if (tk) { grupoTokens.remove(tk.g); limpar(tk.g); if (tk.fogo) { grupoEfeitos.remove(tk.fogo); tk.fogo.userData.limpar(); } }
+        novoTk = true;
         const g = new THREE.Group(); g.userData.k = t.k;
         const criatura3d = t.raca === 'criatura' && CRIATURAS_3D[t.aparencia?.criatura];
         const usar3d = modelosProntos() && (t.raca !== 'criatura' || criatura3d);
@@ -472,7 +486,15 @@ export function criarCena(el, cb = {}) {
       }
       // Dom na arma
       const imb = t.imbuir ? t.imbuir.cor + t.imbuir.estilo : null;
-      if (tk.pers?.imbuir && imb !== tk.imb) { tk.pers.imbuir(t.imbuir?.cor, t.imbuir?.estilo); tk.imb = imb; }
+      if (tk.pers?.imbuir && imb !== tk.imb) {
+        // imbuiu agora (não ao carregar): passa a mão pela arma
+        const varrer = !novoTk && !!imb && !tk.imb;
+        tk.pers.imbuir(t.imbuir?.cor, t.imbuir?.estilo, varrer); if (varrer) tk.pers.tocar('usar');
+        tk.imb = imb;
+      }
+      // queimando: chama em volta da miniatura
+      if (t.queima && !tk.fogo) { tk.fogo = criarChama({ raio: .2 * tam, altura: tk.alturaMini * .7, fagulhas: 9, op: .7 }); grupoEfeitos.add(tk.fogo); }
+      else if (!t.queima && tk.fogo) { grupoEfeitos.remove(tk.fogo); tk.fogo.userData.limpar(); tk.fogo = null; }
       // condições (ícones acima do nome)
       if ((t.cond || '') !== (tk.cond || '')) {
         if (tk.condSpr) { tk.g.remove(tk.condSpr); tk.condSpr.material.map.dispose(); tk.condSpr.material.dispose(); tk.condSpr = null; }
@@ -511,7 +533,7 @@ export function criarCena(el, cb = {}) {
         tk.x = t.x; tk.y = t.y;
       }
     }
-    for (const [k, tk] of tokens) if (!vistos.has(k)) { grupoTokens.remove(tk.g); limpar(tk.g); tokens.delete(k); }
+    for (const [k, tk] of tokens) if (!vistos.has(k)) { grupoTokens.remove(tk.g); limpar(tk.g); if (tk.fogo) { grupoEfeitos.remove(tk.fogo); tk.fogo.userData.limpar(); } tokens.delete(k); }
     // seleção
     if (!selecaoAnel) {
       selecaoAnel = new THREE.Mesh(new THREE.TorusGeometry(.5, .025, 6, 40), new THREE.MeshBasicMaterial({ color: '#ffd76a' }));
@@ -680,7 +702,9 @@ export function criarCena(el, cb = {}) {
         if (tt > 1.8) { tk.g.rotation.x = tk.g.rotation.z = 0; tk.tremor = null; }
       }
       if (tk.pers) tk.pers.atualizar ? tk.pers.atualizar(dt) : tk.pers.mixer?.update(dt);
+      if (tk.fogo) { tk.fogo.position.copy(tk.g.position); tk.fogo.visible = tk.g.visible; tk.fogo.userData.atualizar(dt); }
     }
+    for (const c of fogosVivos) c.userData.atualizar(dt);
     if (selecaoAnel?.parent) { selecaoAnel.rotation.z = t; selecaoAnel.scale.setScalar(1 + Math.sin(t * 4) * .04); }
     for (let i = pings.length - 1; i >= 0; i--) { const p = pings[i], a = (agora - p.t0) / 1400; p.m.scale.setScalar(1 + a * 3); p.m.material.opacity = 1 - a; if (a >= 1) { grupoEfeitos.remove(p.m); p.m.geometry.dispose(); pings.splice(i, 1); } }
     simularDados(dt, agora);
@@ -724,6 +748,8 @@ export function criarCena(el, cb = {}) {
       const tamanhoMudou = !mesa || mesa.cols !== m.cols || mesa.rows !== m.rows;
       mesa = m;
       if (novaChave !== chaveTerreno) { chaveTerreno = novaChave; construirTerreno(); }
+      const rastro = m.id + JSON.stringify(m.fogo || {});
+      if (rastro !== chaveRastro) { chaveRastro = rastro; construirRastro(); }
       if (tamanhoMudou) enquadrar();
       aplicarCeu(m.luz, m.lua);
       atualizarTokens(lista || [], selecionado);
@@ -768,7 +794,7 @@ export function criarCena(el, cb = {}) {
         if (x >= 0 && y >= 0 && x < mesa.cols && y < mesa.rows) celulas.push(new THREE.Vector3(x + .5, alturaEm(x, y), y + .5));
       efx.tocar(s, { p0: meio(a), chao0: a.g.position.clone(), alvos, centro, celulas }, bater, (p, f, t) => setTimeout(() => tremer(p, f), t));
     },
-    pulso(k, cor) { const tk = tokens.get(k); if (tk) efx.pulso(tk.g.position.clone(), cor); },
+    pulso(k, cor, estilo) { const tk = tokens.get(k); if (tk) efx.pulso(tk.g.position.clone().add(new THREE.Vector3(0, estilo ? tk.alturaMini * .5 : 0, 0)), cor, estilo); },
     projetar(v) { const p = v.clone().project(camera), r = dom.getBoundingClientRect(); return { x: (p.x + 1) / 2 * r.width, y: (1 - p.y) / 2 * r.height }; },
     girar(ang) { const off = camera.position.clone().sub(controles.target); off.applyAxisAngle(new THREE.Vector3(0, 1, 0), ang); camera.position.copy(controles.target).add(off); },
     zoom(f) { const off = camera.position.clone().sub(controles.target).multiplyScalar(f); if (off.length() > 3 && off.length() < 70) camera.position.copy(controles.target).add(off); },
