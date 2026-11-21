@@ -418,17 +418,18 @@ export function criarCena(el, cb = {}) {
   const foraDoDiorama = (x, z) => !solo || x < 0 || z < 0 || x > mesa.cols || z > mesa.rows;
 
   let ceuAtual = '';
+  cena.background = new THREE.Color('#000'); // fundo sempre preto, de noite; o céu HDRI só ilumina
   function aplicarCeu(luz, lua) {
     const c = CEUS[luz] || CEUS.dia, alvo = new THREE.Vector3(mesa.cols / 2, 0, mesa.rows / 2), d = Math.max(mesa.cols, mesa.rows) * 1.2;
     if (ceuAtual !== luz) {
       ceuAtual = luz;
-      const usar = t => { if (ceuAtual !== luz) return; cena.environment = t; cena.background = c.fundoCor ? new THREE.Color(c.fundoCor) : t; };
+      const usar = t => { if (ceuAtual !== luz) return; cena.environment = t; };
       if (hdrs[c.hdr]) usar(hdrs[c.hdr]);
       else carregaHdr.loadAsync('/ceus/' + (TELA_FINA ? c.hdr : c.hdr.replace('_1k', '_2k')) + '.hdr').then(eq => { const t = pmrem.fromEquirectangular(eq).texture; eq.dispose(); hdrs[c.hdr] = t; usar(t); }).catch(() => {});
     }
     cena.environmentIntensity = c.env; cena.backgroundIntensity = c.fundo; cena.backgroundBlurriness = .06;
     renderer.toneMappingExposure = c.exp;
-    cena.fog = new THREE.FogExp2(c.nevoa, c.dens * 24 / Math.max(24, Math.max(mesa.cols, mesa.rows)));
+    cena.fog = new THREE.FogExp2('#000', c.dens * 24 / Math.max(24, Math.max(mesa.cols, mesa.rows)));
     hemi.color.set(c.hemi[0]); hemi.groundColor.set(c.hemi[1]); hemi.intensity = c.hemi[2]; amb.intensity = c.amb;
     for (const [l, cfg] of [[kael, c.kael], [lyra, c.lyra]]) {
       l.intensity = cfg[0]; l.visible = cfg[0] > 0; l.castShadow = cfg[0] > 0;
