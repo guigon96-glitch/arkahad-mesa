@@ -1092,9 +1092,7 @@ function hud() {
   const resta = acoesDe(t), minha = vezDe(t.k), pode = podeAgir(t);
   const ops = opcoesBarra(t), barra = barraDe(t, ops);
   const barraHud = (rot, v, m, cls) => `<div class="hb ${cls}" title="${rot} ${num(v)}/${num(m)}"><span>${rot}</span><i><b style="width:${Math.max(0, Math.min(100, num(v) / Math.max(1, num(m)) * 100))}%"></b></i><em>${num(v)}/${num(m)}</em></div>`;
-  const ehMeu = t.k === 'pc:' + eu(), mo = moedasDe(t);
   const retrato = `<div class="hud-retrato"><span class="hud-sigla" style="--cor:${esc(t.cor || '#e2b04a')}">${(() => { const r = t.tipo === 'pc' ? retratoDe(t.ficha, hud) : null; return r ? `<img src="${r}" alt="">` : esc(t.sigla || String(t.nome || '?')[0]); })()}</span><div class="hud-rec">${barraHud('Vigor', t.vigor, t.vigorMax, 'vigor')}${t.tipo === 'pc' ? barraHud('Fôlego', t.folego, t.folegoMax, 'folego') + barraHud('Tensão', t.tensao, t.limiar, 'tensao') : ''}</div></div>`;
-  const bolsa = ehMeu ? `<button class="hud-b hud-bolsa ${painelAberto && aba === 'itens' ? 'on' : ''}" data-hud="bolsa" title="Abrir o Inventário"><span class="ic">🎒</span><span>Inventário</span><small><b class="m-k">${mo.k}</b> <b class="m-l">${mo.l}</b> <b class="m-t">${mo.t}</b></small></button>` : '';
   let topoHud = '';
   if (cb.ativo) {
     const vez = tokenPorK(cb.ordem?.[cb.turno]?.k);
@@ -1112,7 +1110,7 @@ function hud() {
       <div class="hud-lado">
         <label class="hud-tirith" title="Dado de Tirith"><select id="hudTirith"><option value="normal">Normal</option><option value="vantagem">Vantagem</option><option value="desvantagem">Desvant.</option></select></label>
         ${t.k === 'pc:' + eu() ? `<button class="mini hud-editar ${editandoBarra ? 'ativo' : ''}" data-hud="editar" title="Organizar os atalhos">${editandoBarra ? 'Pronto' : '✎ Atalhos'}</button>` : ''}
-        ${bolsa}
+
         ${cb.ativo && (minha || (souMestre() && vezDe(t.k))) ? `<button class="hud-b fim" data-hud="fim"><span class="ic">⏭</span><span>Fim do turno</span><small>passa a vez</small></button>` : ''}
         ${souMestre() && cb.ativo && !(vezDe(t.k)) ? `<button class="hud-b fim" data-hud="fim"><span class="ic">⏭</span><span>Próximo</span><small>turno</small></button>` : ''}
       </div>
@@ -1217,7 +1215,6 @@ function acaoHud(a, t) {
   else if (a === 'imbuir') $('imbuir') ? $('imbuir').click() : alternarImbuir();
   else if (a === 'defender') enviar({ tipo: 'defender' });
   else if (a === 'editar') { editandoBarra = !editandoBarra; slotEditado = -1; hud(); }
-  else if (a === 'bolsa') { painelAberto = !(painelAberto && aba === 'itens'); aba = 'itens'; painel(); hud(); }
   else if (a === 'fim') { cancelarMira(); enviar({ tipo: 'combate', acao: 'proximo' }); }
   else if (a === 'cancelar') cancelarMira();
 }

@@ -486,10 +486,9 @@ details summary{color:var(--mudo)}
 .hud{width:max-content;max-width:calc(100% - 24px);--alt-slot:56px}
 .hud-linha{flex-wrap:nowrap;align-items:center;gap:12px}
 .hud-retrato{order:0;flex:none}
-.hud-bolsa{order:1;flex:none;align-self:center;height:var(--alt-slot);padding:6px 10px}
 .hud-meio{order:2;flex:1 1 auto;min-width:0;display:flex;flex-direction:column;justify-content:center}
-.hud-topo{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.hud-acoes{flex-wrap:nowrap;justify-content:space-between;align-items:center;gap:12px;min-width:0}
+.hud-topo{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;width:0;min-width:100%}
+.hud-acoes{flex-wrap:nowrap;justify-content:flex-start;align-items:center;gap:8px;min-width:0}
 .atalhos{flex:0 1 auto;min-width:0;margin:0 auto;grid-template-columns:none;grid-auto-flow:column;grid-auto-columns:52px;overflow-x:auto;overscroll-behavior-x:contain;scroll-snap-type:x proximity}
 .slot{height:var(--alt-slot);scroll-snap-align:start}
 .barras{flex:0 1 auto;min-width:0;margin:0 auto;display:flex;flex-direction:column;gap:4px}
@@ -526,8 +525,6 @@ details summary{color:var(--mudo)}
   .hud-b.fim{padding:0 10px}
   .hud-b.fim span:not(.ic),.hud-b.fim small{display:none}
 }
-/* Inventário fica no bloco direito, antes de Fim do turno / Próximo */
-.hud-lado .hud-bolsa{order:0;height:var(--alt-slot)}
 
 /* árvore de habilidades do Dom (ficha) */
 .habs .conds{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px}
