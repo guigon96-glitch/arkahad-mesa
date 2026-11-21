@@ -644,6 +644,8 @@ function somHabilidade(h, m) {
   if (h.anim === 'explosao' || h.anim === 'coluna') tocarSom(sup ? 'explosao_grande' : 'explosao', { tom: sup ? .8 : 1, atraso: t, vol: .8 });
   if (m.falhou) tocarSom('zunido', { tom: .6, atraso: 200 });
 }
+// formato da face de cima de cada dado (viewBox 40×40)
+const FACE_DADO = { 4: '20,3 37,34 3,34', 6: '5,5 35,5 35,35 5,35', 8: '20,3 37,34 3,34', 10: '20,2 37,17 20,38 3,17', 12: '20,3 37,15 31,36 9,36 3,15', 20: '20,3 37,34 3,34' };
 async function animarDados(m) {
   if (!cena) return;
   // dados batendo na mesa
@@ -654,13 +656,17 @@ async function animarDados(m) {
     if ((m.tags || []).some(t => /Triunfo|Coroa/.test(t))) setTimeout(() => cena.acao(m.k, 'vitoria'), 1700);
   }
   await cena.rolar(m);
-  // resultado vai para a pilha do canto superior direito (não cobre a arena)
-  const cam = $('notas');
+  // resultado vai para a pilha do canto superior esquerdo, com a face de cada dado que caiu para cima
+  const cam = $('rolagens');
   const pl = document.createElement('div'); pl.className = 'placa';
   pl.style.borderColor = m.cor;
-  pl.innerHTML = `<span>${esc(m.nome)}${m.rotulo ? ' · ' + esc(m.rotulo) : ''}${m.oculta ? ' · oculta' : ''}</span><b>${num(m.total)}</b>${m.grau ? `<div>${esc(m.grau)}</div>` : ''}${(m.tags || []).map(t => `<span class="tag ${/Ruína|Aranor|Eco/.test(t) ? 'ruim' : ''}">${esc(t)}</span>`).join('')}`;
-  $('aviso').after(pl);
-  while (cam.querySelectorAll('.placa').length > 4) cam.lastElementChild.remove();
+  const faces = (m.dados || []).slice(0, 20).map(d => {
+    const cor = d.c === 'lyra' || d.papel === 'lyra' ? m.lyra : d.c === 'tirith' ? '#e9edf2' : d.c === 'aranor' ? '#d23a3a' : m.kael;
+    return `<svg class="face${d.fora ? ' fora' : ''}" viewBox="0 0 40 40" aria-label="d${num(d.f)}: ${num(d.v)}"><polygon points="${FACE_DADO[d.f] || FACE_DADO[10]}" fill="${esc(cor || '#d9b25e')}" stroke="#fff8" stroke-width="1.5"/><text x="20" y="${d.f === 4 || d.f === 8 || d.f === 20 ? 27 : 25}" text-anchor="middle">${num(d.v)}</text><title>d${num(d.f)}</title></svg>`;
+  }).join('');
+  pl.innerHTML = `<span>${esc(m.nome)}${m.rotulo ? ' · ' + esc(m.rotulo) : ''}${m.oculta ? ' · oculta' : ''}</span>${faces ? `<div class="faces">${faces}</div>` : ''}<b>${num(m.total)}</b>${m.grau ? `<div>${esc(m.grau)}</div>` : ''}${(m.tags || []).map(t => `<span class="tag ${/Ruína|Aranor|Eco/.test(t) ? 'ruim' : ''}">${esc(t)}</span>`).join('')}`;
+  cam.prepend(pl);
+  while (cam.children.length > 4) cam.lastElementChild.remove();
   setTimeout(() => pl.classList.add('some'), 5200);
   setTimeout(() => pl.remove(), 6000);
 }

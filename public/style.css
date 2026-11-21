@@ -566,6 +566,17 @@ details summary{color:var(--mudo)}
 .notas{position:absolute;top:14px;right:16px;z-index:4;display:flex;flex-direction:column;align-items:flex-end;gap:8px;width:min(300px,calc(100% - 32px));pointer-events:none}
 .notas .aviso{position:static;transform:none;--tx:0;max-width:100%;text-align:right;border-radius:12px}
 .notas .placa{position:static;transform:none;white-space:normal;max-width:100%;animation:entraD .35s var(--mola,ease) both}
+/* resultados de dados: pilha no canto superior esquerdo (ao lado da iniciativa em combate) */
+.rolagens{position:absolute;top:14px;left:16px;z-index:4;display:flex;flex-direction:column;align-items:flex-start;gap:8px;width:min(300px,calc(100% - 32px));pointer-events:none}
+.area:has(#iniciativa:not([hidden])) .rolagens{left:234px}
+.rolagens .placa{position:static;transform:none;white-space:normal;max-width:100%;text-align:left;animation:entraE .35s var(--mola,ease) both}
+.placa .faces{display:flex;flex-wrap:wrap;gap:4px;margin:4px 0 2px}
+.placa .face{width:36px;height:36px;filter:drop-shadow(0 2px 3px #000a)}
+.placa .face text{font:700 15px var(--f-num,Cinzel),serif;fill:#fff;paint-order:stroke;stroke:#000a;stroke-width:3px}
+.placa .face.fora{opacity:.35}
+@keyframes entraE{from{opacity:0;transform:translateX(-24px)}to{opacity:1;transform:none}}
+@media(max-width:800px){.area:has(#iniciativa:not([hidden])) .rolagens{left:172px;width:min(300px,calc(100% - 188px))}}
+@media (min-width:901px){.rolagens{top:var(--topo-h)}}
 @keyframes entraD{from{opacity:0;transform:translateX(24px)}to{opacity:1;transform:none}}
 @media (min-width:901px){
   .notas{top:var(--topo-h);right:calc(var(--lado) + 24px)}

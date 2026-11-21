@@ -217,25 +217,81 @@ function geometriaD10() {
 }
 function tri2(arr, p, q, r) { arr.push(...p, ...q, ...r); }
 
+// cada face vira um grupo de triângulos com a mesma normal; UV de cada face aponta para uma célula do atlas de números
 const GEO_DADO = {};
 function geoDado(f) {
-  if (!GEO_DADO[f]) {
-    GEO_DADO[f] = f === 4 ? new THREE.TetrahedronGeometry(.95) : f === 6 ? new THREE.BoxGeometry(1.15, 1.15, 1.15)
-      : f === 8 ? new THREE.OctahedronGeometry(.95) : f === 12 ? new THREE.DodecahedronGeometry(.9)
-        : f === 20 ? new THREE.IcosahedronGeometry(.92) : geometriaD10();
+  if (GEO_DADO[f]) return GEO_DADO[f];
+  const base = (f === 4 ? new THREE.TetrahedronGeometry(.95) : f === 6 ? new THREE.BoxGeometry(1.15, 1.15, 1.15)
+    : f === 8 ? new THREE.OctahedronGeometry(.95) : f === 12 ? new THREE.DodecahedronGeometry(.9)
+      : f === 20 ? new THREE.IcosahedronGeometry(.92) : geometriaD10());
+  const geoBase = base.index ? base.toNonIndexed() : base;
+  const p = geoBase.getAttribute('position'), faces = [];
+  const a = new THREE.Vector3(), b = new THREE.Vector3(), c = new THREE.Vector3();
+  for (let t = 0; t < p.count / 3; t++) {
+    a.fromBufferAttribute(p, t * 3); b.fromBufferAttribute(p, t * 3 + 1); c.fromBufferAttribute(p, t * 3 + 2);
+    const n = new THREE.Vector3().subVectors(c, b).cross(new THREE.Vector3().subVectors(a, b)).normalize();
+    let face = faces.find(x => x.n.dot(n) > .999);
+    if (!face) faces.push(face = { n, tris: [] });
+    face.tris.push([a.clone(), b.clone(), c.clone()]);
   }
-  return GEO_DADO[f];
+  const cols = Math.ceil(Math.sqrt(faces.length)), pos = [], uv = [];
+  faces.forEach((face, i) => {
+    const vs = face.tris.flat(), centro = vs.reduce((s, v) => s.add(v), new THREE.Vector3()).divideScalar(vs.length);
+    // eixo "para cima" do número: na direção do primeiro vértice da face, a partir do centro
+    const cima = vs[0].clone().sub(centro).projectOnPlane(face.n).normalize(), lado = new THREE.Vector3().crossVectors(cima, face.n);
+    const raio = Math.max(...vs.map(v => v.distanceTo(centro))) * 1.05;
+    face.centro = centro;
+    const cx = (i % cols + .5) / cols, cy = 1 - (Math.floor(i / cols) + .5) / cols;
+    for (const v of vs) {
+      const d = v.clone().sub(centro);
+      pos.push(v.x, v.y, v.z);
+      uv.push(cx + d.dot(lado) / raio * .5 / cols, cy + d.dot(cima) / raio * .5 / cols);
+    }
+  });
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  geo.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+  geo.computeVertexNormals();
+  geo.userData = { faces: faces.map(x => x.n), cols, borda: new THREE.EdgesGeometry(geo, 1) };
+  return GEO_DADO[f] = geo;
+}
+// atlas: célula i tem o número i+1 sobre a cor do dado
+const ATLAS_DADO = {};
+function atlasDado(f, cor, material) {
+  const chave = f + cor + material;
+  if (ATLAS_DADO[chave]) return ATLAS_DADO[chave];
+  const cols = geoDado(f).userData.cols, cel = 128, cv = document.createElement('canvas');
+  cv.width = cv.height = cols * cel;
+  const ctx = cv.getContext('2d');
+  ctx.fillStyle = material === 'osso' ? '#efe4cc' : cor; ctx.fillRect(0, 0, cv.width, cv.height);
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  const tinta = material === 'osso' ? cor : '#fff8e8';
+  for (let i = 0; i < f; i++) {
+    const x = (i % cols + .5) * cel, y = (Math.floor(i / cols) + .5) * cel, txt = String(i + 1);
+    ctx.font = `700 ${f === 4 || f === 20 ? 40 : f === 6 ? 62 : 50}px Cinzel, serif`;
+    ctx.lineWidth = 6; ctx.strokeStyle = material === 'osso' ? 'rgba(255,255,255,.6)' : 'rgba(0,0,0,.55)';
+    ctx.strokeText(txt, x, y + 3); ctx.fillStyle = tinta; ctx.fillText(txt, x, y + 3);
+    if (txt === '6' || txt === '9') ctx.fillRect(x - 12, y + 26, 24, 4);
+  }
+  const t = new THREE.CanvasTexture(cv); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4;
+  return ATLAS_DADO[chave] = t;
+}
+// quaternion que deixa a face do valor virada para cima, com um giro aleatório em volta do eixo vertical
+export function orientacaoDado(f, valor) {
+  const n = geoDado(f).userData.faces[(valor - 1) % f] || new THREE.Vector3(0, 1, 0);
+  const q = new THREE.Quaternion().setFromUnitVectors(n, new THREE.Vector3(0, 1, 0));
+  return new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), Math.random() * Math.PI * 2).multiply(q);
 }
 export function criarDado(f, cor, material) {
+  const map = atlasDado(f, cor, material), b = { map, flatShading: true };
   let m;
-  if (material === 'osso') m = new THREE.MeshStandardMaterial({ color: '#efe4cc', roughness: .55, flatShading: true });
-  else if (material === 'ferro') m = new THREE.MeshStandardMaterial({ color: cor, metalness: .85, roughness: .28, flatShading: true });
-  else if (material === 'brasa') m = new THREE.MeshStandardMaterial({ color: cor, emissive: cor, emissiveIntensity: 1.1, roughness: .5, flatShading: true });
-  else m = new THREE.MeshStandardMaterial({ color: cor, roughness: .12, metalness: .1, transparent: true, opacity: .82, emissive: cor, emissiveIntensity: .35, flatShading: true });
+  if (material === 'osso') m = new THREE.MeshStandardMaterial({ ...b, roughness: .5 });
+  else if (material === 'ferro') m = new THREE.MeshStandardMaterial({ ...b, metalness: .8, roughness: .3 });
+  else if (material === 'brasa') m = new THREE.MeshStandardMaterial({ ...b, emissive: '#ffffff', emissiveMap: map, emissiveIntensity: .9, roughness: .5 });
+  else m = new THREE.MeshPhysicalMaterial({ ...b, roughness: .08, metalness: 0, clearcoat: 1, clearcoatRoughness: .05, transparent: true, opacity: .9, emissive: '#ffffff', emissiveMap: map, emissiveIntensity: .28 });
   const d = new THREE.Mesh(geoDado(f), m);
   d.castShadow = true;
-  const bordas = new THREE.LineSegments(new THREE.EdgesGeometry(geoDado(f), 1), new THREE.LineBasicMaterial({ color: material === 'osso' ? cor : '#ffffff', transparent: true, opacity: material === 'osso' ? .9 : .45 }));
-  d.add(bordas);
+  d.add(new THREE.LineSegments(geoDado(f).userData.borda, new THREE.LineBasicMaterial({ color: material === 'osso' ? cor : '#ffffff', transparent: true, opacity: material === 'osso' ? .9 : .4 })));
   return d;
 }
 

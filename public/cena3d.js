@@ -12,7 +12,7 @@ import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { construirSolo, carregarTexturasSolo, NIVEL_H as NIVEL_SOLO, MESA_Y } from './terreno.js';
 import { criarMesaDeJogo, BORDA } from './mesajogo.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
-import { criarMiniatura, criarDado, rotulo } from './miniatura.js';
+import { criarMiniatura, criarDado, orientacaoDado, rotulo } from './miniatura.js';
 import { criarEfeitos, criarChama, criarEstrelas } from './efeitos.js';
 import { carregarModelos, carregarNatureza, criarPersonagem, criarCriatura3D, CRIATURAS_3D, pecaCenario, pecaNatureza, temCenario, temNatureza, modelosProntos, TEMPO } from './modelos.js';
 // celular/tablet: céus 1k e chão 512 (memória de vídeo menor)
@@ -588,7 +588,7 @@ export function criarCena(el, cb = {}) {
       const vel = destino.clone().sub(m.position).setY(0).multiplyScalar(1.4); vel.y = 1.5;
       const ang2 = new THREE.Vector3((Math.random() - .5) * 26, (Math.random() - .5) * 26, (Math.random() - .5) * 26);
       grupoDados.add(m);
-      const reg = { m, vel, ang2, t0: performance.now(), parado: false, valor: d.v, fora: d.fora, rot: null };
+      const reg = { m, vel, ang2, t0: performance.now(), parado: false, valor: d.v, fora: d.fora, rot: null, alvo: orientacaoDado(d.f, d.v) };
       dados.push(reg); resultado.push(reg);
     });
     return new Promise(res => setTimeout(() => res(resultado.length ? resultado[0].m.position.clone() : centro), 1500));
@@ -605,9 +605,11 @@ export function criarCena(el, cb = {}) {
           d.m.position.y = chao; d.vel.y = Math.abs(d.vel.y) * .42; d.vel.x *= .62; d.vel.z *= .62; d.ang2.multiplyScalar(.6);
           if (Math.abs(d.vel.y) < .5) d.vel.y = 0;
         }
-        d.m.rotation.x += d.ang2.x * dt; d.m.rotation.y += d.ang2.y * dt; d.m.rotation.z += d.ang2.z * dt;
+        // no fim do rolamento vira para a face sorteada pelo servidor
+        if (idade < .9) { d.m.rotation.x += d.ang2.x * dt; d.m.rotation.y += d.ang2.y * dt; d.m.rotation.z += d.ang2.z * dt; }
+        else d.m.quaternion.slerp(d.alvo, Math.min(1, dt * 9));
         if (idade > 1.35) {
-          d.parado = true; d.m.position.y = chao;
+          d.parado = true; d.m.position.y = chao; d.m.quaternion.copy(d.alvo);
           const r = rotulo(String(d.valor), '#ffffff', 'rgba(10,8,6,.85)', .42); r.position.copy(d.m.position); r.position.y += .62; grupoDados.add(r); d.rot = r;
           if (d.fora) { d.m.material.transparent = true; d.m.material.opacity = .3; r.material.opacity = .45; }
         }
