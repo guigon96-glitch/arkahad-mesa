@@ -260,6 +260,11 @@ function camadaParedes(p, cols, rows) {
   p = Array.isArray(p) ? p : [];
   return Array.from({ length: rows }, (_, y) => [...String(p[y] || '').padEnd(cols, ' ').slice(0, cols)].map(c => PAREDES.includes(c) ? c : ' ').join(''));
 }
+// giro dos objetos: '0'..'3' = quartos de volta, ' ' = automático
+function camadaGiro(p, cols, rows) {
+  p = Array.isArray(p) ? p : [];
+  return Array.from({ length: rows }, (_, y) => [...String(p[y] || '').padEnd(cols, ' ').slice(0, cols)].map(c => /[0-3]/.test(c) ? c : ' ').join(''));
+}
 // mapa vindo de fora (novo ou arquivo enviado pelo Mestre): tudo validado
 function mapaValidado(id, d) {
   const cols = Math.max(6, Math.min(60, Math.round(num(d.cols, 24)))), rows = Math.max(6, Math.min(60, Math.round(num(d.rows, 16))));
@@ -270,6 +275,7 @@ function mapaValidado(id, d) {
     grid: Array.from({ length: rows }, (_, y) => [...String(g[y] || '').padEnd(cols, '"').slice(0, cols)].map(c => TERRENOS[c] ? c : '.').join('')),
     alt: Array.from({ length: rows }, (_, y) => [...String(a[y] || '').padEnd(cols, '1').slice(0, cols)].map(c => /[0-4]/.test(c) ? c : '1').join('')),
     par: camadaParedes(d.par, cols, rows),
+    rot: camadaGiro(d.rot, cols, rows),
     luz: LUZES[d.luz] ? d.luz : 'dia', lua: LUAS[d.lua] ? d.lua : 'nenhuma',
   });
   return m;
@@ -451,7 +457,7 @@ export class Sala extends DurableObject {
         if ('nome' in d) mesa.nome = texto(d.nome, 60) || 'Mapa';
         if ('luz' in d && LUZES[d.luz]) mesa.luz = d.luz;
         if ('lua' in d && LUAS[d.lua]) mesa.lua = d.lua;
-        if ('cols' in d || 'rows' in d || 'grid' in d || 'alt' in d || 'par' in d) {
+        if ('cols' in d || 'rows' in d || 'grid' in d || 'alt' in d || 'par' in d || 'rot' in d) {
           const cols = Math.max(6, Math.min(60, Math.round(num(d.cols, mesa.cols))));
           const rows = Math.max(6, Math.min(60, Math.round(num(d.rows, mesa.rows))));
           const g = Array.isArray(d.grid) ? d.grid : mesa.grid;
@@ -460,6 +466,7 @@ export class Sala extends DurableObject {
           const a = Array.isArray(d.alt) ? d.alt : (mesa.alt || []);
           mesa.alt = Array.from({ length: rows }, (_, y) => [...String(a[y] || '').padEnd(cols, '1').slice(0, cols)].map(c => /[0-4]/.test(c) ? c : '1').join(''));
           mesa.par = camadaParedes(Array.isArray(d.par) ? d.par : mesa.par, cols, rows);
+          mesa.rot = camadaGiro(Array.isArray(d.rot) ? d.rot : mesa.rot, cols, rows);
           mesa.cols = cols; mesa.rows = rows;
           for (const k of Object.keys(mesa.portais || {})) { const [x, y] = k.split(',').map(Number); if (x >= cols || y >= rows) delete mesa.portais[k]; }
         }

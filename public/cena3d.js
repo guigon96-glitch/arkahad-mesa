@@ -307,7 +307,7 @@ export function criarCena(el, cb = {}) {
       const [base, ...emCima] = nomes[Math.floor(acaso(x, y, 70) * nomes.length)].split('+');
       const p = pecaCenario(base, 1);
       if (p) for (const n of emCima) { const t = pecaCenario(n, .5); if (t) { t.position.y = new THREE.Box3().setFromObject(p).max.y / p.scale.y; t.scale.divideScalar(p.scale.y); p.add(t); } }
-      if (p) { p.position.set(x + .5, chaoDe(x, y), y + .5); p.rotation.y = Math.floor(acaso(x, y, 71) * 4) * Math.PI / 2 + (acaso(x, y, 72) - .5) * .4; grupoTerreno.add(p); }
+      if (p) { p.position.set(x + .5, chaoDe(x, y), y + .5); const giro = (mesa.rot?.[y] || '')[x]; p.rotation.y = /[0-3]/.test(giro) ? -giro * Math.PI / 2 : Math.floor(acaso(x, y, 71) * 4) * Math.PI / 2 + (acaso(x, y, 72) - .5) * .4; grupoTerreno.add(p); }
     }
     // 5) vegetação de alta qualidade
     const plantar = (lista, nomes, altura, k0, caber = 1.15) => {
@@ -847,7 +847,7 @@ export function criarCena(el, cb = {}) {
       ultimo = estado;
       const { mesa: m, tokens: lista, selecionado, alcance } = estado;
       if (!m) return;
-      const novaChave = m.id + ':' + m.cols + 'x' + m.rows + ':' + m.grid.join('') + ':' + (m.alt || []).join('') + (m.par || []).join('') + JSON.stringify(m.portais || {});
+      const novaChave = m.id + ':' + m.cols + 'x' + m.rows + ':' + m.grid.join('') + ':' + (m.alt || []).join('') + (m.par || []).join('') + (m.rot || []).join('') + JSON.stringify(m.portais || {});
       const tamanhoMudou = !mesa || mesa.cols !== m.cols || mesa.rows !== m.rows;
       mesa = m;
       if (novaChave !== chaveTerreno) { chaveTerreno = novaChave; construirTerreno(); }

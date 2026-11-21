@@ -351,8 +351,9 @@ function aoSoltar(i) {
 let ferramenta = 'pincel', formaPincel = 'quadrado', edicao = null, densidade = .3, buscaPal = '';
 const desfazer = [], refazer = [];
 const EDITA = ['pintar', 'altura', 'paredes'];
-const camadaAtual = () => ({ altura: 'alt', paredes: 'par' })[modoMestre] || 'grid';
-function camadaDe(m, c) { return c === 'alt' ? altDe(m) : c === 'par' ? parDe(m) : m.grid.slice(); }
+const camadaAtual = () => ferramenta === 'girar' ? 'rot' : ({ altura: 'alt', paredes: 'par' })[modoMestre] || 'grid';
+function camadaDe(m, c) { return c === 'alt' ? altDe(m) : c === 'par' ? parDe(m) : c === 'rot' ? rotDe(m) : m.grid.slice(); }
+function rotDe(m) { return Array.from({ length: m.rows }, (_, y) => String(m.rot?.[y] || '').padEnd(m.cols, ' ').slice(0, m.cols)); }
 function parDe(m) { return Array.from({ length: m.rows }, (_, y) => String(m.par?.[y] || '').padEnd(m.cols, ' ').slice(0, m.cols)); }
 function altDe(m) { return Array.from({ length: m.rows }, (_, y) => String(m.alt?.[y] || '').padEnd(m.cols, '1').slice(0, m.cols)); }
 function celulasPincel(x, y) {
@@ -376,6 +377,7 @@ function celulasRetangulo(a, b, oco = false) {
 }
 function valorNovo(camada, atual) {
   if (camada === 'grid') return pincel;
+  if (camada === 'rot') return String((Number(atual === ' ' ? 0 : atual) + 1) % 4); // cada clique = 90°
   if (camada === 'par') return pincelPar !== 'x' ? pincelPar : atual === '+' ? 'd' : atual === 'd' ? '+' : atual; // x = abre/fecha porta
   if (pincelAlt === '+') return String(Math.min(4, Number(atual) + 1));
   if (pincelAlt === '-') return String(Math.max(0, Number(atual) - 1));
@@ -411,6 +413,7 @@ function iniciarEdicao(i) {
   const antes = camadaDe(mesa, camada), arr = antes.slice();
   edicao = { camada, antes, arr, ini: { x: i.x, y: i.y }, tocadas: new Set() };
   if (ferramenta === 'balde') { preencher(arr, camada, i.x, i.y); terminarEdicao(); return; }
+  if (ferramenta === 'girar') { aplicar(arr, camada, [[i.x, i.y]], null); terminarEdicao(); return; }
   if (ferramenta === 'pincel' || ferramenta === 'espalhar') aplicar(arr, camada, celulasPincel(i.x, i.y), edicao.tocadas);
   else aplicar(arr, camada, [[i.x, i.y]], null);
   mostrarEdicao();
@@ -490,7 +493,7 @@ function cartaoPortal(x, y, pt) {
 // ================= Baixar e carregar mapas =================
 function baixarMapa() {
   const npcsAqui = Object.values(npcs).filter(n => (n.mapa || mesa.id) === mesa.id).map(({ mapa, x, y, ...n }) => ({ ...n, x, y }));
-  const dados = { formato: 'arkahad-mapa', versao: 1, mapa: { nome: mesa.nome, cols: mesa.cols, rows: mesa.rows, grid: mesa.grid, alt: altDe(mesa), par: parDe(mesa), luz: mesa.luz, lua: mesa.lua }, npcs: npcsAqui };
+  const dados = { formato: 'arkahad-mapa', versao: 1, mapa: { nome: mesa.nome, cols: mesa.cols, rows: mesa.rows, grid: mesa.grid, alt: altDe(mesa), par: parDe(mesa), rot: rotDe(mesa), luz: mesa.luz, lua: mesa.lua }, npcs: npcsAqui };
   const url = URL.createObjectURL(new Blob([JSON.stringify(dados, null, 1)], { type: 'application/json' }));
   const a = document.createElement('a'); a.href = url; a.download = (mesa.nome || 'mapa').replace(/[^\p{L}\p{N}]+/gu, '-').toLowerCase() + '.arkahad.json';
   document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 2000);
@@ -889,7 +892,7 @@ function blocoFichasMestre() {
 function htmlMestre() {
   if (!souMestre() || !mesa) return '';
   const cb = mesa.combate || {}, editando = EDITA.includes(modoMestre);
-  const ferr = [['pincel', '🖌', 'Pincel'], ['espalhar', '✱', 'Espalhar'], ['retangulo', '▭', 'Retângulo'], ['sala', '⬚', 'Sala (borda)'], ['linha', '╱', 'Linha'], ['balde', '🪣', 'Preencher'], ['conta', '💧', 'Conta-gotas']];
+  const ferr = [['pincel', '🖌', 'Pincel'], ['espalhar', '✱', 'Espalhar'], ['retangulo', '▭', 'Retângulo'], ['sala', '⬚', 'Sala (borda)'], ['linha', '╱', 'Linha'], ['balde', '🪣', 'Preencher'], ['conta', '💧', 'Conta-gotas'], ...(modoMestre === 'pintar' ? [['girar', '⟳', 'Girar objeto']] : [])];
   const blocoFerr = editando ? `<div class="ferramentas">${ferr.map(([k, ic, n]) => `<button data-ferr="${k}" class="${ferramenta === k ? 'ativo' : ''}" title="${n}"><span>${ic}</span><small>${n}</small></button>`).join('')}</div>
       <div class="linha" style="margin-top:8px;align-items:end"><div><label for="m_tam">Tamanho</label><select id="m_tam">${[1, 2, 3, 4, 5, 7].map(n => `<option ${tamPincel === n ? 'selected' : ''}>${n}</option>`).join('')}</select></div>
       <div><label for="m_forma">Forma</label><select id="m_forma"><option value="quadrado" ${formaPincel === 'quadrado' ? 'selected' : ''}>Quadrado</option><option value="circulo" ${formaPincel === 'circulo' ? 'selected' : ''}>Círculo</option></select></div>
@@ -1017,7 +1020,7 @@ function ligar() {
   };
   if (q('#rolarExpr')) q('#rolarExpr').onclick = () => { memo.expr = $('d_expr').value; enviar({ tipo: 'rolar', modo: 'expr', expr: $('d_expr').value, rotulo: 'Dano ' + $('d_expr').value, oculta: !!q('#d_oculta')?.checked }); };
   document.querySelectorAll('[data-rapido]').forEach(b => b.onclick = () => enviar({ tipo: 'rolar', modo: 'expr', expr: b.dataset.rapido, rotulo: b.dataset.rapido, oculta: !!q('#d_oculta')?.checked }));
-  document.querySelectorAll('[data-modo]').forEach(b => b.onclick = () => { modoMestre = b.dataset.modo; mostrarPrevia(null); painel(); });
+  document.querySelectorAll('[data-modo]').forEach(b => b.onclick = () => { modoMestre = b.dataset.modo; if (ferramenta === 'girar' && modoMestre !== 'pintar') ferramenta = 'pincel'; mostrarPrevia(null); painel(); });
   document.querySelectorAll('[data-ferr]').forEach(b => b.onclick = () => { ferramenta = b.dataset.ferr; painel(); });
   document.querySelectorAll('[data-ir]').forEach(b => b.onclick = () => enviar({ tipo: 'mapa', acao: 'ir', id: b.dataset.ir }));
   if (q('#m_forma')) q('#m_forma').onchange = e => { formaPincel = e.target.value; };
