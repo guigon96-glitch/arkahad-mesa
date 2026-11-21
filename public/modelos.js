@@ -643,7 +643,13 @@ let promNatureza = null;
 export function carregarNatureza(base = '/modelos/') {
   if (promNatureza) return promNatureza;
   // mobília e masmorra (KayKit Dungeon Remastered, CC0) vêm junto, sem atrasar o criador de personagem
-  const masmorra = carregador.loadAsync(base + 'masmorra.glb').then(g => { for (const filho of [...g.scene.children]) dados.cenario[filho.name] = filho; }).catch(e => console.warn('Mobília 3D indisponível.', e));
+  const masmorra = carregador.loadAsync(base + 'masmorra.glb').then(g => {
+    // tira o ar de brinquedo das cores chapadas do KayKit para combinar com as texturas do resto
+    g.scene.traverse(o => { if (o.isMesh && !o.material.userData.sobrio) { const m = o.material; m.userData.sobrio = true; m.roughness = .85; m.metalness = 0; m.color.setRGB(.82, .8, .78);
+      m.onBeforeCompile = sh => { sh.fragmentShader = sh.fragmentShader.replace('#include <map_fragment>', '#include <map_fragment>\n diffuseColor.rgb = mix(vec3(dot(diffuseColor.rgb, vec3(.3, .59, .11))), diffuseColor.rgb, .55);'); };
+      m.customProgramCacheKey = () => 'sobrio'; } });
+    for (const filho of [...g.scene.children]) dados.cenario[filho.name] = filho;
+  }).catch(e => console.warn('Mobília 3D indisponível.', e));
   promNatureza = Promise.all([carregador.loadAsync(base + 'natureza.glb'), masmorra]).then(([g]) => {
     const folhas = new Map();
     g.scene.traverse(o => {
@@ -685,15 +691,33 @@ export function pecaNatureza(nome, altura, caber = 1) {
 
 // ---------------- peças de cenário ----------------
 // altura em casas (1 casa ≈ 1,5 m); peças planas (grade, espinhos) usam altura grande para a largura mandar
-export const ALTURA_PECA = { arvore: 1.7, arvores: 1.3, rocha: .45, lirio: .06, planta: .35, barril: .55, caixote: .6, caixotes: .5, saco: .4, tenda: 1.1, suporte_armas: .8, alvo: .9, carrinho: .55, balde: .35,
-  bau: .45, bau_ouro: .5, mesa: .52, mesa_posta: .6, cadeira: .65, banco: .32, cama: .5, estante: 1.4, prateleira: 1.3, coluna: 2.2, coluna_entalhada: 2.2, tocha: 1, velas: .22,
-  barril_grande: .72, pipa: .6, arca: .5, entulho: .45, estandarte_vermelho: 1.6, estandarte_azul: 1.6, moedas: .2, espada_escudo: .7, espinhos: 1, grade: 1, garrafas: .22, prato: .1, caixas: .95, barreira: .7, escada: .6 };
+export const ALTURA_PECA = {
+  // KayKit (cenário e masmorra)
+  arvore: 1.7, arvores: 1.3, rocha: .45, lirio: .06, planta: .35, caixotes: .5, saco: .4, tenda: 1.1, suporte_armas: .8, alvo: .9, carrinho: .55,
+  coluna: 2.2, coluna_entalhada: 2.2, entulho: .45, estandarte_vermelho: 1.6, estandarte_azul: 1.6, moedas: .2, espinhos: 1, grade: 1, barreira: .7,
+  // Poly Haven (mundo real: ~0,55 unidade por metro)
+  mesa: .52, mesa_redonda: .5, cadeira: .65, banco: .32, cama: .8, estante: 1.4, prateleira: 1.2, bau: .42, armario: 1.4,
+  barril: .6, barril_grande: .72, pipa: .6, caixas: .6, caixote: .45, balde: .25, lanterna: .16, velas: .25, garrafas: .22, prato: .04, tacas: .12,
+  escudo: .65, escada: 1.7, cesto: .3 };
+// modelos com textura real (Poly Haven, CC0), um arquivo por peça em modelos/objetos/, baixados só quando o mapa usa
+const OBJETOS_PH = new Set(['mesa', 'mesa_longa', 'mesa_redonda', 'cadeira', 'trono', 'banco', 'cama', 'estante', 'prateleira', 'bau', 'armario', 'barril_grande', 'barril', 'pipa', 'caixas', 'caixote', 'balde', 'lanterna', 'velas', 'garrafas', 'prato', 'tacas', 'escudo', 'escada', 'cesto']);
+const extras = {}, pedidos = new Set(); let aoChegar = null, esperaChegar = 0;
+export function aoCarregarPeca(fn) { aoChegar = fn; }
+function pedirPeca(nome) {
+  if (pedidos.has(nome)) return; pedidos.add(nome);
+  carregador.loadAsync(BASE + 'objetos/' + nome + '.glb').then(g => {
+    extras[nome] = g.scene;
+    clearTimeout(esperaChegar); esperaChegar = setTimeout(() => aoChegar?.(), 150); // várias peças chegando = uma reconstrução só
+  }).catch(e => console.warn('Objeto 3D indisponível:', nome, e));
+}
 export function pecaCenario(nome, caber = 1) {
-  const src = dados.cenario[nome]; if (!src) return null;
+  if (OBJETOS_PH.has(nome) && !extras[nome]) pedirPeca(nome);
+  const src = extras[nome] || dados.cenario[nome]; if (!src) return null; // enquanto baixa, usa a versão simples se houver
   const o = src.clone(true);
   const caixa = new THREE.Box3().setFromObject(o), t = caixa.getSize(new THREE.Vector3()), c = caixa.getCenter(new THREE.Vector3());
   const tipo = nome in ALTURA_PECA ? nome : Object.keys(ALTURA_PECA).find(k => nome.startsWith(k)) || 'rocha';
-  const s = Math.min(ALTURA_PECA[tipo] / Math.max(t.y, .001), caber * .95 / Math.max(t.x, t.z, .001));
+  // Poly Haven vem em metros: escala real (pode passar um pouco da casa, como uma mesa comprida); KayKit ajusta pela altura
+  const s = extras[nome] ? Math.min(.55, caber * 1.4 / Math.max(t.x, t.z, .001)) : Math.min(ALTURA_PECA[tipo] / Math.max(t.y, .001), caber * .95 / Math.max(t.x, t.z, .001));
   const g = new THREE.Group(); o.position.set(-c.x, -caixa.min.y, -c.z); g.add(o); g.scale.setScalar(s);
   g.traverse(m => { if (m.isMesh) { m.castShadow = true; m.receiveShadow = true; } });
   return g;

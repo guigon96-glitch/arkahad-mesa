@@ -16,7 +16,7 @@ const COR_LUZ = { dia: '#ffb347', noite: '#05060f', azul: '#3f6fe0', conjuncao: 
 const MATERIAIS = { cristal: 'Cristal', osso: 'Osso', ferro: 'Ferro Lunar', brasa: 'Brasa' };
 const CORES_TERRENO = { '.': '#7d6146', '_': '#8f877b', ',': '#d3ad6a', '"': '#4d7536', '~': '#2a6585', '=': '#7a4e2c', '+': '#5a3a1e', 'v': '#1b1820', '#': '#3a342e', m: '#6b4a2a', h: '#7a7468', f: '#9a7448', d: '#4a2e16', k: '#4f8a3a', P: '#24502a', Q: '#6a5040', 'T': '#2d5a27', '^': '#6b6158', '*': '#ff8a1e', b: '#8a5a2a', c: '#b08a52', s: '#c8b48a', n: '#d8c8a0', a: '#7d8288', o: '#c0392f', w: '#6b4423',
   l: '#5f8a3a', t: '#3f7a32', y: '#c86aa8', M: '#8a5a32', Y: '#9a6a3a', L: '#b0503a', C: '#7a5030', U: '#6a4428', A: '#a0403a', E: '#5a3a22', R: '#6a4a2a', B: '#9a6a2a', O: '#d8a830', Z: '#7a5a3a', K: '#7a4a22', G: '#6a3a1a', j: '#a07a4a',
-  I: '#9a948a', J: '#b0a898', X: '#ffb040', V: '#f0e0b0', F: '#b02a2a', H: '#2a5ab0', S: '#a0a8b0', $: '#e8c040', D: '#7a7468', r: '#5a4a3a', W: '#4a4a52', N: '#3a3a40', e: '#8a6a40' };
+  I: '#9a948a', J: '#b0a898', X: '#ffb040', V: '#f0e0b0', F: '#b02a2a', H: '#2a5ab0', S: '#a0a8b0', $: '#e8c040', D: '#7a7468', r: '#5a4a3a', W: '#4a4a52', N: '#3a3a40', e: '#8a6a40', q: '#b89a5a', u: '#7a2a2a' };
 
 // ================= ESTADO =================
 let config = {}, sessao = null, ws = null, codigoAtual = null, reconectar = true, tentativaWs = 0;
@@ -870,7 +870,7 @@ function htmlRegistro() {
 const GRUPOS_TERRENO = [
   ['Chão', ['"', '.', ',', '_', '=', 'v']], ['Água', ['~']], ['Vegetação', ['T', 'P', 'Q', 'l', 'k', 't', 'y']],
   ['Acampamento', ['^', '*', 'b', 'c', 's', 'n', 'a', 'o', 'w']],
-  ['Mobília', ['M', 'Y', 'L', 'C', 'U', 'A', 'E', 'R', 'B', 'O', 'Z', 'K', 'G', 'j']],
+  ['Mobília', ['M', 'Y', 'L', 'C', 'u', 'U', 'A', 'E', 'R', 'B', 'O', 'Z', 'K', 'G', 'j', 'q']],
   ['Masmorra e castelo', ['I', 'J', 'X', 'V', 'F', 'H', 'S', '$', 'D', 'r', 'W', 'N', 'e']],
 ];
 function blocoFichasMestre() {
