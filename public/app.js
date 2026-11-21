@@ -1077,11 +1077,11 @@ function hud() {
   } else topoHud = `<span class="hud-sub">Fora de combate · ações livres</span>`;
   el.innerHTML = `<div class="hud-linha">${retrato}<div class="hud-meio"><div class="hud-topo"><b class="hud-nome">${esc(t.nome)}</b>${topoHud}</div>
     <div class="hud-acoes">
-      <div class="atalhos ${editandoBarra ? 'editando' : ''}" role="toolbar" aria-label="Atalhos 1 a 0">${barra.map((id, i) => {
-        const op = ops.find(o => o.id === id), ativo = op && ((id === 'arma' && mira?.tipo === 'arma') || (id.startsWith('tec:') && mira?.tipo === 'tec' && mira.nivel === num(id.slice(4))) || (id.startsWith('hab:') && mira?.hab === id.slice(4)) || op.on);
-        const livre = op && (id === 'imbuir' || id === 'brasas' || (id === 'defender' ? pode && !t.guarda : pode));
-        return `<button class="slot ${op ? '' : 'vazio'} ${ativo ? 'on' : ''} ${editandoBarra && slotEditado === i ? 'sel' : ''}" data-slot="${i}" ${!editandoBarra && op && !livre ? 'disabled' : ''} title="${op ? esc(`${op.nome} — ${op.sub}`) : editandoBarra ? 'Escolher atalho' : 'Vazio'}"${op?.cor ? ` style="--cor:${op.cor}"` : ''}><kbd>${(i + 1) % 10}</kbd><span class="ic">${op ? (op.img ? icone(op.img, op.ic) : op.ic) : ''}</span><small>${op ? esc(op.nome) : ''}</small></button>`;
-      }).join('')}</div>
+      <div class="barras">${[0, 10].filter(de => !de || editandoBarra || barra.slice(10).some(Boolean)).map(de => `<div class="atalhos ${editandoBarra ? 'editando' : ''}" role="toolbar" aria-label="Atalhos ${de ? 'Alt+1 a Alt+0' : '1 a 0'}">${barra.slice(de, de + 10).map((id, j) => {
+        const i = de + j, op = ops.find(o => o.id === id), ativo = op && ((id === 'arma' && mira?.tipo === 'arma') || (id.startsWith('tec:') && mira?.tipo === 'tec' && mira.nivel === num(id.slice(4))) || (id.startsWith('hab:') && mira?.hab === id.slice(4)) || op.on);
+        const livre = op && (id === 'imbuir' || id === 'brasas' || (id === 'defender' ? pode && !t.guarda : pode)), off = !editandoBarra && op && !livre;
+        return `<button class="slot ${op ? '' : 'vazio'} ${ativo ? 'on' : ''} ${off ? 'off' : ''} ${editandoBarra && slotEditado === i ? 'sel' : ''}" data-slot="${i}" ${off ? 'aria-disabled="true"' : ''} title="${op ? esc(`${op.nome} — ${op.sub}`) : editandoBarra ? 'Escolher atalho' : 'Vazio'} (segure e arraste para trocar de lugar)"${op?.cor ? ` style="--cor:${op.cor}"` : ''}><kbd>${teclaSlot(i)}</kbd><span class="ic">${op ? (op.img ? icone(op.img, op.ic) : op.ic) : ''}</span><small>${op ? esc(op.nome) : ''}</small></button>`;
+      }).join('')}</div>`).join('')}</div>
       <div class="hud-lado">
         <label class="hud-tirith" title="Dado de Tirith"><select id="hudTirith"><option value="normal">Normal</option><option value="vantagem">Vantagem</option><option value="desvantagem">Desvant.</option></select></label>
         ${t.k === 'pc:' + eu() ? `<button class="mini hud-editar ${editandoBarra ? 'ativo' : ''}" data-hud="editar" title="Organizar os atalhos">${editandoBarra ? 'Pronto' : '✎ Atalhos'}</button>` : ''}
@@ -1090,18 +1090,38 @@ function hud() {
         ${souMestre() && cb.ativo && !(vezDe(t.k)) ? `<button class="hud-b fim" data-hud="fim"><span class="ic">⏭</span><span>Próximo</span><small>turno</small></button>` : ''}
       </div>
     </div>
-    ${editandoBarra && slotEditado >= 0 ? `<div class="hud-menu escolha-atalho"><b>Atalho ${(slotEditado + 1) % 10}</b>${ops.map((o, j) => `<button data-escolha="${j}"${o.cor ? ` style="--cor:${o.cor}"` : ''}><span class="ic">${o.img ? icone(o.img, o.ic) : o.ic}</span><span><b>${esc(o.nome)}</b><small>${esc(o.sub)}</small></span></button>`).join('')}<button data-escolha="-1"><span class="ic">∅</span><span><b>Deixar vazio</b></span></button></div>` : ''}
+    ${editandoBarra && slotEditado >= 0 ? `<div class="hud-menu escolha-atalho"><b>Atalho ${teclaSlot(slotEditado)}</b>${ops.map((o, j) => `<button data-escolha="${j}"${o.cor ? ` style="--cor:${o.cor}"` : ''}><span class="ic">${o.img ? icone(o.img, o.ic) : o.ic}</span><span><b>${esc(o.nome)}</b><small>${esc(o.sub)}</small></span></button>`).join('')}<button data-escolha="-1"><span class="ic">∅</span><span><b>Deixar vazio</b></span></button></div>` : ''}
     </div></div></div>
     ${mira ? `<div class="hud-mira">${esc(mira.titulo)} — clique no alvo · <button class="mini" data-hud="cancelar">Cancelar (Esc)</button></div>` : ''}`;
   el.hidden = false;
   $('hudTirith').value = tirithHud;
   $('hudTirith').onchange = e => { tirithHud = e.target.value; };
   el.querySelectorAll('[data-hud]').forEach(b => b.onclick = () => acaoHud(b.dataset.hud, t));
-  el.querySelectorAll('[data-slot]').forEach(b => b.onclick = () => usarSlot(num(b.dataset.slot)));
+  el.querySelectorAll('[data-slot]').forEach(b => {
+    b.onclick = () => { if (arrastou || b.classList.contains('off')) return; usarSlot(num(b.dataset.slot)); };
+    b.onpointerdown = e => segurarSlot(e, num(b.dataset.slot), t);
+  });
   el.querySelectorAll('[data-escolha]').forEach(b => b.onclick = () => { const j = num(b.dataset.escolha), nova = [...barra]; nova[slotEditado] = j < 0 ? '' : ops[j].id; slotEditado = -1; salvarBarra(nova); });
 }
-// ===== barra de atalhos 1–0 (cada jogador organiza a sua; fica salva no personagem) =====
-let editandoBarra = false, slotEditado = -1;
+// ===== barra de atalhos 1–0 e Alt+1–Alt+0 (cada jogador organiza a sua; fica salva no personagem) =====
+let editandoBarra = false, slotEditado = -1, arraste = null, arrastou = false;
+const SLOTS = 20, teclaSlot = i => i < 10 ? String((i + 1) % 10) : 'Alt+' + (i - 9) % 10;
+// segurar um atalho (~0,35 s) e soltar sobre outro troca os dois de lugar
+// shortcut: no celular, arrastar de lado antes do tempo rola a barra em vez de trocar; trocar por menu se reclamarem
+function segurarSlot(e, i, t) {
+  if (t.k !== 'pc:' + eu() || e.button > 0) return;
+  const el = e.currentTarget;
+  const timer = setTimeout(() => { arraste = { de: i }; el.classList.add('arrastando'); document.body.classList.add('trocando-atalho'); }, 350);
+  const fim = ev => {
+    clearTimeout(timer); removeEventListener('pointerup', fim); removeEventListener('pointercancel', fim);
+    if (!arraste) return;
+    const de = arraste.de, sob = ev.type === 'pointerup' && document.elementFromPoint(ev.clientX, ev.clientY)?.closest('[data-slot]'), para = sob ? num(sob.dataset.slot) : -1;
+    arraste = null; document.body.classList.remove('trocando-atalho');
+    arrastou = true; setTimeout(() => { arrastou = false; }, 0); // o clique que vem junto com o soltar não usa o atalho
+    if (para >= 0 && para !== de) { const b = barraDe(t, opcoesBarra(t)); [b[de], b[para]] = [b[para], b[de]]; salvarBarra(b); } else hud();
+  };
+  addEventListener('pointerup', fim); addEventListener('pointercancel', fim);
+}
 function tecDe(f, dom, nivel) { return { nome: dom.tec[nivel - 1], nivel, custo: CUSTO_DOM[nivel - 1], inf: dom.inf[nivel - 1], dano: danoTecnica(f, nivel), ...alcanceTecnica(f, nivel) }; }
 function opcoesBarra(t) {
   const f = t.tipo === 'pc' ? t.ficha : null, dom = f && ehAurethian(f) ? TODOS_DONS[f.dom] : null, n = f ? nivelDom(f) : 0;
@@ -1119,14 +1139,15 @@ function opcoesBarra(t) {
 }
 function barraDe(t, ops) {
   if (t.k === 'pc:' + eu() && Array.isArray(t.barra)) {
-    const b = Array.from({ length: 10 }, (_, i) => t.barra[i] || '');
+    const b = Array.from({ length: SLOTS }, (_, i) => t.barra[i] || '');
     // barras salvas antes do Mover existir ganham o Mover no primeiro espaço vazio
     if (!b.includes('mover') && !t.barra.includes('mover')) { const v = b.indexOf(''); if (v >= 0) b[v] = 'mover'; }
-    for (const id of ['brasas', 'solnegro']) if (ops.some(o => o.id === id) && !b.includes(id)) { const v = b.indexOf(''); if (v >= 0) b[v] = id; }
+    // habilidades, técnicas e botões do Dom que ainda não estão na barra entram no primeiro espaço vazio
+    for (const o of ops) if (/^(hab:|tec:|brasas$|solnegro$)/.test(o.id) && !b.includes(o.id)) { const v = b.indexOf(''); if (v >= 0) b[v] = o.id; }
     return b;
   }
   const ids = ops.filter(o => !o.id.startsWith('item:')).map(o => o.id);
-  return Array.from({ length: 10 }, (_, i) => ids[i] || '');
+  return Array.from({ length: SLOTS }, (_, i) => ids[i] || '');
 }
 function salvarBarra(barra) {
   const p = pcs[eu()]; if (!p) return;
@@ -1156,9 +1177,10 @@ function usarSlot(i) {
   else if (alvo && mira) avisar(`${alvo.nome} está fora do alcance. Escolha outro alvo.`, 2200);
 }
 document.addEventListener('keydown', e => {
-  if (!/^[0-9]$/.test(e.key) || e.ctrlKey || e.metaKey || e.altKey || e.repeat) return;
+  const d = /^(?:Digit|Numpad)([0-9])$/.exec(e.code);
+  if (!d || e.ctrlKey || e.metaKey || e.shiftKey || e.repeat) return;
   if ($('telaMesa').hidden || document.querySelector('.criador') || e.target.closest?.('input,textarea,select,[contenteditable]')) return;
-  e.preventDefault(); usarSlot(e.key === '0' ? 9 : num(e.key) - 1);
+  e.preventDefault(); usarSlot((d[1] === '0' ? 9 : num(d[1]) - 1) + (e.altKey ? 10 : 0));
 });
 function acaoHud(a, t) {
   if (a === 'arma') { menuTec = false; if (mira?.tipo === 'arma' && !mira.solNegro) return cancelarMira(); iniciarMira(t, { tipo: 'arma' }); }
