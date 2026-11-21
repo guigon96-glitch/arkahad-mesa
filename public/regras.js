@@ -241,6 +241,8 @@ export const CONDICOES = {
   espinhos: { nome: 'Espinhos', ic: '🌵', cor: '#7ff0e0', bom: true, desc: 'Quem acerta você corpo a corpo sofre 1d6.' },
   imagens: { nome: 'Imagens', ic: '👥', cor: '#c9a0ff', bom: true, desc: '40% de chance de um golpe acertar uma cópia (e desfazê-la).' },
   eterno: { nome: 'Eterno', ic: '♾', cor: '#ff8080', bom: true, desc: 'Ao cair a 0 de Vigor, volta com 10 e a condição acaba.' },
+  fenix: { nome: 'Fênix', ic: '🪶', cor: '#ff9a3a', bom: true, desc: 'Imune a Queimando; se cair com Eterno, explode (4d6 em quem está a até 2 casas).' },
+  abalado: { nome: 'Abalado', ic: '💢', cor: '#c09060', desc: 'Já fugiu do fogo: imune ao Pavor das Chamas.' },
   premonicao: { nome: 'Premonição', ic: '👁', cor: '#f8e8a0', bom: true, desc: 'O próximo golpe contra você erra.' },
 };
 // condições ruins sorteadas pelo Caos (Entropia)

@@ -429,7 +429,10 @@ export const ARVORES = {
 //   cadeia, caos, terreno (caractere do grid), altura (±1 nível), derruba, atravessa. Ver descHabilidade.
 const S = (nome, t, alc, raio, dados, cond, anim, ex = {}) => ({ nome, t, alc, raio, dados, cond: Object.fromEntries((cond || '').split(',').filter(Boolean).map(c => { const [k, v] = c.split(':'); return [k, +v || 1]; })), anim, ...ex });
 const HAB_DOM = {
-  kalthor: [S('Dardo Ígneo', 'atq', 8, 0, '1d6', 'queimando:2', 'projetil'), S('Cortina de Fumaça', 'campo', 6, 1, '', 'cego:2', 'explosao'), S('Pele Incandescente', 'si', 0, 0, '', 'espinhos:3', 'aura'), S('Tempestade de Fogo', 'atq', 12, 2, '3d6', 'queimando:3', 'coluna')],
+  // Kalthor (design em docs/design/kalthor.md): Brasas, Brasa Viva e ramo Forja; Inferno e Cinza na parte 2. g/custo/tensao fixam o Grau de nós além do 4º.
+  kalthor: [S('Dardo Ígneo', 'atq', 8, 0, '1d6', 'queimando:2', 'projetil', { ricochete: 1 }), S('Cortina de Fumaça', 'campo', 6, 1, '', 'cego:2', 'explosao'),
+    S('Couraça de Magma', 'si', 0, 0, '', 'espinhos:3', 'aura', { magma: true, turbo: { n: 2, cond: { protegido: 2 } } }), S('Tempestade de Fogo', 'atq', 12, 2, '3d6', 'queimando:3', 'coluna'),
+    S('Coração de Fornalha', 'si', 0, 0, '1d6', '', 'aura', { brasas: 2, g: 2, custo: 2 }), S('Renascer da Fênix', 'si', 0, 0, '', 'acelerado:3,eterno:3,fenix:3', 'aura', { g: 3, custo: 4, tensao: 1 })],
   cryon: [S('Agulha Glacial', 'atq', 6, 0, '1d6', 'lento:2', 'projetil'), S('Muralha de Gelo', 'campo', 6, 1, '', 'congelado:1', 'parede', { terreno: 'h' }), S('Couraça de Gelo', 'apoio', 4, 0, '', '', 'escudo', { escudo: 8 }), S('Inverno Eterno', 'atq', 12, 2, '2d6', 'congelado:2', 'explosao')],
   verdis: [S('Laço de Raízes', 'atq', 6, 0, '1d4', 'preso:2', 'coluna'), S('Muralha de Espinhos', 'campo', 6, 1, '', 'sangrando:2', 'parede', { terreno: 'k' }), S('Brotar Ervas', 'apoio', 4, 1, '', 'regenerando:2', 'aura'), S('Jardim de Esporos', 'atq', 8, 2, '2d6', 'preso:2', 'coluna', { terreno: 'k' })],
   vithar: [S('Sutura Viva', 'apoio', 1, 0, '1d8+2', '', 'aura', { limpa: true }), S('Semente de Vida', 'apoio', 4, 0, '', 'regenerando:3', 'aura'), S('Onda Restauradora', 'apoio', 6, 2, '2d6', '', 'onda'), S('Chamado de Volta', 'apoio', 1, 0, '3d6', '', 'coluna', { revive: 5 })],
@@ -452,7 +455,7 @@ const HAB_DOM = {
 };
 // estilo de cada Dom (mostrado na árvore): cada um luta de um jeito próprio
 const PAPEL_DOM = {
-  kalthor: 'Incendiário: fogo que continua queimando, fumaça que cega e pele que fere quem toca.', cryon: 'Controle: deixa lento, congela, ergue muros e blinda um aliado.',
+  kalthor: 'Fornalha: todo acerto acende o alvo, corta a cura dele pela metade e pode fazê-lo fugir de medo (Brasa Viva). Acertos dão Brasas (até 5); com 5 fica Superaquecido: +1d6 de fogo, mas sofre 1d4 por turno.', cryon: 'Controle: deixa lento, congela, ergue muros e blinda um aliado.',
   verdis: 'Terreno vivo: prende inimigos e transforma o campo em mata.', vithar: 'Médico: cura direta, regeneração e levanta caídos.',
   zephyr: 'Mobilidade: empurra inimigos, salta longe e esconde o grupo na névoa.', toxys: 'Desgaste: veneno e ácido que deixam o alvo vulnerável.',
   voltri: 'Velocidade: choques que saltam entre alvos e ação extra para um aliado.', umbra: 'Engano: medo, cópias e passos entre as sombras.',
@@ -475,7 +478,9 @@ export function descHabilidade(h) {
     h.rouba && `rouba ${h.rouba} de Fôlego`, h.folego && `+${h.folego} Fôlego`, h.escudo && `escudo que absorve ${h.escudo} de dano`, h.revive && `levanta caído com ${h.revive} de Vigor`,
     h.cadeia && `salta para ${h.cadeia} inimigo${h.cadeia > 1 ? 's' : ''} próximo${h.cadeia > 1 ? 's' : ''}`, h.caos && 'condição ruim ao acaso (2 turnos)',
     h.terreno && `cria ${TERRENO_NOME[h.terreno]}`, h.altura > 0 && 'ergue o chão 1 nível', h.altura < 0 && 'afunda o chão 1 nível', h.derruba && 'derruba muros, rochas e objetos',
-    h.atravessa && 'atravessa paredes'].filter(Boolean);
+    h.atravessa && 'atravessa paredes', h.ricochete && 'se o alvo já queimava, ricocheteia num inimigo em chamas a até 3 casas',
+    h.brasas && `+${h.brasas} Brasas (esta cura ignora a Ferida de Brasa)`, h.magma && 'quem acerta você corpo a corpo também pega fogo',
+    h.turbo && `com ${h.turbo.n} Brasas, gasta-as: ${Object.entries(h.turbo.cond).map(([c, n]) => `${CONDICOES[c].nome} (${n})`).join(', ')}`].filter(Boolean);
   const partes = h.t === 'atq' ? [h.dados === '-' ? 'sem dano' : `Lyra + ${h.dados}`, ...cs, ...ex] : [h.dados && `cura ${h.dados}`, ...cs, ...ex].filter(Boolean);
   const quem = { si: 'Em você', mov: `Teleporte até ${h.alc} casas`, campo: `Casa a até ${h.alc}${area} (afeta todos ali, sem rolar)`,
     apoio: h.alc <= 1 ? 'Toque num aliado' : `Aliado${h.raio ? 's' : ''} a ${h.alc} casas${area}`, atq: (h.alc <= 1 ? 'Corpo a corpo' : `Ataque a ${h.alc} casas`) + area }[h.t];
@@ -487,9 +492,9 @@ for (const [dom, lista] of Object.entries(HAB_DOM)) {
   const d = TODOS_DONS[dom];
   ARVORES['hab_' + dom] = { nome: 'Habilidades de ' + d.nome, tipo: 'habilidade', dom, cor: d.cor, desc: `Só Aurethian com ${d.nome}. ${PAPEL_DOM[dom]}`,
     nos: lista.map((h, i) => {
-      const id = `hab_${dom}_${i + 1}`;
-      HABILIDADE[id] = { ...h, id, dom, n: i + 1, custo: CUSTO_HAB[i], tensao: i === 3 ? 1 : 0, cor: d.cor };
-      return { ...N(id, GRAU_HAB[i], h.nome, `${CUSTO_HAB[i]} Fôlego${i === 3 ? ', +1 Tensão' : ''}. ${descHabilidade(h)}`), hab: true, nivelMin: i === 3 ? 5 : 0 };
+      const id = `hab_${dom}_${i + 1}`, g = h.g || GRAU_HAB[i], custo = h.custo ?? CUSTO_HAB[i], tensao = h.tensao ?? (i === 3 ? 1 : 0), suprema = g === 3;
+      HABILIDADE[id] = { ...h, id, dom, n: i + 1, custo, tensao, suprema, cor: d.cor };
+      return { ...N(id, g, h.nome, `${custo} Fôlego${tensao ? `, +${tensao} Tensão` : ''}. ${descHabilidade(h)}`), hab: true, nivelMin: suprema ? 5 : 0 };
     }) };
 }
 // Dons cortados na revisão de nov/2026: quem tinha um deles passa para o Dom que o absorveu

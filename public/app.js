@@ -236,7 +236,7 @@ function render() {
     tokens: tokensTodos().map(t => ({
       k: t.k, x: num(t.x), y: num(t.y), tamanho: num(t.tamanho, 1), nome: t.nome, ...visualDe(t),
       vigor: num(t.vigor), vigorMax: num(t.vigorMax), mostrarVida: souMestre() || t.tipo === 'pc', oculto: t.visivel === false,
-      cond: Object.keys(t.cond || {}).filter(c => CONDICOES[c]).map(c => CONDICOES[c].ic).join('') + (num(t.escudo) > 0 ? ` ◇${num(t.escudo)}` : ''), tp: num(t.tp),
+      cond: Object.keys(t.cond || {}).filter(c => CONDICOES[c]).map(c => CONDICOES[c].ic).join('') + (num(t.escudo) > 0 ? ` ◇${num(t.escudo)}` : '') + (num(t.brasas) > 0 ? ` ♨${num(t.brasas)}` : ''), tp: num(t.tp),
       corNome: t.tipo === 'pc' ? '#ffe9b8' : t.tipo === 'monstro' ? '#ff9a8a' : '#e6dccb',
     })),
     selecionado, alcance,
@@ -621,12 +621,12 @@ async function animarHabilidade(m) {
   const h = HABILIDADE[m.hab]; if (!cena || !h) return;
   cena.acao(m.k, h.anim === 'golpe' ? 'ataque' : 'magia');
   somHabilidade(h, m);
-  cena.efeito({ forma: h.anim, de: m.k, alvos: m.alvos || [], acertos: m.acertos || [], centro: m.centro, raio: h.raio, cor: h.cor, estilo: ESTILO_DOM[h.dom] || 'luz', suprema: h.n === 4, runa: `/icones/runa_${h.dom}.webp`, nome: h.nome, apoio: h.t !== 'atq', cadeia: !!h.cadeia, falhou: !!m.falhou });
-  await new Promise(r => setTimeout(r, h.n === 4 ? 1700 : 1100));
+  cena.efeito({ forma: h.anim, de: m.k, alvos: m.alvos || [], acertos: m.acertos || [], centro: m.centro, raio: h.raio, cor: h.cor, estilo: ESTILO_DOM[h.dom] || 'luz', suprema: h.suprema, runa: `/icones/runa_${h.dom}.webp`, nome: h.nome, apoio: h.t !== 'atq', cadeia: !!h.cadeia, falhou: !!m.falhou });
+  await new Promise(r => setTimeout(r, h.suprema ? 1700 : 1100));
 }
 // sons da habilidade no ritmo da animação (efeitos.js): conjurar → lançar → impacto
 function somHabilidade(h, m) {
-  const estilo = ESTILO_DOM[h.dom] || 'luz', [som, tom] = somDoDom(h.dom, estilo), sup = h.n === 4, acertou = (m.acertos || []).length > 0;
+  const estilo = ESTILO_DOM[h.dom] || 'luz', [som, tom] = somDoDom(h.dom, estilo), sup = h.suprema, acertou = (m.acertos || []).length > 0;
   const t = { projetil: 650, raio: 320, golpe: 330, explosao: 800, coluna: 420, onda: 350 }[h.anim];
   tocarSom('conjurar', { tom: 1.2, vol: .45 });
   if (h.anim === 'projetil') tocarSom('disparo', { tom, atraso: 250, vol: .6 });
@@ -721,12 +721,13 @@ function blocoHabilidades(p, f) {
   const arvs = [f.dom, f.estrato === 'dualista' && f.dom2].filter(d => d && ARVORES['hab_' + d]);
   const conds = Object.entries(p.cond || {}).filter(([c]) => CONDICOES[c]);
   return `<div class="bloco habs"><h3>Habilidades do Dom</h3>
+    ${num(p.brasas) > 0 ? `<div class="conds"><span style="--cor:#ff7a1e" title="Kalthor: cada acerto dá 1 Brasa; com 5, Superaquecido (+1d6 de fogo, −1d4 por turno). Apagam no fim do combate.">♨ Brasas <small>${num(p.brasas)}/5${num(p.brasas) >= 5 ? ' · Superaquecido' : ''}</small></span></div>` : ''}
     ${num(p.escudo) > 0 ? `<div class="conds"><span style="--cor:#6aa8ff" title="Absorve dano antes do Vigor">◇ Escudo <small>${num(p.escudo)}</small></span></div>` : ''}
     ${conds.length ? `<div class="conds">${conds.map(([c, n]) => `<span style="--cor:${CONDICOES[c].cor}" title="${esc(CONDICOES[c].desc)}">${CONDICOES[c].ic} ${esc(CONDICOES[c].nome)} <small>${n}</small></span>`).join('')}</div>` : ''}
     ${arvs.map(d => {
       const arv = ARVORES['hab_' + d], nos = arv.nos, tem = id => (f.talentos || []).includes(id);
       const no = n => { const h = HABILIDADE[n.id], ok = tem(n.id);
-        return `<div class="hab-no ${ok ? 'tem' : ''} ${h.n === 4 ? 'suprema' : ''}" style="--cor:${arv.cor}"><b>${icone(h.id, ICONE_HAB[h.t], 'ico hab-ic')} ${esc(h.nome)}</b><small>${esc(n.desc)}</small>
+        return `<div class="hab-no ${ok ? 'tem' : ''} ${h.suprema ? 'suprema' : ''}" style="--cor:${arv.cor}"><b>${icone(h.id, ICONE_HAB[h.t], 'ico hab-ic')} ${esc(h.nome)}</b><small>${esc(n.desc)}</small>
           ${ok ? `<button class="mini" data-hab="${n.id}">Usar</button>` : `<em>${n.nivelMin ? `🔒 nível ${n.nivelMin} · ` : '🔒 '}G${n.grau}</em>`}</div>`; };
       return `<div class="hab-arvore" style="--cor:${arv.cor}"><h4>${icone('runa_' + d, '', 'ico runa')} ${esc(TODOS_DONS[d].nome)} <small>${pontosNaArvore(f, 'hab_' + d)}/4</small></h4>
         <div class="hab-g">${no(nos[0])}</div><div class="hab-g dois">${no(nos[1])}${no(nos[2])}</div><div class="hab-g">${no(nos[3])}</div></div>`;
@@ -952,7 +953,7 @@ function editorNpc(id) {
 // árvore do Dom no editor de NPC: o Mestre marca livremente (sem pontos nem pré-requisito)
 function arvoreHabsNpc(dom, habs) {
   const arv = ARVORES['hab_' + dom]; if (!arv) return '';
-  const no = n => { const h = HABILIDADE[n.id]; return `<label class="hab-no ${habs.includes(n.id) ? 'tem' : ''} ${h.n === 4 ? 'suprema' : ''}" style="--cor:${arv.cor}"><b><input type="checkbox" data-nhab="${n.id}" ${habs.includes(n.id) ? 'checked' : ''} style="width:auto"> ${icone(h.id, ICONE_HAB[h.t], 'ico hab-ic')} ${esc(h.nome)}</b><small>${esc(n.desc)}</small></label>`; };
+  const no = n => { const h = HABILIDADE[n.id]; return `<label class="hab-no ${habs.includes(n.id) ? 'tem' : ''} ${h.suprema ? 'suprema' : ''}" style="--cor:${arv.cor}"><b><input type="checkbox" data-nhab="${n.id}" ${habs.includes(n.id) ? 'checked' : ''} style="width:auto"> ${icone(h.id, ICONE_HAB[h.t], 'ico hab-ic')} ${esc(h.nome)}</b><small>${esc(n.desc)}</small></label>`; };
   return `<div class="hab-arvore" style="--cor:${arv.cor};margin-top:6px"><h4>${icone('runa_' + dom, '', 'ico runa')} ${esc(arv.nome)}</h4><div class="hab-g">${no(arv.nos[0])}</div><div class="hab-g dois">${no(arv.nos[1])}${no(arv.nos[2])}</div><div class="hab-g">${no(arv.nos[3])}</div></div>
     <p class="cr-nota" style="margin:2px 0 0">Marque o que o NPC sabe usar. Os testes de Dom usam o Bônus de ataque; NPC não gasta Fôlego. Selecione o NPC e use pela barra.</p>`;
 }

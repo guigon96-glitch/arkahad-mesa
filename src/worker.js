@@ -221,7 +221,7 @@ function limparPc(d) {
   if ('aparencia' in o) { o.aparencia = objetoLimitado(o.aparencia, 3000); if (!o.aparencia) delete o.aparencia; }
   if ('imbuido' in o) o.imbuido = !!o.imbuido;
   if ('itens' in o) o.itens = (Array.isArray(o.itens) ? o.itens : []).slice(0, 80).map(it => ({ n: texto(it?.n, 60), q: Math.max(1, Math.min(999, Math.round(num(it?.q, 1)))) })).filter(it => it.n);
-  if ('barra' in o) o.barra = (Array.isArray(o.barra) ? o.barra : []).slice(0, 10).map(x => { const v = texto(x, 70); return /^(arma|mover|defender|imbuir|tec:[1-5]|hab:hab_[a-z_]+_[1-4]|item:.{1,60})$/.test(v) ? v : ''; });
+  if ('barra' in o) o.barra = (Array.isArray(o.barra) ? o.barra : []).slice(0, 10).map(x => { const v = texto(x, 70); return /^(arma|mover|defender|imbuir|tec:[1-5]|hab:hab_[a-z_]+_[1-9]|item:.{1,60})$/.test(v) ? v : ''; });
   if ('moedas' in o) { const m = o.moedas || {}; o.moedas = Object.fromEntries(['k', 'l', 't'].map(c => [c, Math.max(0, Math.min(999999, Math.round(num(m[c]))))])); }
   if ('dados' in o) {
     const dd = o.dados || {};
@@ -619,10 +619,11 @@ export class Sala extends DurableObject {
           const nomeVez = vez?.nome || '—';
           this.enviarTodos({ tipo: 'turno', k: cb.ordem[turno]?.k, nome: nomeVez, rodada });
           if (vez?.cond) this.tickCondicoes(vez, cb.ordem[turno].k, `${rodada}:${turno}`);
+          if (vez && num(vez.brasas) >= 5) { const v = rolarExpr('1d4').total; vez.vigor = Math.max(-99, num(vez.vigor) - v); this.enviarTodos({ tipo: 'aviso', texto: `${vez.nome}: ♨ −${v} (Superaquecido)` }); }
           await this.gravar('pcs', 'npcs');
         } else if (msg.acao === 'encerrar') {
           mesa.combate = { ...COMBATE_VAZIO };
-          for (const o of [...Object.values(s.pcs), ...Object.values(s.npcs)]) if (this.idMapa(o) === mesa.id) { delete o.cond; delete o.escudo; }
+          for (const o of [...Object.values(s.pcs), ...Object.values(s.npcs)]) if (this.idMapa(o) === mesa.id) { delete o.cond; delete o.escudo; delete o.brasas; }
           await this.gravar('pcs', 'npcs');
         }
         await this.gravar('mapas', 'log');
@@ -690,6 +691,8 @@ export class Sala extends DurableObject {
         }
         if (!alvos.length) return erro('Escolha um alvo.');
         if (hab?.cadeia) alvos = this.cadeia(alvos, hab.cadeia, de);
+        if (hab?.ricochete && alvos[0]?.[1].cond?.queimando) alvos = this.cadeia(alvos, hab.ricochete, de, o => o.cond?.queimando);
+        const fogo = this.kalthor(autor); // Brasa Viva
         const cob = msg.cob && typeof msg.cob === 'object' ? msg.cob : {};
         const res = rolarAtaque(num(msg.mod) + modCond(autor, 'atq'), msg.tirith, !!msg.dom || !!hab);
         const coroa = res.kael === 20, olho = res.kael === 1;
@@ -723,7 +726,7 @@ export class Sala extends DurableObject {
         // habilidade de controle (sem dano) só põe as condições
         if (acertos.length && hab?.dados !== '-') {
           // dano = Lyra + dano da arma/técnica com seus modificadores (vazio = só Lyra)
-          const exprDano = hab ? danoHabilidade(autor.ficha, hab) : msg.dano;
+          const exprDano = [hab ? danoHabilidade(autor.ficha, hab) : msg.dano, fogo && num(autor.brasas) >= 5 && (hab || autor.imbuido) && '1d6'].filter(Boolean).join('+');
           const d = (exprDano && rolarExpr(exprDano)) || { dados: [], total: 0, desc: '' };
           // crítico: Lyra conta como 20 e o alvo usa só metade da Proteção
           const somaDano = res.lyra + d.total, somaCrit = 20 + d.total, tagsD = critico ? ['Crítico: Lyra 20, ½ Proteção'] : [], abatidos = [], volta = [];
@@ -738,11 +741,12 @@ export class Sala extends DurableObject {
             if (this.eterno(o)) extra += ' (Eterno: volta com 10)';
             if (sofre > 0) this.tirarCond(o, 'adormecido');
             causado += sofre;
+            if (fogo && antes > 0 && o.vigor <= 0 && o.cond?.queimando) autor.brasas = Math.min(5, num(autor.brasas) + 1);
             if (antes > 0 && o.vigor <= 0 && o.tipo !== 'aliado' && Object.values(s.npcs).includes(o) && (de.startsWith('pc:') || autor.tipo === 'aliado')) abatidos.push(o);
             tagsD.push(`${o.nome} −${sofre}${prot ? ` (Proteção ${prot})` : ''}${extra}`);
             // reflexo e espinhos ferem quem golpeou
             if (o.cond?.refletindo && sofre > 1) { const r = Math.floor(sofre / 2); autor.vigor = num(autor.vigor) - r; volta.push(`${autor.nome} −${r} (reflexo)`); }
-            if (o.cond?.espinhos && !msg.distancia) { const r = rolarExpr('1d6').total; autor.vigor = num(autor.vigor) - r; volta.push(`${autor.nome} −${r} (espinhos)`); }
+            if (o.cond?.espinhos && !msg.distancia) { const r = rolarExpr('1d6').total; autor.vigor = num(autor.vigor) - r; volta.push(`${autor.nome} −${r} (espinhos)`); if (this.kalthor(o) && this.acender(autor, 1)) volta.push(`${autor.nome} pega fogo`); }
           }
           if (hab?.dreno && causado) { const c = this.curar(autor, Math.floor(causado * hab.dreno)); if (c) volta.push(`${autor.nome} +${c} (dreno)`); }
           tagsD.push(...volta);
@@ -751,6 +755,13 @@ export class Sala extends DurableObject {
           if (dadoAranor) mandar({ ...base, t: Date.now() + 2, dados: [dadoAranor], total: res.aranor, tags: [`Aranor ${res.aranor}: punição do Dom`], grau: '', desc: `Aranor ${res.aranor}`, rotulo: 'Punição · ' + texto(msg.rotulo, 46) });
           if (!hab) this.enviarTodos({ tipo: 'golpe', k: de, dom: !!msg.dom, alvos: acertos.map(([k]) => k), distancia: !!msg.distancia });
           for (const o of abatidos) this.xpAbate(o, de);
+        }
+        if (fogo && acertos.length) {
+          const mesaA = s.mapas[this.idMapa(autor)], linhas = [];
+          for (const [k, o] of acertos) { this.acender(o, 1); const t = this.pavor(autor, k, o, mesaA, coroa); if (t) linhas.push(t); }
+          autor.brasas = Math.min(5, num(autor.brasas) + 1);
+          linhas.push(`${autor.nome}: ${autor.brasas} Brasa${autor.brasas > 1 ? 's' : ''}${autor.brasas >= 5 ? ' — Superaquecido!' : ''}`);
+          this.enviarTodos({ tipo: 'aviso', texto: `Brasa Viva: ${linhas.join(' · ')}` });
         }
         await this.gravar('pcs', 'npcs', 'log', ...(hab ? ['mapas'] : []));
         break;
@@ -884,15 +895,40 @@ export class Sala extends DurableObject {
     const conds = { ...hab.cond };
     if (hab.caos) conds[CONDS_CAOS[Math.floor(Math.random() * CONDS_CAOS.length)]] = 2;
     for (const [c, n] of Object.entries(conds)) { o.cond ||= {}; o.cond[c] = Math.max(num(o.cond[c]), n); }
+    if (o.cond?.fenix) delete o.cond.queimando;
     if (o.cond && !Object.keys(o.cond).length) delete o.cond;
     if (hab.escudo) o.escudo = Math.max(num(o.escudo), hab.escudo);
   }
   // condição Eterno: ao cair a 0, volta com 10 e a condição acaba
-  eterno(o) { if (num(o.vigor) > 0 || !o.cond?.eterno) return false; o.vigor = 10; this.tirarCond(o, 'eterno'); return true; }
+  eterno(o) { if (num(o.vigor) > 0 || !o.cond?.eterno) return false; o.vigor = 10; this.tirarCond(o, 'eterno'); if (o.cond?.fenix) this.explodirFenix(o); return true; }
+  // Renascer da Fênix: ao voltar com Eterno, explode em quem é do outro lado a até 2 casas
+  explodirFenix(o) {
+    const lado = x => Object.values(this.s.pcs).includes(x) || x.tipo === 'aliado', meu = lado(o), mapa = this.idMapa(o), linhas = [];
+    for (const x of [...Object.values(this.s.pcs), ...Object.values(this.s.npcs)]) {
+      if (x === o || lado(x) === meu || this.idMapa(x) !== mapa || num(x.vigor, 1) <= 0 || distanciaCasas(x, o) > 2) continue;
+      let v = rolarExpr('4d6').total; v -= this.absorver(x, v); x.vigor = Math.max(-99, num(x.vigor) - v); this.acender(x, 2); linhas.push(`${x.nome} −${v}`);
+    }
+    this.enviarTodos({ tipo: 'aviso', texto: `🪶 ${o.nome} renasce das cinzas e explode${linhas.length ? ': ' + linhas.join(', ') : ''}` });
+  }
+  // Kalthor: PC pela ficha (Dom ou 2º Dom de dualista), NPC pelo Dom marcado no editor
+  kalthor(o) { const f = o?.ficha; return f ? f.dom === 'kalthor' || (f.estrato === 'dualista' && f.dom2 === 'kalthor') : o?.dom === 'kalthor'; }
+  // põe Queimando sem acumular (só renova a duração); Fênix é imune
+  acender(o, n) { if (o.cond?.fenix) return false; o.cond ||= {}; o.cond.queimando = Math.max(num(o.cond.queimando), n); return true; }
+  // Pavor das Chamas: d20 + (Robustez − 10) do alvo contra 10 + nível do Kalthor; falhou = Amedrontado e foge
+  pavor(autor, k, o, mesa, coroa) {
+    if (num(o.vigor) <= 0 || o.cond?.abalado) return '';
+    // shortcut: NPC não tem nível; usa 3 até o editor ganhar o campo
+    const nivel = autor.ficha ? num(autor.ficha.nivel, 1) : 3, r = 1 + Math.floor(Math.random() * 20), total = r + num(o.robustez, 10) - 10;
+    if (total >= 10 + nivel) return `${o.nome} resiste ao Pavor (${total})`;
+    o.cond ||= {}; o.cond.amedrontado = Math.max(num(o.cond.amedrontado), 1); o.cond.abalado = 2;
+    const t = this.empurrar(o, k, { x: num(autor.x), y: num(autor.y) }, (1 + Math.floor(nivel / 2)) * (coroa ? 2 : 1), mesa);
+    return `${o.nome} entra em pânico${t ? ' e foge (' + t + ')' : ''}`;
+  }
   tirarCond(o, c) { if (o?.cond?.[c]) { delete o.cond[c]; if (!Object.keys(o.cond).length) delete o.cond; } }
   // escudo absorve dano antes do Vigor; devolve quanto absorveu
   absorver(o, dano) { const e = Math.min(num(o.escudo), dano); if (e > 0) { o.escudo = num(o.escudo) - e; if (o.escudo <= 0) delete o.escudo; } return Math.max(0, e); }
-  curar(o, v) { const antes = num(o.vigor), max = num(o.vigorMax, antes); o.vigor = Math.min(Math.max(max, antes), antes + Math.max(0, v)); return o.vigor - antes; }
+  // Ferida de Brasa: quem está Queimando recebe metade da cura (inteira = ignora)
+  curar(o, v, inteira = false) { if (o.cond?.queimando && !inteira) v = Math.floor(v / 2); const antes = num(o.vigor), max = num(o.vigorMax, antes); o.vigor = Math.min(Math.max(max, antes), antes + Math.max(0, v)); return o.vigor - antes; }
   livre(mesa, x, y, ocup) { return x >= 0 && y >= 0 && x < mesa.cols && y < mesa.rows && Number.isFinite(TERRENOS[(mesa.grid[y] || '')[x]]?.custo) && !ocup.has(x + ',' + y); }
   // empurra (n > 0) para longe da origem ou puxa (n < 0) para ela; bater em algo = 1d6
   empurrar(o, k, origem, n, mesa) {
@@ -913,13 +949,13 @@ export class Sala extends DurableObject {
     return p ? `${o.nome} ${n > 0 ? 'empurrado' : 'puxado'} ${p}` : '';
   }
   // o golpe salta do primeiro alvo para inimigos do mesmo lado a até 3 casas
-  cadeia(alvos, n, de) {
+  cadeia(alvos, n, de, filtro = () => true) {
     const [k0, o0] = alvos[0], mapa = this.idMapa(o0), lista = [...alvos], vistos = new Set(alvos.map(([k]) => k).concat(de));
     const lado = (k, o) => k.startsWith('pc:') || o.tipo === 'aliado' ? 'a' : 'b', meuLado = lado(k0, o0);
     const todos = [...Object.entries(this.s.npcs).map(([id, o]) => ['npc:' + id, o]), ...Object.entries(this.s.pcs).map(([id, o]) => ['pc:' + id, o])];
     let ult = o0;
     for (let i = 0; i < n; i++) {
-      const prox = todos.filter(([k, o]) => !vistos.has(k) && this.idMapa(o) === mapa && lado(k, o) === meuLado && num(o.vigor, 1) > 0 && distanciaCasas(o, ult) <= 3)
+      const prox = todos.filter(([k, o]) => !vistos.has(k) && this.idMapa(o) === mapa && lado(k, o) === meuLado && num(o.vigor, 1) > 0 && distanciaCasas(o, ult) <= 3 && filtro(o))
         .sort((a, b) => distanciaCasas(a[1], ult) - distanciaCasas(b[1], ult))[0];
       if (!prox) break;
       vistos.add(prox[0]); lista.push(prox); ult = prox[1];
@@ -985,11 +1021,13 @@ export class Sala extends DurableObject {
       if (hab.t === 'mov') { autor.x = centro.x; autor.y = centro.y; autor.tp = num(autor.tp) + 1; tags.push(`${autor.nome} reaparece em outra casa`); }
       for (const [, o] of alvos) {
         if (hab.revive && num(o.vigor) <= 0) { o.vigor = hab.revive; tags.push(`${o.nome} se levanta`); }
-        if (cura) tags.push(`${o.nome} +${this.curar(o, cura.total)} Vigor`);
+        if (cura) tags.push(`${o.nome} +${this.curar(o, cura.total, !!hab.brasas)} Vigor`);
         if (hab.folego && o.folegoMax !== undefined) { const antes = num(o.folego); o.folego = Math.min(num(o.folegoMax), antes + hab.folego); tags.push(`${o.nome} +${o.folego - antes} Fôlego`); }
         this.aplicarCond(o, hab);
         if (hab.escudo) tags.push(`${o.nome}: escudo ${o.escudo}`);
       }
+      if (hab.brasas) { autor.brasas = Math.min(5, num(autor.brasas) + hab.brasas); tags.push(`${autor.nome}: ${autor.brasas} Brasas`); }
+      if (hab.turbo && num(autor.brasas) >= hab.turbo.n) { autor.brasas -= hab.turbo.n; this.aplicarCond(autor, { cond: hab.turbo.cond }); tags.push(`gasta ${hab.turbo.n} Brasas: ${Object.keys(hab.turbo.cond).map(c => CONDICOES[c].nome).join(', ')}`); }
       if (hab.t === 'campo') { const t = this.moldar(mesa, centro, hab); if (t) tags.push(t); }
     }
     if (!falha && alvos.length && Object.keys(hab.cond).length) tags.push(Object.keys(hab.cond).map(c => CONDICOES[c].ic + ' ' + CONDICOES[c].nome).join(', ') + ' em ' + alvos.map(([, o]) => o.nome).join(', '));
