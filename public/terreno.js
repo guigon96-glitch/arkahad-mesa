@@ -8,7 +8,7 @@ export const MARGEM = 1;            // borda da maquete: o resto é a mesa de jo
 export const MESA_Y = -.35;         // altura do tampo da mesa
 // camadas de textura (ordem do array de texturas)
 const CAMADAS = ['grama', 'terra', 'areia', 'rocha', 'calcada', 'tabuas', 'vidro', 'floresta'];
-const ASPEREZA = [.95, .95, .9, .85, .8, .7, .18, .95];
+const ASPEREZA = [1, 1, .95, .92, .9, .85, .45, 1];
 const ESCALA = [.55, .5, .45, .32, .5, .5, .4, .5];     // repetições por casa
 const RUGOSO = [1, 1, .8, 1.4, 0, 0, .1, 1];            // quanto o relevo natural aparece
 // terreno da casa → camada
@@ -204,7 +204,7 @@ export function construirSolo(mesa, tex, opcoes = {}) {
       .replace('#include <normal_fragment_maps>', `
         {
           vec3 T = normalize(cross(vec3(0., 0., 1.), nM)); vec3 B = normalize(cross(nM, T));
-          vec3 nW = normalize(nM + (T * nTex.x - B * nTex.y) * 1.1);
+          vec3 nW = normalize(nM + (T * nTex.x - B * nTex.y) * .6);
           normal = normalize((viewMatrix * vec4(nW, 0.)).xyz);
         }`);
   };
