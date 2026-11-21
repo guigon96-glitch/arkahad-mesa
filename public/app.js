@@ -785,9 +785,15 @@ function abrirCriacao() {
 
 // ================= Painel lateral =================
 $('conteudo').addEventListener('input', e => { if (e.target.id) e.target.dataset.mexido = 1; });
-$('abas').addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; aba = b.dataset.aba; painel(); });
+// painel minimizável: clicar no ícone da aba aberta minimiza; no celular começa fechado
+let painelAberto = !matchMedia('(max-width:900px)').matches;
+function abrirPainel(a) { aba = a; painelAberto = true; painel(); }
+$('abas').addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; if (painelAberto && aba === b.dataset.aba) { painelAberto = false; painel(); } else abrirPainel(b.dataset.aba); });
+$('minimizar').addEventListener('click', () => { painelAberto = false; painel(); });
 function painel() {
-  document.querySelectorAll('#abas button').forEach(x => x.classList.toggle('ativo', x.dataset.aba === aba));
+  document.querySelectorAll('#abas button').forEach(x => { const on = painelAberto && x.dataset.aba === aba; x.classList.toggle('ativo', on); x.setAttribute('aria-pressed', on); });
+  document.querySelector('#telaMesa .app').classList.toggle('sem-lado', !painelAberto);
+  $('ladoTitulo').textContent = document.querySelector(`#abas [data-aba="${aba}"]`)?.title || '';
   const c = $('conteudo');
   // campos que o usuário editou sobrevivem ao redesenho (o estado chega a toda hora)
   const mexidos = [...c.querySelectorAll('[data-mexido][id]')].map(el => [el.id, el.type === 'checkbox' ? el.checked : el.value]), foco = document.activeElement?.closest('#conteudo') ? document.activeElement.id : null;
@@ -1079,7 +1085,7 @@ function hud() {
   const barraHud = (rot, v, m, cls) => `<div class="hb ${cls}" title="${rot} ${num(v)}/${num(m)}"><span>${rot}</span><i><b style="width:${Math.max(0, Math.min(100, num(v) / Math.max(1, num(m)) * 100))}%"></b></i><em>${num(v)}/${num(m)}</em></div>`;
   const ehMeu = t.k === 'pc:' + eu(), mo = moedasDe(t);
   const retrato = `<div class="hud-retrato"><span class="hud-sigla" style="--cor:${esc(t.cor || '#e2b04a')}">${(() => { const r = t.tipo === 'pc' ? retratoDe(t.ficha, hud) : null; return r ? `<img src="${r}" alt="">` : esc(t.sigla || String(t.nome || '?')[0]); })()}</span><div class="hud-rec">${barraHud('Vigor', t.vigor, t.vigorMax, 'vigor')}${t.tipo === 'pc' ? barraHud('Fôlego', t.folego, t.folegoMax, 'folego') + barraHud('Tensão', t.tensao, t.limiar, 'tensao') : ''}</div></div>`;
-  const bolsa = ehMeu ? `<button class="hud-b hud-bolsa ${aba === 'itens' ? 'on' : ''}" data-hud="bolsa" title="Abrir o Inventário"><span class="ic">🎒</span><span>Inventário</span><small><b class="m-k">${mo.k}</b> <b class="m-l">${mo.l}</b> <b class="m-t">${mo.t}</b></small></button>` : '';
+  const bolsa = ehMeu ? `<button class="hud-b hud-bolsa ${painelAberto && aba === 'itens' ? 'on' : ''}" data-hud="bolsa" title="Abrir o Inventário"><span class="ic">🎒</span><span>Inventário</span><small><b class="m-k">${mo.k}</b> <b class="m-l">${mo.l}</b> <b class="m-t">${mo.t}</b></small></button>` : '';
   let topoHud = '';
   if (cb.ativo) {
     const vez = tokenPorK(cb.ordem?.[cb.turno]?.k);
@@ -1202,7 +1208,7 @@ function acaoHud(a, t) {
   else if (a === 'imbuir') $('imbuir') ? $('imbuir').click() : alternarImbuir();
   else if (a === 'defender') enviar({ tipo: 'defender' });
   else if (a === 'editar') { editandoBarra = !editandoBarra; slotEditado = -1; hud(); }
-  else if (a === 'bolsa') { aba = 'itens'; painel(); hud(); if (matchMedia('(max-width:900px)').matches) $('abas').scrollIntoView({ behavior: 'smooth' }); }
+  else if (a === 'bolsa') { painelAberto = !(painelAberto && aba === 'itens'); aba = 'itens'; painel(); hud(); }
   else if (a === 'fim') { cancelarMira(); enviar({ tipo: 'combate', acao: 'proximo' }); }
   else if (a === 'cancelar') cancelarMira();
 }

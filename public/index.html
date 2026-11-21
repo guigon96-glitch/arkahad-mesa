@@ -83,16 +83,17 @@
     <div class="mira-dica" id="miraDica" hidden></div>
     <div class="banner" id="banner" hidden></div>
   </main>
-  <aside class="lado">
-    <nav class="abas" id="abas">
-      <button data-aba="ficha" class="ativo">Ficha</button>
-      <button data-aba="dados">Dados</button>
-      <button data-aba="itens">Inventário</button>
-      <button data-aba="registro">Registro</button>
-      <button data-aba="mestre" id="abaMestre" hidden>Mestre</button>
-    </nav>
+  <aside class="lado" id="lado">
+    <header class="lado-topo"><h2 id="ladoTitulo">Ficha</h2><button id="minimizar" class="mini" aria-label="Minimizar painel" title="Minimizar">▾</button></header>
     <div class="conteudo" id="conteudo"></div>
   </aside>
+  <nav class="dock" id="abas" aria-label="Painéis">
+    <button data-aba="ficha" class="ativo" title="Ficha" aria-label="Ficha">📜</button>
+    <button data-aba="dados" title="Dados" aria-label="Dados">🎲</button>
+    <button data-aba="itens" title="Inventário" aria-label="Inventário">🎒</button>
+    <button data-aba="registro" title="Registro" aria-label="Registro">📖</button>
+    <button data-aba="mestre" id="abaMestre" title="Mestre" aria-label="Mestre" hidden>👑</button>
+  </nav>
 </div>
 </section>
 
