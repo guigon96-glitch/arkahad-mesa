@@ -391,7 +391,7 @@ export class Sala extends DurableObject {
     return {
       tipo: 'estado',
       voce: { id: att.id, nome: att.nome, mestre: att.mestre },
-      sala: { codigo: s.meta.codigo, nome: s.meta.nome, mestreNome: s.meta.mestreNome, max: MAX_JOGADORES, mapaInicial: s.meta.mapaInicial },
+      sala: { codigo: s.meta.codigo, nome: s.meta.nome, mestreNome: s.meta.mestreNome, max: MAX_JOGADORES, mapaInicial: s.meta.mapaInicial, membros: att.mestre ? s.meta.membros : undefined },
       mapas: Object.values(s.mapas).map(m => ({ id: m.id, nome: m.nome, cols: m.cols, rows: m.rows })),
       mesa, pcs, npcs,
       log: s.log.filter(l => att.mestre || !l.oculta || l.para === att.id).slice(0, 40).map(l => att.mestre ? l : { ...l, difMestre: undefined }),
