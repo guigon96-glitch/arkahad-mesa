@@ -13,6 +13,10 @@ var pecas := {}          # "pc:id" / "npc:id" -> Node3D
 var estado := {}
 var meu_id := ""
 var selecionada := ""
+var movendo := ""          # peça escolhendo a casa de destino (botão Mover)
+var alcance := {}          # Vector2i -> custo, casas onde ela chega
+var malha_alcance := MeshInstance3D.new()
+var malha_rastro := MeshInstance3D.new()
 
 # câmera em órbita
 var foco := Vector3.ZERO
@@ -28,6 +32,9 @@ func _ready() -> void:
 	rede.mensagem.connect(_mensagem)
 	rede.status.connect(ui.avisar)
 	ui.pediu_entrar.connect(rede.entrar)
+	ui.pediu_mover.connect(_alternar_mover)
+	add_child(malha_alcance)
+	add_child(malha_rastro)
 
 	# ---- visual Forward+: é aqui que o Godot ganha do navegador ----
 	var ceu := ProceduralSkyMaterial.new()
@@ -74,7 +81,7 @@ func _estado(msg: Dictionary) -> void:
 	estado = msg
 	meu_id = msg.voce.id
 	var mesa: Dictionary = msg.mesa
-	ui.mostrar_jogo("%s — %s · %s%s\nClique numa peça para escolher, clique no chão para mover · botão direito gira · roda aproxima · F foca" % [
+	ui.mostrar_jogo("%s — %s · %s%s\nClique numa peça para escolher, 👣 Mover e clique no chão para andar · botão direito gira · roda aproxima · F foca" % [
 		msg.sala.nome, mesa.nome, msg.voce.nome, " (Mestre)" if msg.voce.mestre else ""])
 
 	var assinatura := JSON.stringify([mesa.id, mesa.cols, mesa.rows, mesa.get("grid"), mesa.get("alt"), mesa.get("par")])
@@ -108,6 +115,11 @@ func _estado(msg: Dictionary) -> void:
 	if primeira and selecionada != "":
 		foco = pecas[selecionada].position
 	_atualizar_camera()
+	if movendo != "" and not _posso_mover(movendo):
+		_parar_mover()
+	elif movendo != "":
+		_calcular_alcance()
+	ui.mover.set_pressed_no_signal(movendo != "")
 
 
 func _peca(k: String, o: Dictionary, mesa: Dictionary) -> void:
@@ -202,6 +214,10 @@ func _unhandled_input(e: InputEvent) -> void:
 		giro -= e.relative.x * 0.006
 		inclinacao = clampf(inclinacao + e.relative.y * 0.006, 0.25, 1.45)
 		_atualizar_camera()
+	elif e is InputEventMouseMotion and movendo != "":
+		_tracar(e.position)
+	elif e is InputEventKey and e.pressed and e.keycode == KEY_ESCAPE and movendo != "":
+		_parar_mover()
 	elif e is InputEventKey and e.pressed and e.keycode == KEY_F and pecas.has(selecionada):
 		foco = pecas[selecionada].position
 		_atualizar_camera()
@@ -225,20 +241,173 @@ func _atualizar_camera() -> void:
 func _clique(tela: Vector2) -> void:
 	if estado.is_empty():
 		return
-	var de := camera.project_ray_origin(tela)
-	var ate := de + camera.project_ray_normal(tela) * 500.0
-	var acerto := get_world_3d().direct_space_state.intersect_ray(PhysicsRayQueryParameters3D.create(de, ate))
-	if acerto.is_empty():
+	var achada = _casa_na_tela(tela)
+	if achada == null:
 		return
-	var ponto: Vector3 = acerto.position - acerto.normal * 0.01
-	var casa := Vector2i(floori(ponto.x), floori(ponto.z))
+	var casa: Vector2i = achada
 	# clicou numa peça? escolhe (o servidor decide se você pode movê-la)
 	for k in pecas:
 		var o: Dictionary = estado[("pcs" if k.begins_with("pc:") else "npcs")][k.get_slice(":", 1)]
 		var tam := int(o.get("tamanho", 1))
 		if Rect2i(int(o.x), int(o.y), tam, tam).has_point(casa):
+			if movendo != "":
+				_parar_mover()
 			selecionada = k
 			_estado(estado)
 			return
-	if selecionada != "":
-		rede.enviar({"tipo": "mover", "k": selecionada, "x": casa.x, "y": casa.y})
+	if movendo != "":
+		if not alcance.has(casa):
+			ui.avisar("Fora do seu Deslocamento.")
+			return
+		rede.enviar({"tipo": "mover", "k": movendo, "x": casa.x, "y": casa.y})
+		_parar_mover()
+	elif selecionada != "":
+		if _em_combate():
+			ui.avisar("Para andar, aperte 👣 Mover.")
+		else:
+			rede.enviar({"tipo": "mover", "k": selecionada, "x": casa.x, "y": casa.y})
+
+
+func _casa_na_tela(tela: Vector2):
+	var de := camera.project_ray_origin(tela)
+	var ate := de + camera.project_ray_normal(tela) * 500.0
+	var acerto := get_world_3d().direct_space_state.intersect_ray(PhysicsRayQueryParameters3D.create(de, ate))
+	if acerto.is_empty():
+		return null
+	var ponto: Vector3 = acerto.position - acerto.normal * 0.01
+	return Vector2i(floori(ponto.x), floori(ponto.z))
+
+
+# ---------- Mover: 1 ação = Deslocamento inteiro, dividido no turno; passar do que resta gasta outra ação ----------
+func _objeto(k: String) -> Dictionary:
+	return estado.get("pcs" if k.begins_with("pc:") else "npcs", {}).get(k.get_slice(":", 1), {})
+
+
+func _em_combate() -> bool:
+	return bool(estado.get("mesa", {}).get("combate", {}).get("ativo", false))
+
+
+func _chave_turno() -> String:
+	var cb: Dictionary = estado.mesa.get("combate", {})
+	return "%d:%d" % [int(cb.get("rodada", 1)), int(cb.get("turno", 0))]
+
+
+func _vez(k: String) -> bool:
+	var cb: Dictionary = estado.mesa.get("combate", {})
+	var ordem: Array = cb.get("ordem", [])
+	var t := int(cb.get("turno", 0))
+	return t < ordem.size() and ordem[t].get("k") == k
+
+
+func _resta(o: Dictionary) -> float:
+	var m = o.get("mov")
+	return float(m.resta) if m is Dictionary and m.get("chave") == _chave_turno() else 0.0
+
+
+func _acoes_livres(o: Dictionary) -> int:
+	var a = o.get("acoes")
+	return 3 - (int(a.usadas) if a is Dictionary and a.get("chave") == _chave_turno() else 0)
+
+
+func _desloc(o: Dictionary) -> float:
+	return maxf(1.0, float(o.get("desloc", 6)))  # shortcut: ignora condições (lento etc.); o servidor corrige
+
+
+func _posso_mover(k: String) -> bool:
+	var o := _objeto(k)
+	if o.is_empty() or not pecas.has(k):
+		return false
+	if not estado.voce.mestre and k != "pc:" + meu_id:
+		return false
+	if not _em_combate():
+		return true
+	return _vez(k) and (_resta(o) > 0.0 or _acoes_livres(o) > 0)
+
+
+func _alternar_mover() -> void:
+	if movendo != "":
+		_parar_mover()
+		return
+	if selecionada == "" or not _posso_mover(selecionada):
+		ui.mover.set_pressed_no_signal(false)
+		ui.avisar("Aguarde o turno (ou acabaram as ações)." if _em_combate() else "Escolha uma peça sua.")
+		return
+	movendo = selecionada
+	ui.mover.set_pressed_no_signal(true)
+	_calcular_alcance()
+
+
+func _parar_mover() -> void:
+	movendo = ""
+	alcance = {}
+	malha_alcance.mesh = null
+	malha_rastro.mesh = null
+	ui.mover.set_pressed_no_signal(false)
+	ui.mostrar_dica("", Vector2.ZERO)
+
+
+func _calcular_alcance() -> void:
+	var o := _objeto(movendo)
+	var ocupadas := {}
+	for k in pecas:
+		if k == movendo:
+			continue
+		var p := _objeto(k)
+		var tam := int(p.get("tamanho", 1))
+		for i in tam:
+			for j in tam:
+				ocupadas[Vector2i(int(p.x) + i, int(p.y) + j)] = true
+	var limite := 9999.0
+	if _em_combate():
+		limite = _resta(o) + maxi(0, _acoes_livres(o)) * _desloc(o)
+	alcance = Movimento.dijkstra(estado.mesa, ocupadas, int(o.x), int(o.y), limite)
+	alcance.erase(Vector2i(int(o.x), int(o.y)))
+	malha_alcance.mesh = _casas(alcance.keys(), Color(0.95, 0.78, 0.25, 0.32), 0.03)
+	malha_rastro.mesh = null
+
+
+## caminho até a casa sob o mouse + contador de casas (e de ações que o passo gasta)
+func _tracar(tela: Vector2) -> void:
+	var achada = _casa_na_tela(tela)
+	if achada == null or not alcance.has(achada):
+		malha_rastro.mesh = null
+		ui.mostrar_dica("Fora do alcance" if achada != null else "", tela)
+		return
+	var casa: Vector2i = achada
+	var o := _objeto(movendo)
+	var dist := alcance.duplicate()
+	dist[Vector2i(int(o.x), int(o.y))] = 0.0
+	malha_rastro.mesh = _casas(Movimento.caminho(estado.mesa, dist, casa), Color(1, 1, 1, 0.55), 0.045)
+	var custo: float = alcance[casa]
+	var texto := "%s %s" % [str(snappedf(custo, 0.1)).replace(".", ","), "casa" if custo == 1.0 else "casas"]
+	if _em_combate():
+		var resta := _resta(o)
+		var n := 0 if custo <= resta else ceili((custo - resta) / _desloc(o))
+		texto += "\n" + ("sem gastar ação" if n == 0 else "gasta %d %s" % [n, "ação" if n == 1 else "ações"])
+	ui.mostrar_dica(texto, tela)
+
+
+## quadrados translúcidos sobre as casas, na altura do chão
+func _casas(lista: Array, cor: Color, sobe: float) -> ArrayMesh:
+	if lista.is_empty():
+		return null
+	var mesa: Dictionary = estado.mesa
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	for c in lista:
+		var h := ConstrutorMapa.altura(mesa, c.x, c.y) + sobe
+		var a := Vector3(c.x + 0.06, h, c.y + 0.06)
+		var b := Vector3(c.x + 0.94, h, c.y + 0.06)
+		var d := Vector3(c.x + 0.94, h, c.y + 0.94)
+		var e := Vector3(c.x + 0.06, h, c.y + 0.94)
+		for v in [a, b, d, a, d, e]:
+			st.add_vertex(v)
+	var malha := st.commit()
+	var mat := StandardMaterial3D.new()
+	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+	mat.albedo_color = cor
+	malha.surface_set_material(0, mat)
+	return malha
+

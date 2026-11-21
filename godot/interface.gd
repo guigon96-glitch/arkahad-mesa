@@ -3,6 +3,7 @@ extends CanvasLayer
 ## Tela de entrada do piloto e linha de informações durante o jogo. Lembra os campos em user://entrada.cfg.
 
 signal pediu_entrar(servidor: String, apelido: String, token: String, codigo: String, senha: String)
+signal pediu_mover
 
 const CAMPOS := [
 	["servidor", "Servidor", "http://127.0.0.1:8787", false],
@@ -16,6 +17,8 @@ var fundo: CenterContainer
 var campos := {}
 var aviso: Label
 var info: Label
+var mover: Button   # 👣 Mover: liga a escolha da casa de destino
+var dica: Label     # contador de casas ao lado do mouse
 
 
 func _ready() -> void:
@@ -63,6 +66,23 @@ func _ready() -> void:
 	info.visible = false
 	add_child(info)
 
+	mover = Button.new()
+	mover.text = "👣 Mover"
+	mover.toggle_mode = true
+	mover.focus_mode = Control.FOCUS_NONE
+	mover.custom_minimum_size = Vector2(130, 44)
+	mover.set_anchors_and_offsets_preset(Control.PRESET_CENTER_BOTTOM)
+	mover.position.y -= 16
+	mover.visible = false
+	mover.pressed.connect(func(): pediu_mover.emit())
+	add_child(mover)
+
+	dica = Label.new()
+	dica.add_theme_color_override("font_shadow_color", Color.BLACK)
+	dica.add_theme_font_size_override("font_size", 18)
+	dica.visible = false
+	add_child(dica)
+
 
 func _entrar() -> void:
 	var cfg := ConfigFile.new()
@@ -75,13 +95,22 @@ func _entrar() -> void:
 func mostrar_entrada(texto: String) -> void:
 	fundo.visible = true
 	info.visible = false
+	mover.visible = false
+	dica.visible = false
 	aviso.text = texto
 
 
 func mostrar_jogo(texto: String) -> void:
 	fundo.visible = false
 	info.visible = true
+	mover.visible = true
 	info.text = texto
+
+
+func mostrar_dica(texto: String, onde: Vector2) -> void:
+	dica.text = texto
+	dica.position = onde + Vector2(18, -8)
+	dica.visible = texto != ""
 
 
 func avisar(texto: String) -> void:
