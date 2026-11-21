@@ -3,10 +3,10 @@
 Mesa virtual 3D para o RPG de Arkahad (sistema próprio: testes em 2d10 Kael/Lyra; ataques em d20 separados — Kael acerto, Lyra dano, Aranor punição do Dom). Até 6 jogadores + Mestre, login Google, sessões com senha, vários mapas por sessão ligados por portais. Tudo em português (interface, código, nomes de variáveis).
 
 ## Cliente principal: Godot (leia antes de qualquer tarefa)
-- **Toda novidade de jogo (interface, cena 3D, combate, mover, efeitos, ficha, painel do Mestre) é feita no cliente Godot 4.7, que é OUTRA pasta: `C:/Users/guigo/Documents/arkahad-godot` (sem git; o `LEIAME.md` de lá tem o mapa dos arquivos).** A pasta `godot/` deste repositório é só o piloto antigo: não mexa nela. O site em `public/` (app.js, cena3d.js, criacao.js…) virou legado: só mexa nele se o dono pedir pelo nome “site”/“navegador”.
+- **Toda novidade de jogo (interface, cena 3D, combate, mover, efeitos, ficha, painel do Mestre) é feita no cliente Godot 4.7, que é OUTRA pasta: `C:/Users/guigo/Documents/arkahad-godot` (repositório git próprio, branch `main`, só local por enquanto; o `LEIAME.md` de lá tem o mapa dos arquivos).** A pasta `godot/` deste repositório é só o piloto antigo: não mexa nela. O site em `public/` (app.js, cena3d.js, criacao.js…) virou legado: só mexa nele se o dono pedir pelo nome “site”/“navegador”.
 - O servidor continua sendo `src/worker.js` (autoridade de tudo: movimento, ações, rolagens) e as regras compartilhadas continuam em `public/regras.js` + `public/conteudo.js`. Regra nova vai no servidor primeiro; o Godot só mostra prévia e envia mensagens WebSocket.
 - O Godot não importa os módulos JS: o que ele precisa das regras é copiado em GDScript (`nucleo/regras.gd` = regras de mapa, `nucleo/ficha.gd` = contas da ficha, `nucleo/jogo.gd` = turno/ações/alcance, espelho do `app.js`; `dados/conteudo.json` vem de `node ferramentas/preparar.mjs ../arkahad-mesa`). Ao mudar regra no servidor ou em `regras.js`/`conteudo.js`, atualize o espelho no Godot na mesma tarefa.
-- Antes de editar o `arkahad-godot`, copie os arquivos que vai mudar para o scratchpad (não há git lá para desfazer).
+- Ao terminar uma tarefa que mexeu nos dois, faça commit em cada repositório (`arkahad-mesa` e `arkahad-godot`).
 
 ## Economia de tokens (siga sempre)
 - Leia só o que a tarefa precisa. Use `grep -n` para achar a função e leia com offset/limit; nunca leia `app.js`, `cena3d.js` ou `worker.js` inteiros.
