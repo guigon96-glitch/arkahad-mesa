@@ -89,9 +89,15 @@ function fazerTexturas() {
     agua: textura((g, t) => { g.fillStyle = '#2f7fa8'; g.fillRect(0, 0, t, t); g.strokeStyle = '#8fd3f0'; g.lineWidth = 2.5; for (let k = 0; k < 4; k++) { g.beginPath(); const y = 12 + k * 32; g.moveTo(0, y); for (let x = 0; x <= t; x += 4) g.lineTo(x, y + Math.sin((x / t) * Math.PI * 4 + k) * 4); g.stroke(); } }),
     aguaNormal: (() => {
       const t = 256, c = document.createElement('canvas'); c.width = c.height = t; const g = c.getContext('2d'), img = g.createImageData(t, t);
-      const h = (x, y) => Math.sin((x + y * .3) / t * Math.PI * 6) * .5 + Math.sin((x * .7 - y) / t * Math.PI * 10) * .3 + Math.sin((x * 1.3 + y * 1.1) / t * Math.PI * 16) * .2;
+      // muitas ondas em direções sorteadas, com frequência inteira para a textura repetir sem costura
+      const ondas = Array.from({ length: 32 }, (_, i) => { const a = Math.random() * Math.PI * 2, f = 2 + Math.floor(Math.random() * (i < 10 ? 4 : 16)); return [Math.round(Math.cos(a) * f), Math.round(Math.sin(a) * f), Math.random() * 6.283, 1 / f]; });
+      const gx = new Float32Array(t * t), gy = new Float32Array(t * t); let max = 0;
       for (let y = 0; y < t; y++) for (let x = 0; x < t; x++) {
-        const dx = h(x + 1, y) - h(x - 1, y), dy = h(x, y + 1) - h(x, y - 1), n = new THREE.Vector3(-dx * 2.2, -dy * 2.2, 1).normalize(), i = (y * t + x) * 4;
+        let dx = 0, dy = 0; for (const [kx, ky, ph, A] of ondas) { const c = Math.cos(6.283 * (kx * x + ky * y) / t + ph) * A; dx += c * kx; dy += c * ky; }
+        gx[y * t + x] = dx; gy[y * t + x] = dy; max = Math.max(max, Math.hypot(dx, dy));
+      }
+      for (let y = 0; y < t; y++) for (let x = 0; x < t; x++) {
+        const dx = gx[y * t + x] / max, dy = gy[y * t + x] / max, n = new THREE.Vector3(-dx * 1.4, -dy * 1.4, 1).normalize(), i = (y * t + x) * 4;
         img.data[i] = (n.x * .5 + .5) * 255; img.data[i + 1] = (n.y * .5 + .5) * 255; img.data[i + 2] = (n.z * .5 + .5) * 255; img.data[i + 3] = 255;
       }
       g.putImageData(img, 0, 0); const tx = new THREE.CanvasTexture(c); tx.wrapS = tx.wrapT = THREE.RepeatWrapping; return tx;
@@ -275,22 +281,34 @@ export function criarCena(el, cb = {}) {
           .replace('#include <begin_vertex>', `#include <begin_vertex>
             vCosta = aCosta;
             vec3 pm = (modelMatrix * vec4(transformed, 1.0)).xyz; vMundo = pm;
-            transformed.y += (sin(pm.x * 2.3 + uTempo * 1.6) * .5 + sin(pm.z * 3.1 - uTempo * 1.3) * .5) * .018 * smoothstep(0.0, .25, aCosta);`);
+            transformed.y += (sin(pm.x * 2.3 + uTempo * 1.6) * .4 + sin(pm.z * 3.1 - uTempo * 1.3) * .35 + sin((pm.x + pm.z) * 5.7 + uTempo * 2.4) * .25) * .02 * smoothstep(0.0, .25, aCosta);`);
         sh.fragmentShader = 'uniform float uTempo; varying float vCosta; varying vec3 vMundo;\n' + sh.fragmentShader
           .replace('#include <normal_fragment_maps>', `
             vec3 n1 = texture2D(normalMap, vMundo.xz * .35 + vec2(uTempo * .03, uTempo * .017)).xyz * 2. - 1.;
             vec3 n2 = texture2D(normalMap, vMundo.xz * .62 - vec2(uTempo * .021, -uTempo * .028)).xyz * 2. - 1.;
-            vec3 mapN = normalize(vec3((n1.xy + n2.xy) * normalScale, n1.z * n2.z));
+            vec3 n3 = texture2D(normalMap, vMundo.xz * .11 + vec2(-uTempo * .008, uTempo * .012)).xyz * 2. - 1.;
+            vec3 mapN = normalize(vec3((n1.xy + n2.xy + n3.xy * .7) * normalScale, n1.z * n2.z));
             normal = normalize(tbn * mapN);`)
           .replace('#include <color_fragment>', `#include <color_fragment>
             float fundo = smoothstep(0.0, .5, vCosta);
-            diffuseColor.rgb = mix(vec3(.25, .62, .6), vec3(.03, .2, .32), fundo);
+            // raso puxa para verde-turquesa e deixa ver o leito; fundo absorve a luz e fica azul escuro
+            diffuseColor.rgb = mix(vec3(.2, .52, .46), vec3(.015, .11, .19), fundo);
+            // cáusticas: redes de luz que dançam no raso
+            vec2 cp = vMundo.xz * 2.6; float cau = 0.;
+            for (int i = 0; i < 3; i++) { cp += vec2(sin(cp.y * 1.3 + uTempo * .8), cos(cp.x * 1.1 - uTempo * .7)) * .45; cau += pow(1. - abs(sin(cp.x) * sin(cp.y)), 8.); }
+            diffuseColor.rgb += vec3(.5, .62, .55) * (cau / 3.) * (1. - fundo) * .45;
             float ruido = sin(vMundo.x * 21. + uTempo * 2.) * sin(vMundo.z * 17. - uTempo * 1.7);
             float espuma = (1. - smoothstep(.02, .1 + ruido * .03, vCosta)) * step(.001, vCosta);
             diffuseColor.rgb = mix(diffuseColor.rgb, vec3(.92, .96, .97), espuma * .85);
-            diffuseColor.a = (mix(.55, .92, fundo) + espuma * .2) * smoothstep(0., .02, vCosta);`);
+            diffuseColor.a = (mix(.35, .9, fundo) + espuma * .2) * smoothstep(0., .02, vCosta);`)
+          // Fresnel: olhando de lado a água vira espelho; de cima fica transparente. Brilho do sol nunca some com a transparência
+          .replace('#include <opaque_fragment>', `
+            float fres = pow(1. - clamp(dot(normal, normalize(vViewPosition)), 0., 1.), 4.);
+            float brilho = max(0., max(outgoingLight.r, max(outgoingLight.g, outgoingLight.b)) - .9);
+            diffuseColor.a = clamp(mix(diffuseColor.a, 1., fres * .85) + brilho, 0., 1.) * smoothstep(0., .02, vCosta);
+            #include <opaque_fragment>`);
       };
-      mat.customProgramCacheKey = () => 'agua2';
+      mat.customProgramCacheKey = () => 'agua3';
       const malha = new THREE.Mesh(geo, mat); malha.receiveShadow = true; malha.renderOrder = 2;
       grupoTerreno.add(malha); agua = mat; alvosClique.push(malha);
       if (temCenario()) porTipo['~'].forEach(([x, y]) => {
