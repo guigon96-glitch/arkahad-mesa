@@ -10,7 +10,7 @@ import { GTAOPass } from 'three/addons/postprocessing/GTAOPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { construirSolo, carregarTexturasSolo, NIVEL_H as NIVEL_SOLO, MESA_Y } from './terreno.js';
-import { criarMesaDeJogo } from './mesajogo.js';
+import { criarMesaDeJogo, BORDA } from './mesajogo.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { criarMiniatura, criarDado, rotulo } from './miniatura.js';
 import { criarEfeitos, criarChama } from './efeitos.js';
@@ -403,20 +403,19 @@ export function criarCena(el, cb = {}) {
     for (const l of [kael, lyra]) { const s = Math.max(C, R) * .85; Object.assign(l.shadow.camera, { left: -s, right: s, top: s, bottom: -s, near: .5, far: 120 }); l.shadow.camera.updateProjectionMatrix(); }
   }
 
-  // onde os dados caem: na mesa, do lado de fora do diorama, perto do canto superior direito da tela
+  // onde os dados caem: no meio da moldura, no lado mais perto do canto superior direito da tela; deitada = lado de cima/baixo
   const rayDados = new THREE.Raycaster(), planoMesa = new THREE.Plane(new THREE.Vector3(0, 1, 0), -MESA_Y);
   function pontoDosDados() {
-    const C = mesa.cols, R = mesa.rows, M = solo.margem + 2.2, p = new THREE.Vector3();
+    const C = mesa.cols, R = mesa.rows, m = BORDA / 2, p = new THREE.Vector3();
     rayDados.setFromCamera(new THREE.Vector2(.55, .35), camera);
-    if (!rayDados.ray.intersectPlane(planoMesa, p)) p.set(C + M, MESA_Y, -M);
-    if (p.x > -M && p.x < C + M && p.z > -M && p.z < R + M) {
-      // dentro do diorama: empurra para a borda mais próxima
-      const d = [p.x + M, C + M - p.x, p.z + M, R + M - p.z], i = d.indexOf(Math.min(...d));
-      if (i === 0) p.x = -M; else if (i === 1) p.x = C + M; else if (i === 2) p.z = -M; else p.z = R + M;
-    }
-    p.y = MESA_Y; return p;
+    if (!rayDados.ray.intersectPlane(planoMesa, p)) p.set(C, MESA_Y, -m);
+    const d = [Math.abs(p.x + m), Math.abs(C + m - p.x), Math.abs(p.z + m), Math.abs(R + m - p.z)], i = d.indexOf(Math.min(...d));
+    p.x = i === 0 ? -m : i === 1 ? C + m : Math.max(-m, Math.min(C + m, p.x));
+    p.z = i === 2 ? -m : i === 3 ? R + m : Math.max(-m, Math.min(R + m, p.z));
+    p.y = MESA_Y; p.deitada = i >= 2; return p;
   }
-  const foraDoDiorama = (x, z) => !solo || x < -solo.margem || z < -solo.margem || x > mesa.cols + solo.margem || z > mesa.rows + solo.margem;
+  // fora do tabuleiro é tudo moldura
+  const foraDoDiorama = (x, z) => !solo || x < 0 || z < 0 || x > mesa.cols || z > mesa.rows;
 
   let ceuAtual = '';
   function aplicarCeu(luz, lua) {
@@ -563,8 +562,10 @@ export function criarCena(el, cb = {}) {
       const cor = d.c === 'lyra' || d.papel === 'lyra' ? ev.lyra : d.c === 'tirith' ? '#e9edf2' : d.c === 'aranor' ? '#d23a3a' : ev.kael;
       const m = criarDado(d.f, cor, ev.material); m.scale.setScalar(.3);
       const ang = Math.random() * Math.PI * 2;
-      m.position.set(centro.x + Math.cos(ang) * 3, centro.y + 3.2 + i * .25, centro.z + Math.sin(ang) * 3);
-      const destino = new THREE.Vector3(centro.x + (i - (lista.length - 1) / 2) * .85 + (Math.random() - .5) * .4, 0, centro.z + (Math.random() - .5) * .8);
+      m.position.set(centro.x + Math.cos(ang) * 1.2, centro.y + 3.2 + i * .25, centro.z + Math.sin(ang) * 1.2);
+      // fileira ao longo da moldura (dentro da largura dela)
+      const ao = (i - (lista.length - 1) / 2) * .85 + (Math.random() - .5) * .3, de = (Math.random() - .5) * .6;
+      const destino = new THREE.Vector3(centro.x + (centro.deitada === false ? de : ao), 0, centro.z + (centro.deitada === false ? ao : de));
       const vel = destino.clone().sub(m.position).setY(0).multiplyScalar(1.4); vel.y = 1.5;
       const ang2 = new THREE.Vector3((Math.random() - .5) * 26, (Math.random() - .5) * 26, (Math.random() - .5) * 26);
       grupoDados.add(m);
@@ -592,11 +593,12 @@ export function criarCena(el, cb = {}) {
           if (d.fora) { d.m.material.transparent = true; d.m.material.opacity = .3; r.material.opacity = .45; }
         }
       }
-      if (idade > 7) {
+      // somem 2 s depois de parar (param em 1,35 s)
+      if (idade > 3.35) {
         grupoDados.remove(d.m); d.m.material.dispose(); if (d.rot) { grupoDados.remove(d.rot); d.rot.material.map.dispose(); }
         dados.splice(i, 1);
-      } else if (idade > 6.2) {
-        const a = 1 - (idade - 6.2) / .8; d.m.material.transparent = true; d.m.material.opacity = Math.min(d.m.material.opacity, a); if (d.rot) d.rot.material.opacity = a;
+      } else if (idade > 2.95) {
+        const a = 1 - (idade - 2.95) / .4; d.m.material.transparent = true; d.m.material.opacity = Math.min(d.m.material.opacity, a); if (d.rot) d.rot.material.opacity = a;
       }
     }
   }
