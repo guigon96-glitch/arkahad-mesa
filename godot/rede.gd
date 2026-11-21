@@ -13,7 +13,8 @@ var aberto := false
 
 
 func entrar(url: String, apelido: String, token_colado: String, codigo: String, senha_sessao: String) -> void:
-	servidor = url.strip_edges().trim_suffix("/")
+	# o Godot tenta localhost pelo IPv6 e o wrangler dev só responde no IPv4: a conexão ficaria parada em "conectando"
+	servidor = url.strip_edges().trim_suffix("/").replace("://localhost", "://127.0.0.1")
 	senha = senha_sessao
 	token = token_colado.strip_edges()
 	if token == "":

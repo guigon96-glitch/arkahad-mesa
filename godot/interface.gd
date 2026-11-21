@@ -5,7 +5,7 @@ extends CanvasLayer
 signal pediu_entrar(servidor: String, apelido: String, token: String, codigo: String, senha: String)
 
 const CAMPOS := [
-	["servidor", "Servidor", "http://localhost:8787", false],
+	["servidor", "Servidor", "http://127.0.0.1:8787", false],
 	["apelido", "Apelido (se não colar o token)", "", false],
 	["token", "Token do site (opcional: para usar o seu personagem)", "", true],
 	["codigo", "Código da Sessão", "", false],
