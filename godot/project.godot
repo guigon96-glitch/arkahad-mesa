@@ -1,0 +1,18 @@
+; Piloto do cliente instalável da Mesa de Arkahad (Godot 4, Forward+).
+config_version=5
+
+[application]
+
+config/name="Mesa de Arkahad"
+run/main_scene="res://principal.tscn"
+config/features=PackedStringArray("4.4", "Forward Plus")
+
+[display]
+
+window/size/viewport_width=1600
+window/size/viewport_height=900
+
+[rendering]
+
+renderer/rendering_method="forward_plus"
+anti_aliasing/quality/msaa_3d=2
