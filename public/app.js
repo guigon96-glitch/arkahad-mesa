@@ -14,7 +14,9 @@ import {
 // ================= CONFIGURAÇÃO VISUAL (fácil de editar) =================
 const COR_LUZ = { dia: '#ffb347', noite: '#05060f', azul: '#3f6fe0', conjuncao: '#9a7fe0' };
 const MATERIAIS = { cristal: 'Cristal', osso: 'Osso', ferro: 'Ferro Lunar', brasa: 'Brasa' };
-const CORES_TERRENO = { '.': '#7d6146', '_': '#8f877b', ',': '#d3ad6a', '"': '#4d7536', '~': '#2a6585', '=': '#7a4e2c', '+': '#5a3a1e', 'v': '#1b1820', '#': '#3a342e', m: '#6b4a2a', h: '#7a7468', f: '#9a7448', d: '#4a2e16', k: '#4f8a3a', P: '#24502a', Q: '#6a5040', 'T': '#2d5a27', '^': '#6b6158', '*': '#ff8a1e', b: '#8a5a2a', c: '#b08a52', s: '#c8b48a', n: '#d8c8a0', a: '#7d8288', o: '#c0392f', w: '#6b4423' };
+const CORES_TERRENO = { '.': '#7d6146', '_': '#8f877b', ',': '#d3ad6a', '"': '#4d7536', '~': '#2a6585', '=': '#7a4e2c', '+': '#5a3a1e', 'v': '#1b1820', '#': '#3a342e', m: '#6b4a2a', h: '#7a7468', f: '#9a7448', d: '#4a2e16', k: '#4f8a3a', P: '#24502a', Q: '#6a5040', 'T': '#2d5a27', '^': '#6b6158', '*': '#ff8a1e', b: '#8a5a2a', c: '#b08a52', s: '#c8b48a', n: '#d8c8a0', a: '#7d8288', o: '#c0392f', w: '#6b4423',
+  l: '#5f8a3a', t: '#3f7a32', y: '#c86aa8', M: '#8a5a32', Y: '#9a6a3a', L: '#b0503a', C: '#7a5030', U: '#6a4428', A: '#a0403a', E: '#5a3a22', R: '#6a4a2a', B: '#9a6a2a', O: '#d8a830', Z: '#7a5a3a', K: '#7a4a22', G: '#6a3a1a', j: '#a07a4a',
+  I: '#9a948a', J: '#b0a898', X: '#ffb040', V: '#f0e0b0', F: '#b02a2a', H: '#2a5ab0', S: '#a0a8b0', $: '#e8c040', D: '#7a7468', r: '#5a4a3a', W: '#4a4a52', N: '#3a3a40', e: '#8a6a40' };
 
 // ================= ESTADO =================
 let config = {}, sessao = null, ws = null, codigoAtual = null, reconectar = true, tentativaWs = 0;
@@ -346,7 +348,7 @@ function aoSoltar(i) {
 
 // ================= Editor de terreno =================
 // ferramentas: pincel, retângulo, linha, balde (preencher) e conta-gotas; vale para terreno e altura
-let ferramenta = 'pincel', formaPincel = 'quadrado', edicao = null;
+let ferramenta = 'pincel', formaPincel = 'quadrado', edicao = null, densidade = .3, buscaPal = '';
 const desfazer = [], refazer = [];
 const EDITA = ['pintar', 'altura', 'paredes'];
 const camadaAtual = () => ({ altura: 'alt', paredes: 'par' })[modoMestre] || 'grid';
@@ -367,9 +369,9 @@ function celulasLinha(a, b) {
   for (let k = 0; k <= n; k++) { const t = n ? k / n : 0; const x = Math.round(a.x + (b.x - a.x) * t), y = Math.round(a.y + (b.y - a.y) * t); for (const c of celulasPincel(x, y)) l.push(c); }
   return l;
 }
-function celulasRetangulo(a, b) {
+function celulasRetangulo(a, b, oco = false) {
   const l = [], x0 = Math.min(a.x, b.x), x1 = Math.max(a.x, b.x), y0 = Math.min(a.y, b.y), y1 = Math.max(a.y, b.y);
-  for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) l.push([x, y]);
+  for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) if (!oco || x === x0 || x === x1 || y === y0 || y === y1) l.push([x, y]);
   return l;
 }
 function valorNovo(camada, atual) {
@@ -383,6 +385,7 @@ function aplicar(arr, camada, cels, tocadas) {
   for (const [x, y] of cels) {
     const k = x + ',' + y;
     if (!dentro(x, y) || (tocadas && tocadas.has(k))) continue; tocadas?.add(k);
+    if (ferramenta === 'espalhar' && Math.random() > densidade) continue; // sorteia uma vez por casa em cada traço
     const l = arr[y]; arr[y] = l.slice(0, x) + valorNovo(camada, l[x]) + l.slice(x + 1);
   }
 }
@@ -408,7 +411,7 @@ function iniciarEdicao(i) {
   const antes = camadaDe(mesa, camada), arr = antes.slice();
   edicao = { camada, antes, arr, ini: { x: i.x, y: i.y }, tocadas: new Set() };
   if (ferramenta === 'balde') { preencher(arr, camada, i.x, i.y); terminarEdicao(); return; }
-  if (ferramenta === 'pincel') aplicar(arr, camada, celulasPincel(i.x, i.y), edicao.tocadas);
+  if (ferramenta === 'pincel' || ferramenta === 'espalhar') aplicar(arr, camada, celulasPincel(i.x, i.y), edicao.tocadas);
   else aplicar(arr, camada, [[i.x, i.y]], null);
   mostrarEdicao();
 }
@@ -416,14 +419,14 @@ function moverEdicao(i) {
   if (!edicao) {
     // prévia do pincel sob o cursor
     if (!dentro(i.x, i.y)) return mostrarPrevia(null);
-    mostrarPrevia(ferramenta === 'pincel' ? celulasPincel(i.x, i.y) : [[i.x, i.y]]);
+    mostrarPrevia(ferramenta === 'pincel' || ferramenta === 'espalhar' ? celulasPincel(i.x, i.y) : [[i.x, i.y]]);
     return;
   }
   const { camada, antes } = edicao;
-  if (ferramenta === 'pincel') aplicar(edicao.arr, camada, celulasPincel(i.x, i.y), edicao.tocadas);
+  if (ferramenta === 'pincel' || ferramenta === 'espalhar') aplicar(edicao.arr, camada, celulasPincel(i.x, i.y), edicao.tocadas);
   else {
     edicao.arr = antes.slice();
-    const cels = ferramenta === 'retangulo' ? celulasRetangulo(edicao.ini, i) : celulasLinha(edicao.ini, i);
+    const cels = ferramenta === 'retangulo' || ferramenta === 'sala' ? celulasRetangulo(edicao.ini, i, ferramenta === 'sala') : celulasLinha(edicao.ini, i);
     aplicar(edicao.arr, camada, cels, null); mostrarPrevia(cels);
   }
   mostrarEdicao();
@@ -862,8 +865,10 @@ function htmlRegistro() {
   return `<ul class="registro">${log.length ? log.map(x => `<li><span class="ponto" style="display:inline-block;background:${esc(x.cor)}"></span> <b>${esc(x.nome)}</b>${x.rotulo ? ' · ' + esc(x.rotulo) : ''}${x.oculta ? ' · oculta' : ''} — <b style="color:var(--ouro);font-size:18px">${num(x.total)}</b>${x.grau ? ' · ' + esc(x.grau) : ''}<div style="color:var(--mudo);font-size:13px">${esc(x.desc)}${x.difMestre ? ` · DIF ${num(x.difMestre)} (só você vê)` : ''} · ${new Date(x.t).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</div>${(x.tags || []).map(t => `<span class="tag ${/Ruína|Aranor|Eco/.test(t) ? 'ruim' : ''}">${esc(t)}</span>`).join('')}</li>`).join('') : '<li>Nenhuma rolagem ainda.</li>'}</ul>`;
 }
 const GRUPOS_TERRENO = [
-  ['Chão', ['"', '.', ',', '_', '=', 'v']], ['Água', ['~']], ['Vegetação', ['T', 'P', 'Q', 'k']],
-  ['Objetos', ['^', '*', 'b', 'c', 's', 'n', 'a', 'o', 'w']],
+  ['Chão', ['"', '.', ',', '_', '=', 'v']], ['Água', ['~']], ['Vegetação', ['T', 'P', 'Q', 'l', 'k', 't', 'y']],
+  ['Acampamento', ['^', '*', 'b', 'c', 's', 'n', 'a', 'o', 'w']],
+  ['Mobília', ['M', 'Y', 'L', 'C', 'U', 'A', 'E', 'R', 'B', 'O', 'Z', 'K', 'G', 'j']],
+  ['Masmorra e castelo', ['I', 'J', 'X', 'V', 'F', 'H', 'S', '$', 'D', 'r', 'W', 'N', 'e']],
 ];
 function blocoFichasMestre() {
   const lista = Object.entries(pcs).filter(([, p]) => p?.nome);
@@ -884,17 +889,18 @@ function blocoFichasMestre() {
 function htmlMestre() {
   if (!souMestre() || !mesa) return '';
   const cb = mesa.combate || {}, editando = EDITA.includes(modoMestre);
-  const ferr = [['pincel', '🖌', 'Pincel'], ['retangulo', '▭', 'Retângulo'], ['linha', '╱', 'Linha'], ['balde', '🪣', 'Preencher'], ['conta', '💧', 'Conta-gotas']];
+  const ferr = [['pincel', '🖌', 'Pincel'], ['espalhar', '✱', 'Espalhar'], ['retangulo', '▭', 'Retângulo'], ['sala', '⬚', 'Sala (borda)'], ['linha', '╱', 'Linha'], ['balde', '🪣', 'Preencher'], ['conta', '💧', 'Conta-gotas']];
   const blocoFerr = editando ? `<div class="ferramentas">${ferr.map(([k, ic, n]) => `<button data-ferr="${k}" class="${ferramenta === k ? 'ativo' : ''}" title="${n}"><span>${ic}</span><small>${n}</small></button>`).join('')}</div>
       <div class="linha" style="margin-top:8px;align-items:end"><div><label for="m_tam">Tamanho</label><select id="m_tam">${[1, 2, 3, 4, 5, 7].map(n => `<option ${tamPincel === n ? 'selected' : ''}>${n}</option>`).join('')}</select></div>
       <div><label for="m_forma">Forma</label><select id="m_forma"><option value="quadrado" ${formaPincel === 'quadrado' ? 'selected' : ''}>Quadrado</option><option value="circulo" ${formaPincel === 'circulo' ? 'selected' : ''}>Círculo</option></select></div>
+      ${ferramenta === 'espalhar' ? `<div><label for="m_dens">Densidade</label><select id="m_dens">${[.1, .2, .3, .5, .7].map(d => `<option value="${d}" ${densidade === d ? 'selected' : ''}>${d * 100}%</option>`).join('')}</select></div>` : ''}
       <div class="desfaz"><button id="m_desfazer" ${desfazer.length ? '' : 'disabled'} title="Desfazer (Ctrl+Z)">↶</button><button id="m_refazer" ${refazer.length ? '' : 'disabled'} title="Refazer (Ctrl+Y)">↷</button></div></div>` : '';
   const blocoPedidos = pedidos.length ? `<div class="bloco"><h3>Pedidos de teste</h3>${pedidos.map(x => `<div style="border-bottom:1px solid var(--borda,#3335);padding:6px 0"><div><span class="ponto" style="display:inline-block;background:${esc(x.cor)}"></span> <b>${esc(x.nome)}</b> · ${esc(x.rotulo)} <small>(${x.mod >= 0 ? '+' : ''}${x.mod}${x.tirith !== 'normal' ? ' · ' + esc(x.tirith) : ''})</small></div>
       <div class="linha" style="align-items:end"><div><label for="pd_dif_${esc(x.id)}">DIF (oculta)</label><input id="pd_dif_${esc(x.id)}" type="number" value="15"></div><div><label for="pd_xp_${esc(x.id)}">XP se passar</label><input id="pd_xp_${esc(x.id)}" type="number" min="0" max="20" value="1"></div>
       <button class="pri" data-aprovar="${esc(x.id)}">Aprovar</button><button data-recusar="${esc(x.id)}">Recusar</button></div></div>`).join('')}</div>` : '';
   return `${blocoPedidos}<div class="bloco"><h3>Ferramenta</h3><div class="linha">${[['mover', 'Mover'], ['pintar', 'Terreno'], ['altura', 'Altura'], ['paredes', 'Paredes'], ['portal', 'Portal'], ['npc', 'Colocar NPC']].map(([k, n]) => `<button data-modo="${k}" class="${modoMestre === k ? 'ativo' : ''}">${n}</button>`).join('')}</div>
     ${blocoFerr}
-    ${modoMestre === 'pintar' ? GRUPOS_TERRENO.map(([g, l]) => `<div class="grupo-pal">${g}</div><div class="paleta">${l.map(k => `<button data-pincel="${esc(k)}" class="${pincel === k ? 'ativo' : ''}"><i class="amostra" style="background:${CORES_TERRENO[k]}"></i>${esc(TERRENOS[k].n)}</button>`).join('')}</div>`).join('') + `<button id="m_tudo" style="width:100%;margin-top:8px">Preencher o mapa todo com “${esc(TERRENOS[pincel]?.n || '')}”</button>` : ''}
+    ${modoMestre === 'pintar' ? `<input id="m_busca" type="search" placeholder="Buscar objeto ou terreno…" value="${esc(buscaPal)}" style="margin-top:10px">` + GRUPOS_TERRENO.map(([g, l]) => `<div class="grupo-pal">${g}</div><div class="paleta">${l.map(k => `<button data-pincel="${esc(k)}" class="${pincel === k ? 'ativo' : ''}"><i class="amostra" style="background:${CORES_TERRENO[k]}"></i>${esc(TERRENOS[k].n)}</button>`).join('')}</div>`).join('') + `<button id="m_tudo" style="width:100%;margin-top:8px">Preencher o mapa todo com “${esc(TERRENOS[pincel]?.n || '')}”</button>` : ''}
     ${modoMestre === 'altura' ? `<div class="paleta" style="margin-top:10px">${[...Object.entries(NIVEIS), ['+', 'Subir 1 nível'], ['-', 'Descer 1 nível']].map(([k, n]) => `<button data-alt="${k}" class="${pincelAlt === k ? 'ativo' : ''}"><i class="amostra" style="background:${{ '0': '#2a3a4a', '1': '#7d6146', '2': '#9a7a52', '3': '#b8956a', '4': '#d8c09a', '+': '#5d9a4a', '-': '#c0392f' }[k]}"></i>${esc(n)}</button>`).join('')}</div>
       <p class="cr-nota" style="margin:8px 0 0">Subir 1 nível custa +1 casa de movimento; desníveis de 2+ só escalando (você move). Quem ataca de cima ganha +2; de baixo, −2.</p>` : ''}
     ${modoMestre === 'paredes' ? `<div class="paleta" style="margin-top:10px">${[...PAREDES.map(k => [k, TERRENOS[k].n]), ['x', 'Abrir/fechar porta'], [' ', 'Apagar']].map(([k, n]) => `<button data-par="${esc(k)}" class="${pincelPar === k ? 'ativo' : ''}"><i class="amostra" style="background:${CORES_TERRENO[k] || '#222'}"></i>${esc(n)}</button>`).join('')}</div>
@@ -1030,6 +1036,15 @@ function ligar() {
   document.querySelectorAll('[data-par]').forEach(b => b.onclick = () => { pincelPar = b.dataset.par; painel(); });
   document.querySelectorAll('[data-ed]').forEach(b => b.onclick = () => editorNpc(b.dataset.ed));
   if (q('#m_tam')) q('#m_tam').onchange = e => tamPincel = num(e.target.value, 1);
+  if (q('#m_dens')) q('#m_dens').onchange = e => densidade = num(e.target.value, .3);
+  if (q('#m_busca')) {
+    const filtrar = () => {
+      const t = buscaPal.toLowerCase();
+      document.querySelectorAll('.paleta [data-pincel]').forEach(b => { b.hidden = !!t && !b.textContent.toLowerCase().includes(t); });
+      document.querySelectorAll('.grupo-pal').forEach(g => { g.hidden = !!t && ![...g.nextElementSibling.children].some(b => !b.hidden); g.nextElementSibling.hidden = g.hidden; });
+    };
+    q('#m_busca').oninput = e => { buscaPal = e.target.value; filtrar(); }; filtrar();
+  }
   if (q('#m_luz')) q('#m_luz').onchange = e => enviar({ tipo: 'mesa', dados: { luz: e.target.value } });
   if (q('#m_lua')) q('#m_lua').onchange = e => enviar({ tipo: 'mesa', dados: { lua: e.target.value } });
   if (q('#salvarMapa')) q('#salvarMapa').onclick = () => enviar({ tipo: 'mesa', dados: { nome: $('m_nome').value, cols: num($('m_cols').value, 24), rows: num($('m_rows').value, 16) } });

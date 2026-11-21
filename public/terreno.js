@@ -12,7 +12,15 @@ const ASPEREZA = [1, 1, .95, .92, .9, .85, .45, 1];
 const ESCALA = [.55, .5, .45, .32, .5, .5, .4, .5];     // repetições por casa
 const RUGOSO = [1, 1, .8, 1.4, 0, 0, .1, 1];            // quanto o relevo natural aparece
 // terreno da casa → camada
-const CAMADA_DE = { '"': 0, T: 0, k: 0, n: 0, o: 0, '.': 1, Q: 1, m: 1, h: 1, '*': 1, b: 1, c: 1, s: 1, w: 1, ',': 2, '~': 2, '^': 3, '_': 4, '#': 4, a: 4, '=': 5, '+': 5, v: 6, P: 7 };
+const CAMADA_DE = { '"': 0, T: 0, k: 0, n: 0, o: 0, t: 0, y: 0, '.': 1, Q: 1, m: 1, h: 1, '*': 1, b: 1, c: 1, s: 1, w: 1, ',': 2, '~': 2, l: 2, '^': 3, '_': 4, '#': 4, a: 4, '=': 5, '+': 5, v: 6, P: 7 };
+// mobília e objetos de masmorra não têm chão próprio: usam o piso de uma casa vizinha (tábuas, ladrilho…)
+function camadaVizinha(mesa, x, y) {
+  for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [-1, -1], [1, -1], [-1, 1]]) {
+    const v = (mesa.grid[y + dy] || '')[x + dx];
+    if (v in CAMADA_DE) return CAMADA_DE[v];
+  }
+  return 4;
+}
 const AFUNDA = { '~': -.42 };       // leito da água
 const ELEVA = { '^': .12 };
 
@@ -87,7 +95,7 @@ export function construirSolo(mesa, tex, opcoes = {}) {
     if (c) {
       const ch = mesa.grid[c[1]][c[0]];
       alt[k] = nivelEm(mesa, c[0], c[1]) * NIVEL_H + (AFUNDA[ch] || 0) + (ELEVA[ch] || 0);
-      const camada = CAMADA_DE[ch] ?? 1;
+      const camada = CAMADA_DE[ch] ?? camadaVizinha(mesa, c[0], c[1]);
       pesos[k * 8 + camada] = 1; rug[k] = RUGOSO[camada];
     } else {
       // lateral da maquete: desce até abaixo do tampo da mesa

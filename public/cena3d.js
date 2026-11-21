@@ -14,7 +14,7 @@ import { criarMesaDeJogo, BORDA } from './mesajogo.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { criarMiniatura, criarDado, orientacaoDado, rotulo } from './miniatura.js';
 import { criarEfeitos, criarChama, criarEstrelas } from './efeitos.js';
-import { carregarModelos, carregarNatureza, criarPersonagem, criarCriatura3D, CRIATURAS_3D, pecaCenario, pecaNatureza, temCenario, temNatureza, modelosProntos, TEMPO } from './modelos.js';
+import { carregarModelos, carregarNatureza, criarPersonagem, criarCriatura3D, CRIATURAS_3D, pecaCenario, ALTURA_PECA, pecaNatureza, temCenario, temNatureza, modelosProntos, TEMPO } from './modelos.js';
 // celular/tablet: céus 1k e chão 512 (memória de vídeo menor)
 const TELA_FINA = matchMedia('(pointer: coarse)').matches;
 
@@ -22,7 +22,11 @@ const TELA_FINA = matchMedia('(pointer: coarse)').matches;
 const ALTURA = { '.': .12, '_': .16, ',': .1, '"': .14, '~': .04, '=': .17, '+': .16, 'v': .12, '#': .16, m: .12, h: .12, k: .14, P: .14, Q: .12, 'T': .14, '^': .12, '*': .12, b: .12, c: .12, s: .12, n: .14, a: .16, o: .14, w: .12 };
 const NIVEL_H = NIVEL_SOLO; // altura de um nível de terreno
 const PAREDES = { '#': { h: 1.7, t: .4, tex: 'muro' }, m: { h: 1.6, t: .3, tex: 'tronco' }, h: { h: .8, t: .42, tex: 'muro' }, f: { h: .75, t: .1 } };
-const OBJETOS = { b: ['barril'], c: ['caixote', 'caixotes'], s: ['saco'], n: ['tenda'], a: ['suporte_armas'], o: ['alvo'], w: ['carrinho', 'balde'] };
+// 'a+b' = peça b em cima da peça a
+const OBJETOS = { b: ['barril'], c: ['caixote', 'caixotes'], s: ['saco'], n: ['tenda'], a: ['suporte_armas'], o: ['alvo'], w: ['carrinho', 'balde'],
+  M: ['mesa'], Y: ['mesa+garrafas', 'mesa+velas', 'mesa+prato'], L: ['mesa_posta'], C: ['cadeira'], U: ['banco'], A: ['cama'], E: ['estante'], R: ['prateleira'],
+  B: ['bau'], O: ['bau_ouro'], Z: ['arca'], K: ['barril_grande'], G: ['pipa'], j: ['caixas'], I: ['coluna'], J: ['coluna_entalhada'], X: ['tocha'], V: ['velas'],
+  F: ['estandarte_vermelho'], H: ['estandarte_azul'], S: ['espada_escudo'], $: ['moedas'], D: ['entulho'], r: ['barreira'], W: ['espinhos'], N: ['grade'], e: ['escada'] };
 const TEXTURA_DE = { '.': 'terra', '_': 'ladrilho', ',': 'areia', '"': 'mato', '~': 'leito', '=': 'madeira', '+': 'madeira', 'v': 'vidro', '#': 'ladrilho', m: 'terra', h: 'terra', k: 'mato', P: 'mato', Q: 'terra', 'T': 'mato', '^': 'terra', '*': 'terra', b: 'terra', c: 'terra', s: 'terra', n: 'mato', a: 'ladrilho', o: 'mato', w: 'terra' };
 // Céus: fotos 360° (HDRI da Poly Haven, CC0) iluminam a cena; as luzes de Kael e Lyra dão as sombras.
 const CEUS = {
@@ -300,7 +304,9 @@ export function criarCena(el, cb = {}) {
     const chaoEm = (px, pz) => solo.alturaPonto(px, pz);
     // 4) objetos (barris, caixotes, tenda…)
     if (temCenario()) for (const [ch, nomes] of Object.entries(OBJETOS)) for (const [x, y] of porTipo[ch] || []) {
-      const p = pecaCenario(nomes[Math.floor(acaso(x, y, 70) * nomes.length)], 1);
+      const [base, ...emCima] = nomes[Math.floor(acaso(x, y, 70) * nomes.length)].split('+');
+      const p = pecaCenario(base, 1);
+      if (p) for (const n of emCima) { const t = pecaCenario(n, .5); if (t) { t.position.y = new THREE.Box3().setFromObject(p).max.y / p.scale.y; t.scale.divideScalar(p.scale.y); p.add(t); } }
       if (p) { p.position.set(x + .5, chaoDe(x, y), y + .5); p.rotation.y = Math.floor(acaso(x, y, 71) * 4) * Math.PI / 2 + (acaso(x, y, 72) - .5) * .4; grupoTerreno.add(p); }
     }
     // 5) vegetação de alta qualidade
@@ -320,6 +326,9 @@ export function criarCena(el, cb = {}) {
       plantar(porTipo['P'] || [], ['pinetree_1', 'pinetree_2', 'pinetree_3', 'pinetree_5'], 2.6, 84, 1.3);
       plantar(porTipo['Q'] || [], ['deadtree_1', 'deadtree_2', 'deadtree_3'], 2.0, 88, 1.4);
       plantar(porTipo['k'] || [], ['bush', 'bush_flowers', 'bush_large', 'bush_small'], .6, 92, 1);
+      plantar(porTipo['l'] || [], ['palmtree_1', 'palmtree_2'], 2.5, 140, 1.4);
+      plantar(porTipo['t'] || [], ['plant_1', 'plant_2'], .55, 145, 1);
+      plantar(porTipo['y'] || [], ['flower_3_clump', 'flower_4_clump', 'bush_flowers'], .28, 150, .8);
       // mato: tufos de grama e flores espalhados
       for (const [x, y] of [...(porTipo['"'] || []), ...(porTipo['T'] || []), ...(porTipo['P'] || [])]) for (let k = 0; k < 1; k++) {
         const r0 = acaso(x, y, 100 + k); if (r0 > .32) continue;
@@ -457,6 +466,11 @@ export function criarCena(el, cb = {}) {
       const fogo = criarChama({ raio: .17, altura: .62, fagulhas: 12 }); fogo.position.y = .04; g.add(fogo); fogosVivos.push(fogo);
       if (luzes++ < 6) { const pl = new THREE.PointLight('#ff9a3a', 2.2, 6, 1.6); pl.position.y = .6; g.add(pl); chamas.push([pl, null, x + y]); }
       grupoTerreno.add(g);
+    }
+    // tochas: chama no topo da peça
+    if (temCenario()) for (const [x, y] of porTipo['X'] || []) {
+      const fogo = criarChama({ raio: .05, altura: .18, fagulhas: 4 }); fogo.position.set(x + .5, chaoDe(x, y) + ALTURA_PECA.tocha - .04, y + .5); grupoTerreno.add(fogo); fogosVivos.push(fogo);
+      if (luzes++ < 8) { const pl = new THREE.PointLight('#ff9a3a', 1.4, 4.5, 1.6); pl.position.copy(fogo.position).y += .15; grupoTerreno.add(pl); chamas.push([pl, null, x + y]); }
     }
     for (const l of [kael, lyra]) { const s = Math.max(C, R) * .85; Object.assign(l.shadow.camera, { left: -s, right: s, top: s, bottom: -s, near: .5, far: 120 }); l.shadow.camera.updateProjectionMatrix(); }
   }

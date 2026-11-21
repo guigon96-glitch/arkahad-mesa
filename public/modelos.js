@@ -642,7 +642,9 @@ export const TEMPO = { value: 0 };   // relógio compartilhado (vento nas folhas
 let promNatureza = null;
 export function carregarNatureza(base = '/modelos/') {
   if (promNatureza) return promNatureza;
-  promNatureza = carregador.loadAsync(base + 'natureza.glb').then(g => {
+  // mobília e masmorra (KayKit Dungeon Remastered, CC0) vêm junto, sem atrasar o criador de personagem
+  const masmorra = carregador.loadAsync(base + 'masmorra.glb').then(g => { for (const filho of [...g.scene.children]) dados.cenario[filho.name] = filho; }).catch(e => console.warn('Mobília 3D indisponível.', e));
+  promNatureza = Promise.all([carregador.loadAsync(base + 'natureza.glb'), masmorra]).then(([g]) => {
     const folhas = new Map();
     g.scene.traverse(o => {
       if (!o.isMesh) return;
@@ -682,12 +684,15 @@ export function pecaNatureza(nome, altura, caber = 1) {
 }
 
 // ---------------- peças de cenário ----------------
-const ALTURA_PECA = { arvore: 1.7, arvores: 1.3, rocha: .45, lirio: .06, planta: .35, barril: .55, caixote: .6, caixotes: .5, saco: .4, tenda: 1.1, suporte_armas: .8, alvo: .9, carrinho: .55, balde: .35 };
+// altura em casas (1 casa ≈ 1,5 m); peças planas (grade, espinhos) usam altura grande para a largura mandar
+export const ALTURA_PECA = { arvore: 1.7, arvores: 1.3, rocha: .45, lirio: .06, planta: .35, barril: .55, caixote: .6, caixotes: .5, saco: .4, tenda: 1.1, suporte_armas: .8, alvo: .9, carrinho: .55, balde: .35,
+  bau: .45, bau_ouro: .5, mesa: .52, mesa_posta: .6, cadeira: .65, banco: .32, cama: .5, estante: 1.4, prateleira: 1.3, coluna: 2.2, coluna_entalhada: 2.2, tocha: 1, velas: .22,
+  barril_grande: .72, pipa: .6, arca: .5, entulho: .45, estandarte_vermelho: 1.6, estandarte_azul: 1.6, moedas: .2, espada_escudo: .7, espinhos: 1, grade: 1, garrafas: .22, prato: .1, caixas: .95, barreira: .7, escada: .6 };
 export function pecaCenario(nome, caber = 1) {
   const src = dados.cenario[nome]; if (!src) return null;
   const o = src.clone(true);
   const caixa = new THREE.Box3().setFromObject(o), t = caixa.getSize(new THREE.Vector3()), c = caixa.getCenter(new THREE.Vector3());
-  const tipo = Object.keys(ALTURA_PECA).find(k => nome.startsWith(k)) || 'rocha';
+  const tipo = nome in ALTURA_PECA ? nome : Object.keys(ALTURA_PECA).find(k => nome.startsWith(k)) || 'rocha';
   const s = Math.min(ALTURA_PECA[tipo] / Math.max(t.y, .001), caber * .95 / Math.max(t.x, t.z, .001));
   const g = new THREE.Group(); o.position.set(-c.x, -caixa.min.y, -c.z); g.add(o); g.scale.setScalar(s);
   g.traverse(m => { if (m.isMesh) { m.castShadow = true; m.receiveShadow = true; } });
