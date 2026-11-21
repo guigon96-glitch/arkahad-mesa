@@ -114,6 +114,24 @@ export const TINTAS = {
   q: { n: 'Dourado', c: '#d4a640' }, r: { n: 'Turquesa', c: '#3f9a96' },
 };
 export const paredeEm = (mesa, x, y) => { const p = (mesa?.par?.[y] || '')[x]; return PAREDES.includes(p) ? p : ''; };
+// Dá para ir de a até b sem atravessar parede (porta fechada conta como parede)? Ignora altura e peças:
+// serve para ninguém, nem o Mestre, entrar numa sala fechada pelas quatro paredes.
+export function semParedeEntre(mesa, ax, ay, bx, by) {
+  const bloq = (x, y) => x < 0 || y < 0 || x >= mesa.cols || y >= mesa.rows || (TERRENOS[paredeEm(mesa, x, y)]?.custo === Infinity);
+  if (bloq(bx, by)) return false;
+  const vistos = new Set([ax + ',' + ay]), fila = [[ax, ay]];
+  while (fila.length) {
+    const [x, y] = fila.pop();
+    if (x === bx && y === by) return true;
+    for (let dx = -1; dx <= 1; dx++) for (let dy = -1; dy <= 1; dy++) {
+      const nx = x + dx, ny = y + dy, k = nx + ',' + ny;
+      if ((!dx && !dy) || vistos.has(k) || bloq(nx, ny)) continue;
+      if (dx && dy && (bloq(x + dx, y) || bloq(x, y + dy))) continue;
+      vistos.add(k); fila.push([nx, ny]);
+    }
+  }
+  return false;
+}
 // o que vale para movimento, visão e cobertura: a parede, se houver; senão o chão
 export const celula = (mesa, x, y) => paredeEm(mesa, x, y) || (mesa?.grid?.[y] || '')[x];
 export function custoCel(mesa, x, y) {

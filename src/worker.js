@@ -1,5 +1,5 @@
 import { DurableObject } from 'cloudflare:workers';
-import { TERRENOS, TINTAS, LUZES, LUAS, r, num, custoCel, celula, PAREDES, dijkstra, rolar2d10, rolarAtaque, rolarExpr, nivelPorXp, CONDICOES, CONDS_CAOS, modCond, temCond, deslocCom, distanciaCasas } from '../public/regras.js';
+import { TERRENOS, TINTAS, semParedeEntre, LUZES, LUAS, r, num, custoCel, celula, PAREDES, dijkstra, rolar2d10, rolarAtaque, rolarExpr, nivelPorXp, CONDICOES, CONDS_CAOS, modCond, temCond, deslocCom, distanciaCasas } from '../public/regras.js';
 import { HABILIDADE, danoHabilidade, ataqueArma, temImbuir, temTalento, TODOS_DONS, DOM_FUNDIDO, migrarHabs, migrarFicha } from '../public/conteudo.js';
 
 const MAX_JOGADORES = 6;
@@ -576,6 +576,8 @@ export class Sala extends DurableObject {
         const mesa = s.mapas[this.idMapa(obj)];
         const x = Math.round(num(msg.x)), y = Math.round(num(msg.y)), tam = num(obj.tamanho, 1);
         if (x < 0 || y < 0 || x + tam > mesa.cols || y + tam > mesa.rows) return;
+        // sala fechada pelas quatro paredes: ninguém entra nem sai andando, nem movido pelo Mestre
+        if ((x !== num(obj.x) || y !== num(obj.y)) && !semParedeEntre(mesa, num(obj.x), num(obj.y), x, y)) return erro('Não dá para chegar lá: há paredes fechando o caminho.');
         if (!mestre) {
           if (tipo !== 'pc' || id !== att.id) return erro('Você só move o seu personagem.');
           const cb = mesa.combate || COMBATE_VAZIO;
