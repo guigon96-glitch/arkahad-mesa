@@ -334,6 +334,7 @@ func _alternar_mover() -> void:
 		return
 	movendo = selecionada
 	ui.mover.set_pressed_no_signal(true)
+	ui.mover.text = "✖ Parar de mover"
 	_calcular_alcance()
 
 
@@ -343,6 +344,7 @@ func _parar_mover() -> void:
 	malha_alcance.mesh = null
 	malha_rastro.mesh = null
 	ui.mover.set_pressed_no_signal(false)
+	ui.mover.text = "👣 Mover"
 	ui.mostrar_dica("", Vector2.ZERO)
 
 
@@ -362,7 +364,7 @@ func _calcular_alcance() -> void:
 		limite = _resta(o) + maxi(0, _acoes_livres(o)) * _desloc(o)
 	alcance = Movimento.dijkstra(estado.mesa, ocupadas, int(o.x), int(o.y), limite)
 	alcance.erase(Vector2i(int(o.x), int(o.y)))
-	malha_alcance.mesh = _casas(alcance.keys(), Color(0.95, 0.78, 0.25, 0.32), 0.03)
+	malha_alcance.mesh = _casas(alcance.keys(), Color(1.0, 0.8, 0.2, 0.35), 0.03)
 	malha_rastro.mesh = null
 
 
@@ -377,7 +379,7 @@ func _tracar(tela: Vector2) -> void:
 	var o := _objeto(movendo)
 	var dist := alcance.duplicate()
 	dist[Vector2i(int(o.x), int(o.y))] = 0.0
-	malha_rastro.mesh = _casas(Movimento.caminho(estado.mesa, dist, casa), Color(1, 1, 1, 0.55), 0.045)
+	malha_rastro.mesh = _casas(Movimento.caminho(estado.mesa, dist, casa), Color(1, 1, 1, 0.6), 0.045)
 	var custo: float = alcance[casa]
 	var texto := "%s %s" % [str(snappedf(custo, 0.1)).replace(".", ","), "casa" if custo == 1.0 else "casas"]
 	if _em_combate():
@@ -394,20 +396,28 @@ func _casas(lista: Array, cor: Color, sobe: float) -> ArrayMesh:
 	var mesa: Dictionary = estado.mesa
 	var st := SurfaceTool.new()
 	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	var borda := Color(cor.r, cor.g, cor.b, minf(1.0, cor.a * 2.6))
 	for c in lista:
 		var h := ConstrutorMapa.altura(mesa, c.x, c.y) + sobe
-		var a := Vector3(c.x + 0.06, h, c.y + 0.06)
-		var b := Vector3(c.x + 0.94, h, c.y + 0.06)
-		var d := Vector3(c.x + 0.94, h, c.y + 0.94)
-		var e := Vector3(c.x + 0.06, h, c.y + 0.94)
-		for v in [a, b, d, a, d, e]:
-			st.add_vertex(v)
+		# miolo translúcido + moldura forte, como o alcance das habilidades no site
+		_retangulo(st, c.x + 0.1, c.y + 0.1, c.x + 0.9, c.y + 0.9, h, cor)
+		_retangulo(st, c.x + 0.04, c.y + 0.04, c.x + 0.96, c.y + 0.1, h, borda)
+		_retangulo(st, c.x + 0.04, c.y + 0.9, c.x + 0.96, c.y + 0.96, h, borda)
+		_retangulo(st, c.x + 0.04, c.y + 0.1, c.x + 0.1, c.y + 0.9, h, borda)
+		_retangulo(st, c.x + 0.9, c.y + 0.1, c.x + 0.96, c.y + 0.9, h, borda)
 	var malha := st.commit()
 	var mat := StandardMaterial3D.new()
 	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	mat.cull_mode = BaseMaterial3D.CULL_DISABLED
-	mat.albedo_color = cor
+	mat.vertex_color_use_as_albedo = true
+	mat.render_priority = 1
 	malha.surface_set_material(0, mat)
 	return malha
+
+
+func _retangulo(st: SurfaceTool, x0: float, z0: float, x1: float, z1: float, h: float, cor: Color) -> void:
+	st.set_color(cor)
+	for v in [Vector3(x0, h, z0), Vector3(x1, h, z0), Vector3(x1, h, z1), Vector3(x0, h, z0), Vector3(x1, h, z1), Vector3(x0, h, z1)]:
+		st.add_vertex(v)
 
