@@ -13,7 +13,7 @@ import { construirSolo, carregarTexturasSolo, NIVEL_H as NIVEL_SOLO, MESA_Y } fr
 import { criarMesaDeJogo, BORDA } from './mesajogo.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { criarMiniatura, criarDado, rotulo } from './miniatura.js';
-import { criarEfeitos, criarChama } from './efeitos.js';
+import { criarEfeitos, criarChama, criarEstrelas } from './efeitos.js';
 import { carregarModelos, carregarNatureza, criarPersonagem, criarCriatura3D, CRIATURAS_3D, pecaCenario, pecaNatureza, temCenario, temNatureza, modelosProntos, TEMPO } from './modelos.js';
 // celular/tablet: céus 1k e chão 512 (memória de vídeo menor)
 const TELA_FINA = matchMedia('(pointer: coarse)').matches;
@@ -131,6 +131,7 @@ export function criarCena(el, cb = {}) {
   cena.add(grupoTerreno, grupoTokens, grupoEfeitos, grupoDados);
   const efx = criarEfeitos(grupoEfeitos);
   const grupoRastro = new THREE.Group(); grupoEfeitos.add(grupoRastro);
+  const estrelas = criarEstrelas(); grupoEfeitos.add(estrelas); // céu de fundo (o fundo da cena é preto)
   // rastro de fogo do Kalthor (mapa.fogo: 'x,y' → rodadas)
   function construirRastro() {
     for (const c of grupoRastro.children) c.userData.limpar?.();
@@ -434,7 +435,7 @@ export function criarCena(el, cb = {}) {
   const foraDoDiorama = (x, z) => !solo || x < 0 || z < 0 || x > mesa.cols || z > mesa.rows;
 
   let ceuAtual = '';
-  cena.background = new THREE.Color('#000'); // fundo sempre preto, de noite; o céu HDRI só ilumina
+  cena.background = new THREE.Color('#000'); // fundo de noite com estrelas (criarEstrelas); o céu HDRI só ilumina
   function aplicarCeu(luz, lua) {
     const c = CEUS[luz] || CEUS.dia, alvo = new THREE.Vector3(mesa.cols / 2, 0, mesa.rows / 2), d = Math.max(mesa.cols, mesa.rows) * 1.2;
     if (ceuAtual !== luz) {
@@ -725,6 +726,7 @@ export function criarCena(el, cb = {}) {
       if (tk.fogo) { tk.fogo.position.copy(tk.g.position); tk.fogo.visible = tk.g.visible; tk.fogo.userData.atualizar(dt); }
     }
     for (const c of fogosVivos) c.userData.atualizar(dt);
+    estrelas.position.copy(camera.position); estrelas.userData.atualizar(dt);
     if (selecaoAnel?.parent) { selecaoAnel.rotation.z = t; selecaoAnel.scale.setScalar(1 + Math.sin(t * 4) * .04); }
     for (let i = pings.length - 1; i >= 0; i--) { const p = pings[i], a = (agora - p.t0) / 1400; p.m.scale.setScalar(1 + a * 3); p.m.material.opacity = 1 - a; if (a >= 1) { grupoEfeitos.remove(p.m); p.m.geometry.dispose(); pings.splice(i, 1); } }
     simularDados(dt, agora);

@@ -168,6 +168,55 @@ export function criarChama({ raio = .3, altura = .5, cor = '#ff5a12', fagulhas =
   g.userData.limpar = () => g.traverse(o => { o.geometry?.dispose(); o.material?.dispose(); });
   return g;
 }
+// céu estrelado de fundo: estrelas com brilho em lei de potência (muitas fracas, poucas fortes), cor pela temperatura
+// (azuladas a alaranjadas), cintilação leve, e a Via Láctea: faixa de estrelas densas + brilho difuso com poeira escura.
+// Fica centrado na câmera (quem cria copia a posição a cada quadro).
+export function criarEstrelas(n = 7000, raio = 240) {
+  const g = new THREE.Group(), galaxia = new THREE.Vector3(.35, .78, .52).normalize();
+  const u = new THREE.Vector3(1, 0, 0).cross(galaxia).normalize(), w = galaxia.clone().cross(u);
+  const gauss = () => Math.sqrt(-2 * Math.log(1 - Math.random())) * Math.cos(6.2832 * Math.random());
+  const PALETA = [[.66, .75, 1], [.82, .88, 1], [1, 1, 1], [1, .96, .86], [1, .86, .66], [1, .74, .52]], PESO = [.04, .14, .3, .26, .16, .1];
+  const pos = new Float32Array(n * 3), cor = new Float32Array(n * 3), tam = new Float32Array(n), fase = new Float32Array(n), d = new THREE.Vector3();
+  for (let i = 0; i < n; i++) {
+    const naFaixa = i < n * .45;
+    if (naFaixa) { const a = Math.random() * 6.2832; d.copy(u).multiplyScalar(Math.cos(a)).addScaledVector(w, Math.sin(a)).addScaledVector(galaxia, gauss() * .1).normalize(); }
+    else { const z = Math.random() * 2 - 1, f = Math.random() * 6.2832, r = Math.sqrt(1 - z * z); d.set(r * Math.cos(f), z, r * Math.sin(f)); }
+    pos.set([d.x * raio, d.y * raio, d.z * raio], i * 3);
+    const m = Math.random() ** 7, b = (.22 + m * .78) * (naFaixa ? .7 : 1);
+    let k = 0, s = Math.random(); while (k < PESO.length - 1 && (s -= PESO[k]) > 0) k++;
+    const c = PALETA[k], branco = 1 - m; // as fracas parecem brancas
+    cor.set([(c[0] + (1 - c[0]) * branco * .6) * b, (c[1] + (1 - c[1]) * branco * .6) * b, (c[2] + (1 - c[2]) * branco * .6) * b], i * 3);
+    tam[i] = 1.1 + m * 3.6; fase[i] = Math.random() * 100;
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(pos, 3)); geo.setAttribute('aCor', new THREE.BufferAttribute(cor, 3));
+  geo.setAttribute('aTam', new THREE.BufferAttribute(tam, 1)); geo.setAttribute('aFase', new THREE.BufferAttribute(fase, 1));
+  const uT = { value: 0 }, dpr = Math.min(2, window.devicePixelRatio || 1);
+  const pts = new THREE.Points(geo, new THREE.ShaderMaterial({
+    uniforms: { uT, uDpr: { value: dpr } }, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
+    vertexShader: `attribute vec3 aCor; attribute float aTam, aFase; uniform float uT, uDpr; varying vec3 vCor;
+      void main(){ float tw = .82 + .18 * sin(uT * (1.5 + fract(aFase) * 3.) + aFase); vCor = aCor * tw;
+        gl_PointSize = aTam * uDpr; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.); }`,
+    fragmentShader: `varying vec3 vCor; void main(){ float r = length(gl_PointCoord - .5) * 2.; float a = exp(-r * r * 5.) + exp(-r * r * 40.) * .6;
+      if (a < .01) discard; gl_FragColor = vec4(vCor * a, a); }`,
+  }));
+  pts.frustumCulled = false; pts.renderOrder = -10;
+  const via = new THREE.Mesh(new THREE.SphereGeometry(raio * 1.05, 48, 24), new THREE.ShaderMaterial({
+    uniforms: { uG: { value: galaxia }, uU: { value: u }, uW: { value: w } }, side: THREE.BackSide, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
+    vertexShader: `varying vec3 vDir; void main(){ vDir = normalize(position); gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.); }`,
+    fragmentShader: `uniform vec3 uG, uU, uW; varying vec3 vDir;${RUIDO}
+      void main(){ vec3 d = normalize(vDir); float lat = dot(d, uG), lon = atan(dot(d, uW), dot(d, uU));
+        float faixa = exp(-lat * lat / .012) + exp(-lat * lat / .05) * .35;
+        vec2 p = vec2(lon * 4., lat * 22.); float nuvem = fbm(p) * .7 + fbm(p * 3.1) * .3;
+        float poeira = smoothstep(.45, .7, fbm(p * 1.7 + 7.)) * exp(-lat * lat / .004); // fenda escura no meio
+        float b = faixa * (.35 + nuvem) * (1. - poeira * .8) * (.75 + .25 * sin(lon + 1.));
+        gl_FragColor = vec4(mix(vec3(.32, .36, .5), vec3(.62, .55, .46), nuvem) * b * .13, 1.); }`,
+  }));
+  via.frustumCulled = false; via.renderOrder = -11;
+  g.add(via, pts);
+  g.userData.atualizar = dt => { uT.value += dt; };
+  return g;
+}
 export function criarEfeitos(grupo) {
   const lista = [];
   function add(objs, dur, upd, atraso = 0) {
