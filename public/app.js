@@ -1,4 +1,4 @@
-import { TERRENOS, LUZES as NOMES_LUZ, LUAS, NIVEIS, num, dijkstra, XP_NIVEL, nivelPorXp, GANHOS_NIVEL, FONTES_XP, nivelEm, efeitoAltura, linhaDeVisao, distanciaCasas, CONDICOES, celula, PAREDES } from './regras.js';
+import { TERRENOS, LUZES as NOMES_LUZ, LUAS, NIVEIS, num, dijkstra, XP_NIVEL, nivelPorXp, GANHOS_NIVEL, FONTES_XP, nivelEm, efeitoAltura, linhaDeVisao, distanciaCasas, CONDICOES, celula, PAREDES, custoCel, custoSubida } from './regras.js';
 import { criarCena } from './cena3d.js';
 import { CRIATURAS_3D, ARMAS_3D, SECUNDARIAS, SEXOS, ESTILO_DOM } from './modelos.js';
 import { abrirCriador } from './criacao.js';
@@ -292,7 +292,44 @@ function alternarMover(t) {
   if (mira) cancelarMira();
   movendo = t.k; calcAlcance(); $('cartao').hidden = true; render();
 }
-function pararMover() { movendo = false; alcance = null; render(); }
+function pararMover() { movendo = false; alcance = null; limparTraco(); render(); }
+// rastro do caminho até a casa sob o mouse + contador de casas (e de ações que o passo gasta)
+function limparTraco() { cena?.marcar(2, null); if (!mira) $('miraDica').hidden = true; }
+function caminhoAte(t, x, y) {
+  const d = areaMover(t); let k = x + ',' + y; if (!d?.has(k)) return null;
+  const casas = new Map([[k, .8]]); let cx = x, cy = y;
+  // volta pelo vizinho cuja distância + custo do passo dá a distância atual (mesma conta do dijkstra)
+  while (d.get(k) > 0) {
+    let achou = false;
+    for (let dx = -1; dx <= 1 && !achou; dx++) for (let dy = -1; dy <= 1 && !achou; dy++) {
+      const nx = cx + dx, ny = cy + dy, nk = nx + ',' + ny;
+      if ((!dx && !dy) || !d.has(nk)) continue;
+      const passo = (custoCel(mesa, cx, cy) + custoSubida(mesa, nx, ny, cx, cy)) * (dx && dy ? 1.5 : 1);
+      if (Math.abs(d.get(nk) + passo - d.get(k)) < 1e-6) { cx = nx; cy = ny; k = nk; achou = true; }
+    }
+    if (!achou) break;
+    casas.set(k, .8);
+  }
+  return { casas, custo: d.get(x + ',' + y) };
+}
+function tracarMover(i, e) {
+  const t = tokenPorK(movendo); if (!t || !dentro(i.x, i.y)) return limparTraco();
+  const c = caminhoAte(t, i.x, i.y), dica = $('miraDica');
+  cena?.marcar(2, c?.casas || null, true);
+  let h;
+  if (!c) h = '<b>Fora do alcance</b>';
+  else {
+    const casas = String(+c.custo.toFixed(1)).replace('.', ',');
+    h = `<b>${casas} ${c.custo === 1 ? 'casa' : 'casas'}</b>`;
+    if (mesa.combate?.ativo) {
+      const resta = restoMov(t), n = c.custo <= resta ? 0 : Math.ceil((c.custo - resta) / Math.max(1, num(t.desloc, 6)));
+      h += `<div>${n ? `gasta ${n} ${n === 1 ? 'ação' : 'ações'}` : 'sem gastar ação'}</div>`;
+    }
+  }
+  dica.innerHTML = h; dica.hidden = false;
+  const r = $('area').getBoundingClientRect();
+  dica.style.left = Math.min(r.width - 260, (e?.clientX ?? 0) - r.left + 16) + 'px'; dica.style.top = Math.max(8, (e?.clientY ?? 0) - r.top - 10) + 'px';
+}
 function moverToken(t, x, y) {
   if (!possoMover(t)) return;
   const tam = num(t.tamanho, 1);
@@ -310,7 +347,7 @@ function moverToken(t, x, y) {
       extra = { mov: { chave, resta: resta + n * desl - custo }, ...(n ? { acoes: { chave, usadas: 3 - num(acoesDe(t)) + n } } : {}) };
     }
   }
-  movendo = false;
+  movendo = false; limparTraco();
   const base = t.tipo === 'pc' ? pcs : npcs;
   base[t.id] = { ...base[t.id], ...extra, x, y }; alcance = null; render();
   enviar({ tipo: 'mover', k: t.k, x, y });
@@ -327,6 +364,7 @@ function aoPressionar(i, e) {
 }
 function aoMover(i, e) {
   if (mira) { mirarEm(i, e); return; }
+  if (movendo) { tracarMover(i, e); return; }
   if (souMestre() && EDITA.includes(modoMestre)) moverEdicao(i);
 }
 function aoSoltar(i) {
@@ -1234,7 +1272,7 @@ function cfgMira(t, cfg) {
 }
 function iniciarMira(t, cfg) {
   if (!podeAgir(t)) { avisar(mesa.combate?.ativo ? 'Não é a sua vez (ou acabaram as ações).' : 'Não dá para agir agora.', 2500); return; }
-  if (movendo) { movendo = false; alcance = null; }
+  if (movendo) { movendo = false; alcance = null; limparTraco(); }
   mira = { ...cfgMira(t, cfg), de: t.k, x: num(t.x), y: num(t.y) };
   // casas ao alcance: forte = alcance normal, fraco = alcance longo; sem linha de visão fica de fora
   const mapa = new Map(), o = { x: mira.x, y: mira.y };
