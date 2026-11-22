@@ -16,7 +16,6 @@
       "Read(./package-lock.json)",
       "Read(./public/modelos/**/*.glb)",
       "Read(./public/modelos/**/*.png)",
-      "Read(./public/texturas/**)",
       "Read(./public/ceus/**)",
       "Read(./.wrangler/**)",
       "Bash(wrangler deploy:*)",
