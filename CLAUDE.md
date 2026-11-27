@@ -48,7 +48,7 @@ Comandos do projeto: `/tarefa <pedido>`, `/regra <pergunta>`, `/modelo3d <arquiv
 - Mapa: `{ id, nome, cols, rows, grid: string[], alt: string[], par: string[], rot: string[], tin: string[], luz, lua, portais: { 'x,y': { para, x, y, nome, cor } }, combate }`.
   - `grid`: um caractere por casa (ver `TERRENOS` em `regras.js`: `"` mato, `.` terra, `,` areia, `_` ladrilho, `=` madeira, `v` vidro negro, `~` água, `T` árvore, `P` pinheiro, `Q` árvore seca, `k` arbusto, `#` muro, `m` paliçada, `h` muro baixo, `+` porta, `^` rocha, `*` fogueira, `b c s n a o w` objetos, `/` rampa e `|` escada, que ligam níveis: `custoSubida`).
   - `par` (paredes): `# m f h + d` e as de construção `g` tijolo, `i` reboco, `p` tábuas, `z` muralha, `!` janela, `%` grade (`PAREDES` em `regras.js`; espessura/altura em `arkahad-godot/cena/paredes.gd` (e `PAREDES` do `cena3d.js` no site).
-  - `tin` (pintura das paredes): uma letra de `TINTAS` (`regras.js`) por casa, ' ' = cor natural; validada por `camadaTinta` no `worker.js`. Nenhum cliente desenha a tinta ainda (fazer no Godot).
+  - `tin` (pintura das paredes): uma letra de `TINTAS` (`regras.js`) por casa, ' ' = cor natural; validada por `camadaTinta` no `worker.js`; o Godot pinta em `cena/paredes.gd`.
   - Sala fechada pelas quatro paredes (porta fechada conta): `semParedeEntre` em `regras.js`; o `mover` recusa para todos, inclusive o Mestre.
   - `alt`: `'0'..'4'` = nível −1..+3 (`nivelEm`). `NIVEL_H` em `terreno.js` dá a altura visual.
 - PCs e NPCs têm `mapa`; o servidor resolve com `idMapa()`. Cada jogador recebe só o mapa onde está o personagem dele (`estadoPara`); o Mestre recebe o mapa `meta.vendo` e todos os NPCs.
